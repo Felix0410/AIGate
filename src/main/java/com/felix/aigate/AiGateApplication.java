@@ -4,10 +4,10 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class AigatetempApplication {
+public class AiGateApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(AigatetempApplication.class, args);
+        SpringApplication.run(AiGateApplication.class, args);
     }
 
 }
