@@ -11,8 +11,8 @@
     <groupId>com.felix</groupId>
     <artifactId>aigate</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>aigatetemp</name>
-    <description>aigatetemp</description>
+    <name>aigate</name>
+    <description>aigate</description>
     <url/>
     <licenses>
         <license/>
@@ -39,6 +39,16 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc-test</artifactId>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-spring-boot4-starter</artifactId>
+            <version>3.5.13</version>
         </dependency>
     </dependencies>
 
