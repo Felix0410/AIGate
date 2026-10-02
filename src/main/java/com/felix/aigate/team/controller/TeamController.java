@@ -5,6 +5,7 @@ import com.felix.aigate.team.dto.request.UpdateTeamRequest;
 import com.felix.aigate.team.dto.response.TeamResponse;
 import com.felix.aigate.team.entity.Team;
 import com.felix.aigate.team.service.TeamService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,7 +19,7 @@ public class TeamController {
     private final TeamService teamService;
 
     @PostMapping
-    public TeamResponse createTeam(@RequestBody CreateTeamRequest request) {
+    public TeamResponse createTeam(@Valid @RequestBody CreateTeamRequest request) {
 
         Team team = teamService.createTeam(request.getName());
         return toResponse(team);
@@ -37,7 +38,7 @@ public class TeamController {
     }
 
     @PutMapping("/{id}")
-    public TeamResponse updateTeam(@PathVariable Long id, @RequestBody UpdateTeamRequest request) {
+    public TeamResponse updateTeam(@PathVariable Long id, @Valid @RequestBody UpdateTeamRequest request) {
         Team team = teamService.updateTeam(id, request.getName());
         return toResponse(team);
     }

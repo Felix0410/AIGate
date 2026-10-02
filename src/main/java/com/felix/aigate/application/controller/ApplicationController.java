@@ -5,6 +5,7 @@ import com.felix.aigate.application.dto.request.UpdateApplicationRequest;
 import com.felix.aigate.application.dto.response.ApplicationResponse;
 import com.felix.aigate.application.entity.Application;
 import com.felix.aigate.application.service.ApplicationService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,7 +19,7 @@ public class ApplicationController {
     private final ApplicationService applicationService;
 
     @PostMapping
-    public ApplicationResponse createApplication(@RequestBody CreateApplicationRequest request) {
+    public ApplicationResponse createApplication(@Valid @RequestBody CreateApplicationRequest request) {
 
         Application application = applicationService.createApplication(
                 request.getName(),
@@ -44,7 +45,7 @@ public class ApplicationController {
     @PutMapping("/{id}")
     public ApplicationResponse updateApplication(
             @PathVariable Long id,
-            @RequestBody UpdateApplicationRequest request) {
+            @Valid @RequestBody UpdateApplicationRequest request) {
 
         Application application = applicationService.updateApplication(
                 id,

@@ -1,12 +1,15 @@
 package com.felix.aigate.team.dto.request;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
-import lombok.Getter;
-import lombok.Setter;
+
 
 @Data
 public class CreateTeamRequest {
 
+    @NotBlank
+    @Size(max = 100)
     private String name;
 
 }

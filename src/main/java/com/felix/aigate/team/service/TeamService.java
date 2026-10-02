@@ -1,5 +1,8 @@
 package com.felix.aigate.team.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.felix.aigate.common.exception.ConflictException;
+import com.felix.aigate.common.exception.ResourceNotFoundException;
 import com.felix.aigate.team.entity.Team;
 import com.felix.aigate.team.mapper.TeamMapper;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +17,8 @@ public class TeamService {
     private final TeamMapper teamMapper;
 
     public Team createTeam(String name) {
+        ensureTeamNameAvailable(name, null);
+
         Team team = new Team();
         team.setName(name);
         teamMapper.insert(team);
@@ -21,7 +26,16 @@ public class TeamService {
     }
 
     public Team getTeamById(Long id) {
-        return teamMapper.selectById(id);
+        Team team = teamMapper.selectById(id);
+
+        if (team == null) {
+            throw new ResourceNotFoundException(
+                    "TEAM_NOT_FOUND",
+                    "Team not found"
+            );
+        }
+
+        return team;
     }
 
     public List<Team> listTeams() {
@@ -29,7 +43,10 @@ public class TeamService {
     }
 
     public Team updateTeam(Long id, String name) {
-        Team team = teamMapper.selectById(id);
+        Team team = getTeamById(id);
+
+        ensureTeamNameAvailable(name, id);
+
         team.setName(name);
 
         teamMapper.updateById(team);
@@ -37,7 +54,25 @@ public class TeamService {
     }
 
     public void deleteTeam(Long id) {
+        getTeamById(id);
         teamMapper.deleteById(id);
+    }
+
+    private void ensureTeamNameAvailable(String name, Long excludeId) {
+        LambdaQueryWrapper<Team> wrapper = new LambdaQueryWrapper<Team>()
+                .eq(Team::getName, name);
+
+        if (excludeId != null) {
+            wrapper.ne(Team::getId, excludeId);
+        }
+
+        Long count = teamMapper.selectCount(wrapper);
+        if (count != null && count > 0) {
+            throw new ConflictException(
+                    "TEAM_NAME_ALREADY_EXISTS",
+                    "Team name already exists"
+            );
+        }
     }
 
 }

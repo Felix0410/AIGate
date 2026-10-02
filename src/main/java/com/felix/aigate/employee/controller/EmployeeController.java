@@ -5,6 +5,7 @@ import com.felix.aigate.employee.dto.request.UpdateEmployeeRequest;
 import com.felix.aigate.employee.dto.response.EmployeeResponse;
 import com.felix.aigate.employee.entity.Employee;
 import com.felix.aigate.employee.service.EmployeeService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,7 +19,7 @@ public class EmployeeController {
     private final EmployeeService employeeService;
 
     @PostMapping
-    public EmployeeResponse createEmployee(@RequestBody CreateEmployeeRequest request) {
+    public EmployeeResponse createEmployee(@Valid @RequestBody CreateEmployeeRequest request) {
 
         Employee employee = employeeService.createEmployee(
                 request.getName(),
@@ -45,7 +46,7 @@ public class EmployeeController {
     @PutMapping("/{id}")
     public EmployeeResponse updateEmployee(
             @PathVariable Long id,
-            @RequestBody UpdateEmployeeRequest request) {
+            @Valid @RequestBody UpdateEmployeeRequest request) {
 
         Employee employee = employeeService.updateEmployee(
                 id,
