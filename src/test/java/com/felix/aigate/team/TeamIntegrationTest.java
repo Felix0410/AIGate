@@ -1,5 +1,6 @@
 package com.felix.aigate.team;
 
+import com.felix.aigate.employee.dto.request.CreateEmployeeRequest;
 import com.felix.aigate.support.IntegrationTestBase;
 import com.felix.aigate.team.dto.request.CreateTeamRequest;
 import com.felix.aigate.team.dto.request.UpdateTeamRequest;
@@ -7,9 +8,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.springframework.http.MediaType.APPLICATION_JSON;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -84,6 +83,27 @@ class TeamIntegrationTest extends IntegrationTestBase {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(id))
                 .andExpect(jsonPath("$.name").value("team-it-update-same"));
+    }
+
+    @Test
+    @DisplayName("删除仍被 Employee 引用的 Team -> 409 RESOURCE_CONFLICT")
+    void deleteReferencedTeamShouldReturn409() throws Exception {
+
+        long teamId = createAndReadId("team-it-referenced");
+
+        CreateEmployeeRequest employee = new CreateEmployeeRequest();
+        employee.setName("Referenced Employee");
+        employee.setEmail("team-delete-reference@example.com");
+        employee.setTeamId(teamId);
+
+        mockMvc.perform(authed(post("/api/employees"))
+                        .contentType(APPLICATION_JSON)
+                        .content(json(employee)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(authed(delete("/api/teams/" + teamId)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("RESOURCE_CONFLICT"));
     }
 
     // ---- helpers ----
