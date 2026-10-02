@@ -8,8 +8,6 @@ import com.felix.aigate.team.mapper.TeamMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import com.felix.aigate.common.exception.ResourceNotFoundException;
-
-
 import java.util.List;
 
 @Service
@@ -37,10 +35,7 @@ public class ApplicationService {
 
         Application application = applicationMapper.selectById(id);
         if (application == null) {
-            throw new ResourceNotFoundException(
-                    "APPLICATION_NOT_FOUND",
-                    "Application not found"
-            );
+            throw new ResourceNotFoundException("APPLICATION_NOT_FOUND", "Application not found");
         }
         return application;
     }
@@ -70,16 +65,12 @@ public class ApplicationService {
 
     private void ensureTeamExists(Long teamId) {
         if (teamMapper.selectById(teamId) == null) {
-            throw new ResourceNotFoundException(
-                    "TEAM_NOT_FOUND",
-                    "Team not found"
-            );
+            throw new ResourceNotFoundException("TEAM_NOT_FOUND", "Team not found");
         }
     }
 
     private void ensureApplicationNameAvailable(String name, Long excludeId) {
-        LambdaQueryWrapper<Application> wrapper = new LambdaQueryWrapper<Application>()
-                .eq(Application::getName, name);
+        LambdaQueryWrapper<Application> wrapper = new LambdaQueryWrapper<Application>().eq(Application::getName, name);
 
         if (excludeId != null) {
             wrapper.ne(Application::getId, excludeId);
@@ -87,10 +78,7 @@ public class ApplicationService {
 
         Long count = applicationMapper.selectCount(wrapper);
         if (count != null && count > 0) {
-            throw new ConflictException(
-                    "APPLICATION_NAME_ALREADY_EXISTS",
-                    "Application name already exists"
-            );
+            throw new ConflictException("APPLICATION_NAME_ALREADY_EXISTS", "Application name already exists");
         }
     }
 }

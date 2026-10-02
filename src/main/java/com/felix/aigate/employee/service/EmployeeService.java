@@ -43,7 +43,7 @@ public class EmployeeService {
             );
         }
 
-        return employeeMapper.selectById(id);
+        return employee;
     }
 
     public List<Employee> listEmployees() {
