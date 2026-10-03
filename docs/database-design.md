@@ -1,11 +1,10 @@
-
 # AIGate Database Design
 
 ## 1. 文档目的
 
-本文档记录 AIGate 当前数据库设计。
+本文档记录 AIGate 当前实际数据库设计。
 
-当前目标：
+目标：
 
 - 描述现有表结构
 - 固定表之间的关系
@@ -13,427 +12,266 @@
 - 解释数据库层承担的数据完整性职责
 - 为后续 migration 演进提供基线
 
-当前内容以 Phase 1 实际实现为准。
+当前内容以 **Phase 2 / P2-T01 完成后的实际实现** 为准。
 
 ---
 
 ## 2. 当前数据库
 
-数据库：
+数据库：**MySQL 8.4**
 
-**MySQL 8.4**
-
-当前 Schema：
+Schema：
 
 ```text
 aigate
 ```
 
-数据库结构通过 Flyway 管理。
-
-当前 migration：
+当前 Flyway migration：
 
 ```text
 V1 → team
 V2 → employee
 V3 → application
+V4 → provider / model / model_deployment
 ```
 
 原则：
 
-> 已经执行过的 migration 不允许修改。
-
-后续数据库变化必须新增 migration。
-
-例如：
-
-```text
-V4__xxx.sql
-V5__xxx.sql
-```
+> 已执行 migration 不允许修改，后续变化必须新增 migration。
 
 ---
 
 ## 3. 当前领域关系
 
-Phase 1 当前关系：
-
-```text
-Team
-├── Employee
-└── Application
-```
-
-具体关系：
+Identity：
 
 ```text
 Team 1 ---- N Employee
 Team 1 ---- N Application
 ```
 
-即：
+Model Registry：
 
-- 一个 Team 可以有多个 Employee
-- 一个 Team 可以有多个 Application
-- 一个 Employee 必须属于一个 Team
-- 一个 Application 必须属于一个 Team
+```text
+Provider 1 ---- N ModelDeployment
+Model    1 ---- N ModelDeployment
+```
+
+因此：
+
+```text
+Provider ───┐
+            ├── ModelDeployment
+Model ──────┘
+```
+
+重要：`Model` 不直接属于 `Provider`。
 
 ---
 
-## 4. team 表
+## 4. team
 
-表：
-
-```text
-team
-```
-
-字段：
-
-| 字段 | 类型 | 约束 | 说明 |
-|---|---|---|---|
-| id | BIGINT | PK, AUTO_INCREMENT | Team ID |
-| name | VARCHAR(100) | NOT NULL, UNIQUE | Team 名称 |
-| created_at | TIMESTAMP | NOT NULL | 创建时间 |
-| updated_at | TIMESTAMP | NOT NULL | 更新时间 |
-
-当前约束：
-
-```text
-PRIMARY KEY (id)
-UNIQUE (name)
-```
+| 字段 | 类型 | 约束 |
+|---|---|---|
+| id | BIGINT | PK, AUTO_INCREMENT |
+| name | VARCHAR(100) | NOT NULL, UNIQUE |
+| created_at | TIMESTAMP | NOT NULL |
+| updated_at | TIMESTAMP | NOT NULL |
 
 ---
 
-## 5. employee 表
+## 5. employee
 
-表：
+| 字段 | 类型 | 约束 |
+|---|---|---|
+| id | BIGINT | PK, AUTO_INCREMENT |
+| name | VARCHAR(100) | NOT NULL |
+| email | VARCHAR(255) | NOT NULL, UNIQUE |
+| team_id | BIGINT | NOT NULL, FK |
+| created_at | TIMESTAMP | NOT NULL |
+| updated_at | TIMESTAMP | NOT NULL |
 
-```text
-employee
-```
-
-字段：
-
-| 字段 | 类型 | 约束 | 说明 |
-|---|---|---|---|
-| id | BIGINT | PK, AUTO_INCREMENT | Employee ID |
-| name | VARCHAR(100) | NOT NULL | 员工名称 |
-| email | VARCHAR(255) | NOT NULL, UNIQUE | 邮箱 |
-| team_id | BIGINT | NOT NULL, FK | 所属 Team |
-| created_at | TIMESTAMP | NOT NULL | 创建时间 |
-| updated_at | TIMESTAMP | NOT NULL | 更新时间 |
-
-当前约束：
+约束：
 
 ```text
-PRIMARY KEY (id)
-UNIQUE (email)
 FOREIGN KEY (team_id)
-    REFERENCES team(id)
-    ON DELETE RESTRICT
-```
-
-索引：
-
-```text
-idx_employee_team_id
-```
-
----
-
-## 6. application 表
-
-表：
-
-```text
-application
-```
-
-字段：
-
-| 字段 | 类型 | 约束 | 说明 |
-|---|---|---|---|
-| id | BIGINT | PK, AUTO_INCREMENT | Application ID |
-| name | VARCHAR(100) | NOT NULL, UNIQUE | Application 名称 |
-| team_id | BIGINT | NOT NULL, FK | 所属 Team |
-| created_at | TIMESTAMP | NOT NULL | 创建时间 |
-| updated_at | TIMESTAMP | NOT NULL | 更新时间 |
-
-当前约束：
-
-```text
-PRIMARY KEY (id)
-UNIQUE (name)
-FOREIGN KEY (team_id)
-    REFERENCES team(id)
-    ON DELETE RESTRICT
-```
-
-索引：
-
-```text
-idx_application_team_id
-```
-
----
-
-## 7. 外键设计
-
-当前两个外键：
-
-```text
-employee.team_id
-→ team.id
-
-application.team_id
-→ team.id
-```
-
-数据库层使用真实 Foreign Key。
-
-原因：
-
-> Employee 和 Application 在 Phase 1 中都不能脱离 Team 独立存在。
-
-因此数据库必须保证：
-
-```text
-不存在的 team_id
-→ 无法写入
-
-仍然被引用的 Team
-→ 无法删除
-```
-
----
-
-## 8. ON DELETE RESTRICT
-
-当前 FK 使用：
-
-```text
+REFERENCES team(id)
 ON DELETE RESTRICT
 ```
 
-例如：
-
-```text
-Team 1
-└── Employee 10
-```
-
-此时：
-
-```text
-DELETE Team 1
-```
-
-数据库会拒绝。
-
-
-原因：
-
-如果允许直接删除 Team，则可能出现：
-
-```text
-Employee.team_id
-→ 指向不存在的 Team
-```
-
-或者被迫自动删除相关数据。
-
-当前 Phase 1 不接受这种隐式副作用。
+索引：`idx_employee_team_id`
 
 ---
 
-## 9. 为什么不用 ON DELETE CASCADE
+## 6. application
 
-当前没有采用：
+| 字段 | 类型 | 约束 |
+|---|---|---|
+| id | BIGINT | PK, AUTO_INCREMENT |
+| name | VARCHAR(100) | NOT NULL, UNIQUE |
+| team_id | BIGINT | NOT NULL, FK |
+| created_at | TIMESTAMP | NOT NULL |
+| updated_at | TIMESTAMP | NOT NULL |
 
-```text
-ON DELETE CASCADE
-```
-
-因为删除 Team 时自动删除：
-
-```text
-Employee
-Application
-```
-
-风险过高。
-
-Team 属于核心业务归属实体。
-
-删除 Team 不应该自动大范围删除业务数据。
-
-因此当前选择：
+约束：
 
 ```text
-RESTRICT
+FOREIGN KEY (team_id)
+REFERENCES team(id)
+ON DELETE RESTRICT
 ```
 
-让应用显式处理冲突。
+索引：`idx_application_team_id`
+
+`default_deployment_id` 尚未加入；该变化属于 P2-T03。
 
 ---
 
-## 10. 为什么不用 SET NULL
+## 7. provider
 
-当前没有采用：
+P2-T01 新增。
 
-```text
-ON DELETE SET NULL
-```
+| 字段 | 类型 | 约束 | 说明 |
+|---|---|---|---|
+| id | BIGINT | PK, AUTO_INCREMENT | Provider ID |
+| name | VARCHAR(100) | NOT NULL, UNIQUE | Provider 名称 |
+| type | VARCHAR(50) | NOT NULL | Provider 协议类型 |
+| created_at | TIMESTAMP | NOT NULL | 创建时间 |
+| updated_at | TIMESTAMP | NOT NULL | 更新时间 |
 
-因为 Phase 1 业务规则明确：
-
-```text
-Employee 必须属于 Team
-Application 必须属于 Team
-```
-
-所以：
+当前 `type` 在 Java 中对应：
 
 ```text
-team_id
+ProviderType.OPENAI_COMPATIBLE
 ```
-
-不能为 NULL。
 
 ---
 
-## 11. UNIQUE 策略
+## 8. model
 
-当前唯一字段：
+P2-T01 新增。
+
+| 字段 | 类型 | 约束 |
+|---|---|---|
+| id | BIGINT | PK, AUTO_INCREMENT |
+| name | VARCHAR(100) | NOT NULL, UNIQUE |
+| created_at | TIMESTAMP | NOT NULL |
+| updated_at | TIMESTAMP | NOT NULL |
+
+Model 当前只表示逻辑模型，不直接保存 Provider 关系。
+
+---
+
+## 9. model_deployment
+
+P2-T01 新增。
+
+| 字段 | 类型 | 约束 | 说明 |
+|---|---|---|---|
+| id | BIGINT | PK, AUTO_INCREMENT | Deployment ID |
+| name | VARCHAR(100) | NOT NULL, UNIQUE | Deployment 名称 |
+| provider_id | BIGINT | NOT NULL, FK | 所属 Provider |
+| model_id | BIGINT | NOT NULL, FK | 对应逻辑 Model |
+| endpoint_url | VARCHAR(500) | NOT NULL | 实际调用地址 |
+| remote_model_name | VARCHAR(255) | NOT NULL | 上游模型标识 |
+| encrypted_credential | TEXT | NULL | Provider Credential 密文预留 |
+| enabled | BOOLEAN | NOT NULL, DEFAULT TRUE | 是否启用 |
+| created_at | TIMESTAMP | NOT NULL | 创建时间 |
+| updated_at | TIMESTAMP | NOT NULL | 更新时间 |
+
+外键：
+
+```text
+model_deployment.provider_id
+→ provider.id
+→ ON DELETE RESTRICT
+
+model_deployment.model_id
+→ model.id
+→ ON DELETE RESTRICT
+```
+
+索引：
+
+```text
+idx_model_deployment_provider_id
+idx_model_deployment_model_id
+```
+
+注意：`encrypted_credential` 字段已经存在，但 P2-T02 尚未开始，因此当前不能把“Credential 已安全加密存储”当作已完成事实。
+
+---
+
+## 10. UNIQUE 策略
+
+当前主要唯一约束：
 
 ```text
 team.name
 employee.email
 application.name
+provider.name
+model.name
+model_deployment.name
 ```
 
-数据库层保留 UNIQUE。
-
-应用层 Service 也会提前检查。
-
-因此当前采用两层保护：
+采用两层保护：
 
 ```text
-Service
-→ 提前发现业务冲突
-→ 返回明确 Error Code
+Service 预检查
+→ 明确业务错误
 
 Database UNIQUE
-→ 并发情况下最终保护数据完整性
+→ 并发情况下最终保证数据完整性
 ```
-
-例如：
-
-```text
-Request A
-Request B
-```
-
-同时检查：
-
-```text
-email 不存在
-```
-
-两边都可能通过 Service 检查。
-
-此时最终仍由数据库：
-
-```text
-UNIQUE(email)
-```
-
-阻止重复数据。
-
-因此：
-
-> Service 检查不能替代数据库 UNIQUE。
 
 ---
 
-## 12. 索引设计
+## 11. FK / ON DELETE RESTRICT
 
-当前显式索引：
-
-```text
-employee.team_id
-application.team_id
-```
-
-原因：
-
-这两个字段是常见关系查询字段。
-
-例如未来可能出现：
+当前真实外键包括：
 
 ```text
-查询某 Team 下所有 Employee
-查询某 Team 下所有 Application
+employee.team_id → team.id
+application.team_id → team.id
+model_deployment.provider_id → provider.id
+model_deployment.model_id → model.id
 ```
 
-因此提前保留 FK 关联字段索引是合理的。
+统一采用 RESTRICT 思路：
+
+> 仍被业务对象引用的资源不能被隐式级联删除。
+
+因此删除被 Deployment 引用的 Provider / Model 时，数据库拒绝删除，应用层映射为 `409 RESOURCE_CONFLICT`。
 
 ---
 
-## 13. 时间字段
+## 12. 时间字段
 
-当前使用：
+继续统一使用：
 
 ```text
 created_at
 updated_at
 ```
 
-类型：
+数据库类型：`TIMESTAMP`
 
-```text
-TIMESTAMP
-```
+Java 对应：`Instant`
 
-数据库负责：
-
-```text
-created_at
-→ DEFAULT CURRENT_TIMESTAMP
-
-updated_at
-→ DEFAULT CURRENT_TIMESTAMP
-→ ON UPDATE CURRENT_TIMESTAMP
-```
-
-Java 层对应：
-
-```text
-Instant
-```
-
-当前时间策略：
-
-```text
-数据库持久化统一 UTC 语义
-应用层使用 Instant
-```
-
-避免在核心模型中混入本地时区语义。
+数据库负责默认创建与更新时间。
 
 ---
 
-## 14. 数据完整性职责
+## 13. 数据完整性职责
 
-当前数据库负责最终保证：
+数据库负责最终保证：
 
 ```text
+PRIMARY KEY
 NOT NULL
 UNIQUE
 FOREIGN KEY
-PRIMARY KEY
 ```
 
 应用层负责：
@@ -441,181 +279,52 @@ PRIMARY KEY
 ```text
 业务语义
 友好错误码
-预检查
+存在性预检查
+唯一性预检查
 ```
 
-两层职责不同。
-
-例如：
-
-```text
-Employee email 重复
-```
-
-正常情况下：
-
-```text
-Service
-→ EMAIL_ALREADY_EXISTS
-```
-
-并发冲突情况下：
-
-```text
-Database UNIQUE
-→ DuplicateKeyException
-→ RESOURCE_CONFLICT
-```
+两者不能互相替代。
 
 ---
 
-## 15. 数据库异常与 API
+## 14. 当前删除策略
 
-数据库异常不会直接暴露给客户端。
+当前没有全局软删除。
 
-当前转换关系：
+P2-T01 中：
 
-```text
-DuplicateKeyException
-→ 409 RESOURCE_CONFLICT
+- Provider / Model / ModelDeployment CRUD 当前仍允许物理删除
+- Provider / Model 若被 Deployment 引用则由 FK RESTRICT 阻止
+- Deployment 已有 `enabled` 字段，用于未来“保留配置但禁止调用”的业务语义
 
-DataIntegrityViolationException
-→ 409 RESOURCE_CONFLICT
-```
-
-例如：
-
-```text
-删除仍被引用的 Team
-```
-
-数据库：
-
-```text
-FK violation
-```
-
-API：
-
-```text
-409 RESOURCE_CONFLICT
-```
+ApiKey 的 `REVOKED` 策略属于 P2-T04，尚未实现。
 
 ---
 
-## 16. 当前不使用软删除
+## 15. 当前不做的数据库能力
 
-Phase 1 当前采用物理删除。
-
-即：
+当前不引入：
 
 ```text
-DELETE FROM ...
-```
-
-当前没有：
-
-```text
-deleted
-deleted_at
-logic delete
-```
-
-原因：
-
-当前业务尚未出现：
-
-- 数据恢复需求
-- 审计保留要求
-- 法规保留要求
-- 历史查询需求
-
-因此不提前引入软删除复杂度。
-
-如果未来出现真实需求，再重新评估。
-
----
-
-## 17. 当前不做多租户
-
-当前数据库模型基于：
-
-```text
-Single Organization
-```
-
-所以目前没有：
-
-```text
-organization_id
-tenant_id
-```
-
-未来如果引入 Multi-Tenant，需要重点重新评估：
-
-```text
-Team 唯一约束
-Employee email 唯一约束
-Application name 唯一约束
-所有查询的数据隔离
-索引设计
-Security Context
-```
-
-这会属于重大架构变化，应记录 ADR。
-
----
-
-## 18. 当前不使用 UUID
-
-当前主键采用：
-
-```text
-BIGINT AUTO_INCREMENT
-```
-
-原因：
-
-- 当前单体 + 单数据库
-- 简单
-- 索引友好
-- 易于调试
-- 尚未出现分布式 ID 需求
-
-未来只有在出现：
-
-```text
-多数据库
-分布式写入
-离线 ID 生成
-跨系统全局唯一 ID
-```
-
-等真实问题后，再考虑 UUID / Snowflake 等方案。
-
----
-
-## 19. 当前不做分库分表
-
-当前数据规模尚未形成分库分表问题。
-
-因此当前：
-
-```text
-单 MySQL
-单 Schema
-```
-
-足够。
-
-不提前加入：
-
-```text
-ShardingSphere
-分库
-分表
+Multi-Tenant
+UUID / Snowflake
+Soft Delete Framework
+分库分表
 读写分离
+Redis Runtime Snapshot
 ```
+
+必须等真实问题出现后再演进。
 
 ---
 
+## 16. 后续计划 Migration
+
+当前冻结计划：
+
+```text
+V5__add_application_default_deployment.sql
+V6__create_application_api_key.sql
+```
+
+但 P2-T02 尚未启动，后续 migration 只有进入对应任务后才实施。
