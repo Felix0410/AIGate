@@ -2,7 +2,7 @@
 
 ## 1. 文档目的
 
-本文档记录 AIGate 当前实际架构，以及架构演进过程
+本文档记录 AIGate 当前实际架构，以及架构演进过程。
 
 ---
 
@@ -10,34 +10,25 @@
 
 当前阶段：
 
-**Phase 1 — Foundation & Core Identity**
+**Phase 2 — Model Registry & Single Model Proxy**
 
-Phase 1 的核心业务目标是建立 AIGate 最基础的身份与归属模型：
+当前执行状态：
 
 ```text
-Team
-├── Employee
-└── Application
-```
-Phase 1 暂不处理：
+P2-T01 Model Registry Schema
+→ COMPLETED
 
-- AI Provider
-- Model
-- AI Proxy
-- API Key
-- JWT / OAuth / OIDC
-- Redis
-- MQ
-- Elasticsearch
-- 微服务
-- 分布式事务
-- 分布式锁
+P2-T02 Provider Credential Protection
+→ NOT STARTED
+```
+
+当前不会自动进入 P2-T02，等待用户确认。
 
 ---
 
 ## 3. 当前系统形态
 
-AIGate 当前采用：
+AIGate 仍采用：
 
 **单体应用 + 模块化代码组织**
 
@@ -45,11 +36,11 @@ AIGate 当前采用：
 
 原因：
 
-- 当前业务规模较小
-- Team / Employee / Application 强相关
+- 仍处于单节点、单数据库阶段
 - 尚未出现独立扩缩容需求
 - 尚未出现服务间通信问题
 - 尚未出现分布式一致性问题
+- 当前重点是先打通 AI Gateway 主流程
 
 当前阶段优先保证：
 
@@ -57,55 +48,57 @@ AIGate 当前采用：
 - 数据一致性
 - 可维护性
 - 可测试性
+- 架构可演进但不过度设计
 
 ---
 
 ## 4. 当前整体架构
 
+当前已经实现的主链仍是管理面 CRUD：
+
 ```text
 Client
-  |
-  v
+  ↓
 Spring Security Filter Chain
-  |
-  v
+  ↓
 Spring MVC Controller
-  |
-  v
+  ↓
 Service
-  |
-  v
+  ↓
 MyBatis-Plus Mapper
-  |
-  v
+  ↓
 MySQL
 ```
 
-辅助基础设施：
+当前新增 Model Registry：
 
 ```text
-Flyway
-→ 数据库版本管理
+Provider ───┐
+            ├── ModelDeployment
+Model ──────┘
+```
 
-Bean Validation
-→ 请求参数校验
+Phase 2 后续目标运行时链路尚未实现：
 
-GlobalExceptionHandler
-→ MVC 层统一错误响应
-
-Spring Security
-→ API 认证边界
-
-Testcontainers
-→ 集成测试真实 MySQL 环境
-
-MockMvc
-→ HTTP 层集成测试
+```text
+Application
+↓
+AIGate API Key
+↓
+AIGate
+↓
+Application.defaultDeployment
+↓
+ModelDeployment
+↓
+ProviderAdapter
+↓
+Provider
 ```
 
 ---
 
-## 5. 模块划分
+## 5. 当前模块划分
 
 当前主要业务模块：
 
@@ -113,9 +106,20 @@ MockMvc
 team
 employee
 application
+provider
+model
+deployment
 ```
 
-每个模块基本采用：
+基础模块：
+
+```text
+common
+config
+security
+```
+
+各业务模块继续采用简单结构：
 
 ```text
 controller
@@ -129,109 +133,96 @@ service
 
 - Repository 抽象层
 - Domain Service
-- Command / Query 分离
+- CQRS
 - DDD Aggregate
 - Event Bus
 
-原因是当前业务复杂度还不足以支撑这些抽象成本。
+原因仍然是当前业务复杂度不足以支撑这些额外抽象成本。
 
 ---
 
-## 6. Team 模块
+## 6. Phase 1 Identity Model
 
-Team 是当前 Phase 1 的核心归属单位。
-
-职责：
-
-- 创建 Team
-- 查询 Team
-- 更新 Team
-- 删除 Team
-- 保证 Team name 唯一
-
-当前唯一性策略：
+Phase 1 已完成：
 
 ```text
-Service 预检查
-→ 提供明确业务错误
-
-Database UNIQUE
-→ 并发情况下最终保证数据完整性
-```
-
-更新时会排除当前记录自身，避免：
-
-```text
-Team A 更新名字为原来的名字
-→ 被误判为重复
-```
-
----
-
-## 7. Employee 模块
-
-Employee 表示组织中的人员实体。
-
-当前关系：
-
-```text
-Employee
-  |
-  v
 Team
+├── Employee
+└── Application
 ```
 
-每个 Employee 必须属于一个已存在的 Team。
+Employee 仍是业务人员实体，不等同于登录账号。
 
-创建 / 更新 Employee 时：
-
-```text
-检查 Team 是否存在
-↓
-检查 email 是否可用
-↓
-写入数据库
-```
-
-Employee email 当前是全局唯一。
-
-这是 Phase 1 “单组织”假设下的简化方案。
-
+Application 仍表示未来调用 AIGate 的机器应用身份主体。
 
 ---
 
-## 8. Application 模块
+## 7. P2-T01 Model Registry
 
-Application 表示未来调用 AIGate 的业务应用。
+### 7.1 Provider
 
-当前关系：
+Provider 表示模型服务提供方 / 协议类别。
+
+当前实际支持：
 
 ```text
-Application
-  |
-  v
-Team
+ProviderType.OPENAI_COMPATIBLE
 ```
 
-每个 Application 必须属于一个已存在的 Team，后续会调整使用多Application的关系
+当前 Provider 不保存 endpoint / credential 等部署级运行配置。
 
-Application name 当前全局唯一。
+### 7.2 Model
 
-当前 Phase 1 暂未实现：
+Model 表示逻辑模型。
 
-- API Key
-- Application Credential
-- Model Permission
-- Quota
-- Rate Limit
+当前重要设计：
+
+> Model 不直接属于 Provider。
+
+原因是同一个逻辑模型未来可以由不同 Provider 承载。
+
+### 7.3 ModelDeployment
+
+ModelDeployment 表示真正可调用的模型部署实例。
+
+关系：
+
+```text
+Provider 1 ---- N ModelDeployment
+Model    1 ---- N ModelDeployment
+```
+
+当前字段已经包含：
+
+```text
+endpointUrl
+remoteModelName
+encryptedCredential
+enabled
+```
+
+其中 `encryptedCredential` 只是 schema 预留；真正 Credential 加密/解密逻辑属于 P2-T02，尚未实现。
+
+### 7.4 为什么运行时最终选择 Deployment
+
+真正影响调用的是：
+
+```text
+endpoint
+remote model identifier
+credential
+enabled
+```
+
+这些都属于具体部署实例，而不是逻辑 Model。
+
+因此未来 Routing 的真实目标也会是 ModelDeployment。
 
 ---
 
-## 9. 数据库设计原则
+## 8. 数据库设计原则
 
-当前数据库使用 MySQL 8.4。
-
-Schema 使用 Flyway 管理。
+当前数据库使用 MySQL 8.4，Schema 通过 Flyway 管理。
 
 当前 migration：
 
@@ -239,15 +230,12 @@ Schema 使用 Flyway 管理。
 V1 → Team
 V2 → Employee
 V3 → Application
+V4 → Provider / Model / ModelDeployment
 ```
 
 已执行 migration 不允许修改。
 
-后续数据库变化必须通过新的 migration 完成。
-
-### 9.1 数据完整性
-
-数据库负责最终数据完整性：
+数据库继续负责最终数据完整性：
 
 ```text
 UNIQUE
@@ -255,155 +243,88 @@ FOREIGN KEY
 NOT NULL
 ```
 
-并使用：
+P2-T01 新增：
 
 ```text
-ON DELETE RESTRICT
+model_deployment.provider_id
+→ provider.id
+→ ON DELETE RESTRICT
+
+model_deployment.model_id
+→ model.id
+→ ON DELETE RESTRICT
 ```
 
-防止删除仍然被引用的 Team。
-
----
-
-## 10. API 层
-
-当前 API 使用 REST 风格。
-
-主要资源：
-
-```text
-/api/teams
-/api/employees
-/api/applications
-```
-
-PUT 的语义：
-
-```text
-PUT
-→ 完整更新所有可修改字段
-```
-
-当前不实现 PATCH。
-
----
-
-## 11. Validation
-
-请求参数使用 Jakarta Bean Validation。
-
-例如：
-
-```text
-@NotBlank
-@NotNull
-@Email
-@Size
-```
-
-执行链路：
-
-```text
-HTTP Request
-↓
-Controller
-↓
-@Valid
-↓
-Validation
-↓
-成功进入 Service
-或者
-抛出 MethodArgumentNotValidException
-```
-
-参数错误统一返回：
-
-```text
-400
-VALIDATION_ERROR
-```
-
----
-
-## 12. 异常处理
-
-MVC 层统一使用：
-
-```text
-GlobalExceptionHandler
-```
-
-当前 API 错误语义：
-
-```text
-400
-VALIDATION_ERROR
-
-401
-UNAUTHORIZED
-
-403
-FORBIDDEN
-
-404
-TEAM_NOT_FOUND
-EMPLOYEE_NOT_FOUND
-APPLICATION_NOT_FOUND
-RESOURCE_NOT_FOUND
-
-409
-TEAM_NAME_ALREADY_EXISTS
-EMAIL_ALREADY_EXISTS
-APPLICATION_NAME_ALREADY_EXISTS
-RESOURCE_CONFLICT
-
-500
-INTERNAL_SERVER_ERROR
-```
-
-### 12.1 409 的两层保护
-
-业务唯一性冲突：
+正常业务路径仍采用：
 
 ```text
 Service 预检查
-↓
-ConflictException
-↓
-明确业务错误码
++
+Database Constraint 最终保护
 ```
-
-数据库完整性冲突：
-
-```text
-UNIQUE / FK
-↓
-DataIntegrityViolationException / DuplicateKeyException
-↓
-RESOURCE_CONFLICT
-```
-
-目的：
-
-- 正常业务路径提供更明确错误
-- 并发情况下仍由数据库保证最终一致性
 
 ---
 
-## 13. Spring Security
+## 9. API 层
 
-Phase 1 使用最小安全方案：
+当前实际管理 API 新增：
 
 ```text
-HTTP Basic
+/api/providers
+/api/models
+/api/model-deployments
 ```
 
-保护范围：
+仍全部受 Phase 1 HTTP Basic 保护。
+
+Phase 2 计划中的：
+
+```text
+/v1/**
+→ Application API Key
+```
+
+尚未实现。
+
+---
+
+## 10. Validation 与错误处理
+
+继续使用 Jakarta Bean Validation 和 GlobalExceptionHandler。
+
+P2-T01 新增了 JSON 反序列化错误语义：
+
+```text
+HttpMessageNotReadableException
+↓
+400 INVALID_REQUEST
+```
+
+典型场景：
+
+```text
+ProviderType = NOT_A_VALID_TYPE
+```
+
+因此目前可区分：
+
+```text
+VALIDATION_ERROR
+→ DTO 字段校验失败
+
+INVALID_REQUEST
+→ 请求体无法反序列化为有效请求模型
+```
+
+---
+
+## 11. Spring Security
+
+当前真正已实现的认证仍是：
 
 ```text
 /api/**
-→ authenticated
+→ HTTP Basic
 ```
 
 公开范围：
@@ -414,147 +335,34 @@ HTTP Basic
 /swagger-ui.html
 ```
 
-当前没有：
+当前还没有：
 
-- Role
-- Authority
+- Runtime API Key Authentication
+- Role / Permission
 - JWT
-- OAuth2
-- OIDC
-- API Key
+- OAuth2 / OIDC
 
-### 13.1 为什么当前使用 HTTP Basic
-
-当前 Phase 1 只需要解决：
-
-> 管理 API 不能完全匿名访问。
-
-最终认证模型尚未确定。
-
-因此选择 HTTP Basic：
-
-- Spring 原生支持
-- 配置简单
-- 足以保护开发阶段管理接口
-- 不会提前绑定最终身份模型
-
-### 13.2 Employee 不等于登录账号
-
-当前 Employee 是业务人员实体。
-
-并没有把 Employee 直接设计成：
-
-```text
-User Account
-```
-
-原因是：
-
-- Employee 是业务身份
-- 登录身份是安全身份
-- 两者未来可能不是一一对应
-
-因此 Phase 1 不提前建立 User 表。
+后续 Phase 2 会让管理面和运行时安全边界开始分化，但当前事实仍只有管理面 HTTP Basic。
 
 ---
 
-## 14. CSRF
+## 12. Jackson
 
-当前 Spring Security 中关闭 CSRF。
+项目基于 Spring Boot 4 / Jackson 3。
 
-原因：
-
-当前 API：
-
-```text
-REST API
-+
-HTTP Basic
-+
-Apifox / API Client
-```
-
-不依赖浏览器 Cookie 自动携带 Session。
-
-因此当前 CSRF 防护不会带来实际收益，反而会影响 POST / PUT / DELETE 调试。
-
-如果未来改成：
-
-```text
-Browser
-+
-Cookie / Session Authentication
-```
-
-则需要重新评估 CSRF。
-
----
-
-## 15. Security 错误响应
-
-Spring Security 位于 Controller 之前：
-
-```text
-Security Filter Chain
-↓
-Spring MVC
-```
-
-所以认证 / 授权异常不会自然进入：
-
-```text
-GlobalExceptionHandler
-```
-
-当前使用：
-
-```text
-RestAuthenticationEntryPoint
-→ 401
-
-RestAccessDeniedHandler
-→ 403
-```
-
-并使用 Jackson 3 `JsonMapper` 手动把 `ApiErrorResponse` 写入 HTTP Response。
-
----
-
-## 16. Jackson
-
-当前项目基于 Spring Boot 4。
-
-Spring Boot 4 使用 Jackson 3。
-
-因此当前使用：
+当前继续使用：
 
 ```text
 tools.jackson.databind.json.JsonMapper
 ```
 
-用于：
-
-- Security Handler 手动输出 JSON
-- Integration Test Java Object → JSON
-- Integration Test 读取响应 JSON
+P2-T01 中 ProviderType 非法枚举值会在 Jackson 反序列化阶段失败，再由 GlobalExceptionHandler 转换为 `400 INVALID_REQUEST`。
 
 ---
 
-## 17. 集成测试架构
+## 13. 集成测试架构
 
-Phase 1 引入：
-
-```text
-Spring Boot Test
-MockMvc
-Testcontainers
-MySQL 8.4
-Spring Security Test
-```
-
-目标：
-
-验证真实链路：
+当前测试仍是：
 
 ```text
 MockMvc
@@ -563,204 +371,138 @@ Spring Security
 ↓
 Controller
 ↓
-Validation
+Validation / JSON Binding
 ↓
 Service
 ↓
 MyBatis-Plus
 ↓
-Real MySQL
+Real MySQL Testcontainer
 ```
+
+P2-T01 新增 Provider / Model / ModelDeployment 集成测试，重点验证：
+
+- 正常创建
+- 唯一性冲突
+- ProviderType VARCHAR 往返
+- 非法 ProviderType JSON
+- Deployment 外键存在性
+- Deployment validation
+- FK RESTRICT 删除冲突
 
 ---
 
-## 18. Testcontainers
-
-测试不会连接开发数据库：
+## 14. 当前架构演进过程
 
 ```text
-localhost:3306/aigate
-```
-
-测试运行时：
-
-```text
-JUnit
-↓
-Testcontainers
-↓
-启动临时 MySQL 8.4
-↓
-DynamicPropertySource
-↓
-Spring Boot 连接临时 MySQL
-↓
-Flyway V1 / V2 / V3
-↓
-运行集成测试
-```
-
-整个测试 JVM 共享一个 MySQL Testcontainer。
-
-测试结束后容器被回收。
-
----
-
-## 19. 当前测试范围
-
-Phase 1 不追求高覆盖率数字。
-
-当前测试重点覆盖：
-
-```text
-Security
-→ anonymous 401
-→ correct Basic Auth success
-→ wrong password 401
-
-Team
-→ create
-→ validation 400
-→ not found 404
-→ duplicate 409
-→ update same name
-→ referenced Team delete conflict
-
-Employee
-→ create under existing Team
-→ missing Team 404
-→ duplicate email 409
-
-Application
-→ create under existing Team
-→ missing Team 404
-→ duplicate name 409
-```
-
-
----
-
-## 20. 当前架构演进过程
-
-Phase 1 的真实演进：
-
-```text
-Spring Boot
-+
-MySQL
-
-↓
-
-Flyway
-解决数据库版本管理
-
-↓
-
+Phase 1
+Identity Foundation
 Team / Employee / Application
-建立核心业务模型
-
 ↓
-
-Validation
-解决非法请求输入
-
+Validation / Exception Contract
 ↓
-
-Global Exception Handling
-建立稳定 API Error Contract
-
+HTTP Basic
 ↓
-
-Spring Security
-解决匿名访问问题
-
-↓
-
 Testcontainers
-解决人工测试与本地数据库依赖问题
+↓
+
+Phase 2 / P2-T01
+Model Registry
+Provider / Model / ModelDeployment
+↓
+建立未来模型调用目标的领域边界
 ```
 
+当前还没有真正发生：
+
+```text
+Credential Protection
+Application API Key
+Runtime Authentication
+Provider Adapter
+Outbound HTTP Proxy
+```
+
+这些仍然是后续任务，不应写成当前事实。
 
 ---
 
-## 21. 当前技术债
+## 15. 当前技术债
 
-### 21.1 HTTP Basic 是临时认证方案
+### 15.1 HTTP Basic 是临时管理面认证方案
 
-未来认证模型明确后重新设计。
+后续 Runtime 会出现 Application API Key，但最终管理身份体系仍需后续需求驱动。
 
-### 21.2 当前没有 Role / Permission
+### 15.2 当前没有 Role / Permission
 
-等出现真实授权需求再加入。
+等真实授权需求再加入。
 
-### 21.3 Service 没有统一事务设计
+### 15.3 Service 没有统一事务设计
 
-当前以单表操作为主。
+当前以单表操作为主，多表原子写出现后再明确事务边界。
 
-当出现多个写操作必须原子完成时，再引入明确事务边界。
+### 15.4 跨模块存在少量 Mapper 直接依赖
 
-### 21.4 跨模块存在少量 Mapper 直接依赖
+当前包括：
 
-例如 Employee / Application 直接使用 TeamMapper 校验 Team。
+```text
+Employee / Application → TeamMapper
+ModelDeploymentService → ProviderMapper / ModelMapper
+```
 
-当前保持简单。
+当前保持简单；跨模块业务规则复杂后再演进。
 
-如果跨模块规则变复杂，再考虑更清晰的领域边界。
+### 15.5 错误码仍使用字符串
 
-### 21.5 错误码仍使用字符串
+错误码规模扩大后考虑集中管理。
 
-后续错误码规模扩大后可以统一管理。
+### 15.6 ApiErrorResponse 缺少 traceId / requestId / path
 
-### 21.6 ApiErrorResponse 缺少 traceId / path
+后续 Observability 阶段处理。
 
-后续可观测性阶段再补。
+### 15.7 当前唯一约束基于单 Organization 假设
 
-### 21.7 当前唯一约束基于单 Organization 假设
+未来 Multi-Tenant 时重新评估。
 
-未来多租户设计可能需要调整。
+### 15.8 测试只覆盖关键链路
 
-### 21.8 测试只覆盖关键链路
+当前不追求覆盖率数字。
 
-当前不是完整回归测试体系。
+### 15.9 暂无 CI Test Gate
+
+当前仍缺少 GitHub Actions 自动测试门禁。
 
 ---
 
-## 22. 当前不做微服务
+## 16. 当前仍不做微服务
 
-当前仍保持单体架构。
+当前继续保持模块化单体。
 
-未来只有在出现真实问题时，才考虑拆分，例如：
+只有出现真实问题时才考虑拆分，例如：
 
 - 独立扩缩容需求
-- 明确团队边界
-- 不同模块资源消耗差异巨大
-- 发布节奏需要独立
+- 不同运行时资源模型
+- 发布节奏必须独立
 - 单体耦合真正成为维护障碍
 
-拆分前必须先记录 ADR。
+拆分前必须有清晰问题证据和 ADR。
 
 ---
 
-## 23. Phase 1 架构结论
+## 17. 当前架构结论
 
-Phase 1 当前已经形成：
+P2-T01 完成后，AIGate 已从单纯 Identity Foundation 扩展到具备第一版 Model Registry：
 
 ```text
-可运行
+Identity
 +
-有数据库版本管理
+Model Registry
 +
-有业务闭环
+稳定数据库约束
 +
-有输入校验
+管理 API
 +
-有统一异常
-+
-有安全边界
-+
-有真实数据库集成测试
+集成测试
 ```
 
-当前架构目标不是复杂，而是：
-
-> 为后续 AIGate 的 AI Gateway 核心能力提供一个稳定、可理解、可演进的基础。
+下一步计划是 Provider Credential Protection，但当前尚未启动。
