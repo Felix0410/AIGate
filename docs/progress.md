@@ -4,13 +4,27 @@
 
 当前阶段：
 
-**Phase 1 — Foundation & Core Identity**
+**Phase 2 — Model Registry & Single Model Proxy**
 
 状态：
 
-**COMPLETED**
+**ACTIVE**
 
-当前项目已经完成 AIGate 最基础的身份与归属模型：
+当前执行门：
+
+**P2-T01 COMPLETED / WAITING FOR USER CONFIRMATION**
+
+下一计划任务：
+
+**P2-T02 — Provider Credential Protection（NOT STARTED）**
+
+Phase 1 已完成并验收通过。
+
+---
+
+## 2. Phase 1 完成结果
+
+Phase 1 — Foundation & Core Identity 已完成：
 
 ```text
 Team
@@ -18,108 +32,114 @@ Team
 └── Application
 ```
 
-当前主流程已经打通：
+已具备：
+
+- Team / Employee / Application CRUD
+- Team 归属关系
+- Bean Validation
+- Global Exception Handling
+- HTTP Basic 管理 API 安全边界
+- Flyway
+- MySQL 8.4
+- MyBatis-Plus
+- Testcontainers + MockMvc 集成测试
+
+Phase 1 任务 P1-T01 ~ P1-T09 全部 DONE。
+
+---
+
+## 3. Phase 2 Business Goal
+
+Phase 2 的目标是让一个 Application 第一次通过 AIGate 安全调用 AI Model，同时 Application 不持有 Provider Secret。
+
+目标主流程：
 
 ```text
-HTTP Request
+Application
 ↓
-Spring Security
+AIGate API Key
 ↓
-Controller
+AIGate
 ↓
-Validation
+Application.defaultDeployment
 ↓
-Service
+ModelDeployment
 ↓
-MyBatis-Plus
+ProviderAdapter
 ↓
-MySQL
+Provider
 ```
 
----
-
-## 2. Phase 1 Business Goal
-
-Phase 1 的目标是建立 AIGate 的基础业务实体与工程骨架，使系统具备：
-
-- Team 管理
-- Employee 管理
-- Application 管理
-- Team 与 Employee / Application 的归属关系
-- 基础参数校验
-- 稳定 API Error Contract
-- 最小 API 安全边界
-- 数据库版本管理
-- 自动化集成测试
-
+Phase 2 只做 single-model、non-streaming proxy。
 
 ---
 
-## 3. Phase 1 Task Status
+## 4. Phase 2 Task Status
 
 | Task | 内容 | 状态 |
 |---|---|---|
-| P1-T01 | Spring Boot 项目初始化 | DONE |
-| P1-T02 | MySQL 开发环境 | DONE |
-| P1-T03 | Flyway 数据库版本管理 | DONE |
-| P1-T04 | Team 最小业务闭环 | DONE |
-| P1-T05 | Employee CRUD + Team 关系 | DONE |
-| P1-T06 | Application CRUD + Team 关系 | DONE |
-| P1-T07 | Validation + Error Handling | DONE |
-| P1-T08 | Minimal Spring Security | DONE |
-| P1-T09 | Integration Test + Testcontainers | DONE |
+| P2-T01 | Model Registry Schema | **DONE** |
+| P2-T02 | Provider Credential Protection | **NOT STARTED** |
+| P2-T03 | Application Default Deployment | NOT STARTED |
+| P2-T04 | Application API Key Lifecycle | NOT STARTED |
+| P2-T05 | Runtime Authentication | NOT STARTED |
+| P2-T06 | Unified Model Contract | NOT STARTED |
+| P2-T07 | Provider Adapter | NOT STARTED |
+| P2-T08 | RestClient + Single Model Proxy | NOT STARTED |
+| P2-T09 | Provider Error Mapping | NOT STARTED |
+| P2-T10 | End-to-End Integration Test | NOT STARTED |
+| P2-T11 | Phase Closeout | NOT STARTED |
+
+当前不会自动开始 P2-T02，等待用户确认。
 
 ---
 
-## 4. 当前已完成能力
+## 5. P2-T01 完成能力
 
-### 4.1 Team
+P2-T01 已建立 Model Registry 的第一版最小业务模型：
+
+```text
+Provider ───┐
+            ├── ModelDeployment
+Model ──────┘
+```
+
+### 5.1 Provider
 
 已支持：
 
-- 创建 Team
-- 查询单个 Team
-- 查询 Team 列表
-- 更新 Team
-- 删除 Team
-- Team name 唯一性检查
-- 删除被 Employee / Application 引用的 Team 时返回 409
+- create / get / list / update / delete
+- name 唯一性
+- `ProviderType.OPENAI_COMPATIBLE`
+- 非法 ProviderType JSON 返回 `400 INVALID_REQUEST`
+- 被 ModelDeployment 引用时删除返回 `409 RESOURCE_CONFLICT`
 
----
-
-### 4.2 Employee
+### 5.2 Model
 
 已支持：
 
-- 创建 Employee
-- 查询单个 Employee
-- 查询 Employee 列表
-- 更新 Employee
-- 删除 Employee
-- Employee 必须关联已存在 Team
-- email 唯一性检查
+- create / get / list / update / delete
+- name 唯一性
+- 被 ModelDeployment 引用时删除返回 `409 RESOURCE_CONFLICT`
 
----
-
-### 4.3 Application
+### 5.3 ModelDeployment
 
 已支持：
 
-- 创建 Application
-- 查询单个 Application
-- 查询 Application 列表
-- 更新 Application
-- 删除 Application
-- Application 必须关联已存在 Team
-- Application name 唯一性检查
+- create / get / list / update / delete
+- name 唯一性
+- 必须关联已存在 Provider
+- 必须关联已存在 Model
+- endpointUrl
+- remoteModelName
+- enabled
+- encryptedCredential 字段已预留，但 P2-T02 前不处理真实加密流程
 
 ---
 
-## 5. 数据库
+## 6. 当前数据库
 
-当前数据库：
-
-**MySQL 8.4**
+数据库：**MySQL 8.4**
 
 当前 Flyway Migration：
 
@@ -127,79 +147,64 @@ Phase 1 的目标是建立 AIGate 的基础业务实体与工程骨架，使系�
 V1 → Team
 V2 → Employee
 V3 → Application
+V4 → Provider / Model / ModelDeployment
 ```
 
-当前主要约束：
+当前新增主要约束：
 
-- Team name UNIQUE
-- Employee email UNIQUE
-- Application name UNIQUE
-- Employee.team_id FK → Team.id
-- Application.team_id FK → Team.id
-- Team 删除使用 ON DELETE RESTRICT
+- Provider name UNIQUE
+- Model name UNIQUE
+- ModelDeployment name UNIQUE
+- ModelDeployment.provider_id FK → Provider.id
+- ModelDeployment.model_id FK → Model.id
+- Provider / Model 删除使用 ON DELETE RESTRICT
+
+已执行 migration 不修改，后续变更继续新增 migration。
 
 ---
 
-## 6. API Error Contract
+## 7. 当前 API Error Contract 增量
 
-当前已经稳定的主要错误语义：
+在 Phase 1 错误码基础上，P2-T01 新增：
 
 ```text
 400
-VALIDATION_ERROR
-
-401
-UNAUTHORIZED
-
-403
-FORBIDDEN
+INVALID_REQUEST
 
 404
-TEAM_NOT_FOUND
-EMPLOYEE_NOT_FOUND
-APPLICATION_NOT_FOUND
-RESOURCE_NOT_FOUND
+PROVIDER_NOT_FOUND
+MODEL_NOT_FOUND
+MODEL_DEPLOYMENT_NOT_FOUND
 
 409
-TEAM_NAME_ALREADY_EXISTS
-EMAIL_ALREADY_EXISTS
-APPLICATION_NAME_ALREADY_EXISTS
+PROVIDER_NAME_ALREADY_EXISTS
+MODEL_NAME_ALREADY_EXISTS
+MODEL_DEPLOYMENT_NAME_ALREADY_EXISTS
 RESOURCE_CONFLICT
-
-500
-INTERNAL_SERVER_ERROR
 ```
+
+`INVALID_REQUEST` 当前用于 JSON 无法反序列化为有效请求模型，例如未知 ProviderType 枚举值。
 
 ---
 
-## 7. Security
+## 8. Security
 
-当前安全方案：
-
-```text
-HTTP Basic
-```
-
-规则：
+当前真正已实现的安全方案仍为：
 
 ```text
 /api/**
-→ authenticated
-
-/v3/api-docs/**
-/swagger-ui/**
-/swagger-ui.html
-→ permitAll
+→ HTTP Basic
 ```
 
-当前账号通过环境变量提供。
+Phase 2 计划中的 `/v1/**` Application API Key 认证尚未实现。
 
+不要把计划状态写成已完成事实。
 
 ---
 
-## 8. Testing
+## 9. Testing
 
-当前集成测试使用：
+当前继续使用：
 
 - Spring Boot Test
 - MockMvc
@@ -207,31 +212,22 @@ HTTP Basic
 - Testcontainers
 - MySQL 8.4
 
-当前测试可以在开发 MySQL 未启动的情况下独立运行：
+P2-T01 新增集成测试覆盖：
 
-```bash
-./mvnw test
-```
-
-Testcontainers 会自动：
-
-```text
-启动临时 MySQL
-↓
-Spring Boot 连接临时数据库
-↓
-Flyway 自动执行
-↓
-运行集成测试
-↓
-测试结束后回收容器
-```
+- Provider 创建 / 重名 / ProviderType 持久化 / 非法 ProviderType
+- Model 创建 / 重名
+- ModelDeployment 创建
+- Provider / Model 不存在 404
+- Deployment 重名 409
+- 同名更新
+- endpointUrl validation
+- Provider / Model 被 Deployment 引用时删除冲突
 
 ---
 
-## 9. 当前架构
+## 10. 当前架构
 
-当前架构：
+当前仍然是：
 
 **单体应用 + 模块化代码组织**
 
@@ -241,23 +237,23 @@ Flyway 自动执行
 team
 employee
 application
+provider
+model
+deployment
 common
 config
 security
 ```
 
+当前没有拆微服务，也没有引入 Redis / MQ / Nacos / Spring Cloud。
 
 ---
 
-## 10. 当前技术债
+## 11. 当前技术债
 
-以下问题已知存在，但暂不在 Phase 1 解决。
+### TD-001 HTTP Basic 是临时管理面认证方案
 
-### TD-001 HTTP Basic 是临时安全方案
-
-当前只作为 Phase 1 管理 API 的最小安全边界。
-
-未来认证模型明确后重新设计。
+Phase 2 后续会为 Runtime 引入 Application API Key，但管理面的最终身份体系仍未确定。
 
 ### TD-002 暂无 Role / Permission
 
@@ -265,15 +261,13 @@ security
 
 ### TD-003 Service 暂无统一事务设计
 
-当前主要是单表写操作。
-
-出现多表原子操作后再设计事务边界。
+当前主要操作仍以单表写为主。出现真实多表原子操作后再设计事务边界。
 
 ### TD-004 跨模块存在少量 Mapper 依赖
 
-例如 Employee / Application 使用 TeamMapper 校验 Team。
+例如 Employee / Application 使用 TeamMapper，ModelDeploymentService 使用 ProviderMapper / ModelMapper 做存在性检查。
 
-当前保持简单。
+当前保持简单；跨模块规则复杂后再考虑更清晰边界。
 
 ### TD-005 Error Code 使用字符串
 
@@ -281,45 +275,41 @@ security
 
 ### TD-006 ApiErrorResponse 可观测性不足
 
-当前缺少：
-
-- traceId
-- requestId
-- path
-
-后续 Observability 阶段补充。
+当前仍缺少 traceId / requestId / path。
 
 ### TD-007 当前唯一约束基于单 Organization 假设
 
-未来引入 Organization / Multi-Tenant 时需要重新评估唯一约束范围。
+未来 Multi-Tenant 时重新评估唯一约束范围。
 
 ### TD-008 当前测试覆盖关键链路，不追求完整覆盖率
 
 后续随着业务复杂度增长逐步补充。
 
----
+### TD-009 暂无 CI Test Gate
 
-## 11. Phase 1 Acceptance Result
-
-Phase 1 当前验收结果：
-
-- [x] Spring Boot 项目可运行
-- [x] MySQL 可连接
-- [x] Flyway 可从空数据库初始化 schema
-- [x] Team CRUD 可运行
-- [x] Employee CRUD 可运行
-- [x] Application CRUD 可运行
-- [x] Team 关系约束有效
-- [x] Validation 生效
-- [x] 404 / 409 / 500 错误语义稳定
-- [x] Spring Security 生效
-- [x] Swagger / OpenAPI 可访问
-- [x] 集成测试可独立运行
-- [x] Testcontainers 使用真实 MySQL
-- [x] 开发数据库停止时测试仍可运行
-- [x] Phase 1 主业务闭环完成
+当前测试主要通过本地 `./mvnw test` 执行，尚未建立 GitHub Actions 自动测试门禁。
 
 ---
 
+## 12. P2-T01 Acceptance Result
 
+P2-T01 收尾结果：
 
+- [x] Provider schema / CRUD
+- [x] Model schema / CRUD
+- [x] ModelDeployment schema / CRUD
+- [x] Provider 与 Model 不直接绑定
+- [x] ModelDeployment 同时关联 Provider 与 Model
+- [x] Flyway V4 生效
+- [x] name UNIQUE 约束
+- [x] FK + ON DELETE RESTRICT
+- [x] ProviderType 当前只支持 OPENAI_COMPATIBLE
+- [x] 非法 ProviderType 请求返回 400 INVALID_REQUEST
+- [x] 关键集成测试已补充
+- [x] 已通过开发导师 Code Review
+
+结论：
+
+**P2-T01 — Model Registry Schema：COMPLETED**
+
+当前停在阶段门，等待用户确认是否进入 P2-T02。
