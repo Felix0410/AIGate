@@ -1,7 +1,7 @@
 # AIGate Current Phase
 
 > 本文档是 AIGate 当前阶段的共享执行基线，供项目总控、开发导师、Code Review 共同读取。
-> 当阶段切换时，直接更新本文件，不为每个 Phase 继续增加新的交接文档。
+> 当阶段切换时直接更新本文件，不为每个 Phase 继续增加新的交接文档。
 
 ## 1. Current Phase
 
@@ -9,13 +9,19 @@
 
 Status: **ACTIVE**
 
-Current Task: **P2-T01 — Model Registry Schema**
+Execution Gate: **P2-T01 COMPLETED / WAITING FOR USER CONFIRMATION**
 
-## 2. Business Goal
+Next Planned Task: **P2-T02 — Provider Credential Protection（NOT STARTED）**
+
+> P2-T01 已完成并通过开发导师 Code Review。按照项目规则，在用户明确确认前不得自动开始 P2-T02。
+
+---
+
+## 2. Phase 2 Business Goal
 
 让一个 Application 使用自己的 AIGate API Key，通过 AIGate 安全调用一个 AI Model，同时 Application 不持有 Provider Secret。
 
-最小主流程：
+目标主流程：
 
 ```text
 Application
@@ -35,11 +41,63 @@ Provider
 
 Phase 2 只做 **single-model, non-streaming proxy**。
 
-## 3. Frozen Domain Model
+---
+
+## 3. P2-T01 Closure — Model Registry Schema
+
+状态：**DONE**
+
+已落地：
+
+```text
+Provider
+Model
+ModelDeployment
+```
+
+当前实际关系：
+
+```text
+Provider ───┐
+            ├── ModelDeployment
+Model ──────┘
+```
+
+关键事实：
+
+- `Model` 不直接属于 `Provider`
+- `ModelDeployment` 同时关联 `provider_id` 与 `model_id`
+- `ProviderType` 当前只有 `OPENAI_COMPATIBLE`
+- `ModelDeployment` 已包含 `endpoint_url / remote_model_name / encrypted_credential / enabled`
+- `encrypted_credential` 当前允许 NULL；真正的加密写入/读取属于 P2-T02，尚未开始
+- Provider / Model / ModelDeployment 已完成基础 CRUD
+- 名称唯一性由 Service 预检查 + MySQL UNIQUE 双层保护
+- Deployment 创建/更新时会检查 Provider / Model 是否存在
+- 删除仍被 Deployment 引用的 Provider / Model 会由 FK RESTRICT 阻止，并映射为 `409 RESOURCE_CONFLICT`
+- 非法 `ProviderType` JSON 已映射为 `400 INVALID_REQUEST`
+
+Flyway 已新增：
+
+```text
+V4__create_model_registry.sql
+```
+
+P2-T01 集成测试已覆盖核心场景：
+
+- Provider 创建、重复名称、枚举持久化、非法枚举输入
+- Model 创建、重复名称
+- Deployment 创建
+- Provider / Model 不存在时 404
+- Deployment 名称重复 409
+- 同名更新不误判自身
+- endpointUrl 非法时 400
+- Provider / Model 被 Deployment 引用时删除返回 409
+
+---
+
+## 4. Frozen Domain Model for Remaining Phase 2
 
 ### ApplicationApiKey
-
-关系：
 
 ```text
 Application 1:N ApplicationApiKey
@@ -59,7 +117,7 @@ Application 1:N ApplicationApiKey
 
 表示模型服务提供方 / 协议类别。
 
-最小字段概念：
+当前实际字段：
 
 ```text
 id
@@ -69,7 +127,7 @@ createdAt
 updatedAt
 ```
 
-Phase 2 只支持：
+当前只支持：
 
 ```text
 OPENAI_COMPATIBLE
@@ -79,7 +137,7 @@ OPENAI_COMPATIBLE
 
 表示逻辑模型本身。
 
-最小字段概念：
+当前实际字段：
 
 ```text
 id
@@ -94,13 +152,7 @@ updatedAt
 
 表示真正可调用的模型实例，同时关联 Provider 和 Model。
 
-```text
-Provider ───┐
-            ├── ModelDeployment
-Model ──────┘
-```
-
-最小字段概念：
+当前实际字段：
 
 ```text
 id
@@ -119,7 +171,7 @@ updatedAt
 
 ### Application.defaultDeploymentId
 
-Phase 2 临时让 Application 绑定一个默认 Deployment：
+P2-T03 计划让 Application 临时绑定一个默认 Deployment：
 
 ```text
 Application
@@ -127,7 +179,7 @@ Application
 defaultDeploymentId
 ```
 
-这是阶段性方案。后续 Routing 阶段会演进为：
+后续 Routing 阶段再演进为：
 
 ```text
 Application -> ModelAlias -> Route -> ModelDeployment
@@ -135,7 +187,9 @@ Application -> ModelAlias -> Route -> ModelDeployment
 
 当前不要提前实现 ModelAlias / Route。
 
-## 4. Credential Strategy
+---
+
+## 5. Credential Strategy
 
 ### Application API Key
 
@@ -163,7 +217,7 @@ Master Key 来自环境变量：
 AIGATE_MASTER_KEY
 ```
 
-建议密文使用版本化 envelope，例如：
+建议密文使用版本化 envelope：
 
 ```text
 v1:<iv>:<ciphertext+tag>
@@ -171,7 +225,9 @@ v1:<iv>:<ciphertext+tag>
 
 Phase 2 不引入 Vault / KMS / Secret Manager。
 
-## 5. Security Boundary
+---
+
+## 6. Security Boundary
 
 管理面：
 
@@ -193,31 +249,23 @@ Runtime Header：
 Authorization: Bearer <AIGATE_API_KEY>
 ```
 
-这里的 Bearer credential 不是 JWT。
+Bearer credential 在这里不是 JWT。
 
-API Key 验证成功后形成 `ApplicationIdentity`，至少包含：
+---
 
-```text
-applicationId
-applicationName
-teamId
-```
+## 7. Runtime Contract
 
-后续 Proxy 逻辑只依赖 ApplicationIdentity，不关心 Key 的解析和 Hash 细节。
-
-## 6. Runtime Contract
-
-### Endpoint
+Planned endpoint：
 
 ```text
 POST /v1/invoke
 ```
 
-### Minimal Request
+Minimal Request：
 
 ```text
 messages
-temperature? 
+temperature?
 maxTokens?
 ```
 
@@ -231,7 +279,7 @@ assistant
 
 Request 不携带 `providerId / modelId / deploymentId`。
 
-### Minimal Response
+Minimal Response：
 
 ```text
 content
@@ -241,7 +289,9 @@ finishReason
 
 Phase 2 不实现正式 Usage / Cost / Ledger。
 
-## 7. Runtime Flow
+---
+
+## 8. Planned Runtime Flow
 
 ```text
 POST /v1/invoke
@@ -270,39 +320,18 @@ RestClient
 ↓
 Provider
 ↓
-ProviderAdapter maps response
-↓
 Unified Response
 ```
 
-## 8. Provider Adapter
+---
 
-Phase 2 只做内部普通 Java 抽象：
-
-```text
-ProviderAdapter
-ProviderAdapterRegistry
-OpenAICompatibleProviderAdapter
-```
-
-通过 `Provider.type` 选择 Adapter。
-
-不要实现：
-
-- SPI
-- 动态 Jar
-- 插件市场
-- 多 Provider 体系
-
-## 9. HTTP Client
+## 9. HTTP / Provider Decisions
 
 Phase 2 使用：
 
 ```text
 Spring RestClient
 ```
-
-原因：当前是 Spring MVC + non-streaming，同步调用最简单。
 
 必须配置基本：
 
@@ -311,18 +340,15 @@ connect timeout
 read timeout
 ```
 
-暂不做：
+Provider Adapter 只做：
 
 ```text
-retry
-fallback
-circuit breaker
-bulkhead
+ProviderAdapter
+ProviderAdapterRegistry
+OpenAICompatibleProviderAdapter
 ```
 
-## 10. Provider Error Taxonomy
-
-至少统一为：
+Provider Error 至少统一为：
 
 ```text
 PROVIDER_BAD_REQUEST
@@ -333,125 +359,53 @@ PROVIDER_UNAVAILABLE
 PROVIDER_INVALID_RESPONSE
 ```
 
-原则：Client Error、AIGate Error、Provider Error 必须可区分。
+当前不做 Retry / Fallback / Circuit Breaker。
 
-## 11. Database Migration Plan
+---
 
-历史 migration 不修改：
+## 10. Database Migration Plan
+
+已完成：
 
 ```text
-V1 Team
-V2 Employee
-V3 Application
+V1 → Team
+V2 → Employee
+V3 → Application
+V4 → Provider / Model / ModelDeployment
 ```
 
-Phase 2 建议：
+后续计划：
 
 ```text
-V4__create_model_registry.sql
 V5__add_application_default_deployment.sql
 V6__create_application_api_key.sql
 ```
 
-核心约束：
+已经执行过的 migration 不修改。
 
-```text
-provider.name UNIQUE
-model.name UNIQUE
-model_deployment.name UNIQUE
-api_key.key_id UNIQUE
-model_deployment.provider_id FK
-model_deployment.model_id FK
-application.default_deployment_id FK
-application_api_key.application_id FK
-```
+---
 
-Provider Credential 允许为空，以支持 MockLLM / 无认证私有服务。
+## 11. Task Order / Gate
 
-## 12. Deletion / Disable Strategy
+| Task | 内容 | 状态 |
+|---|---|---|
+| P2-T01 | Model Registry Schema | **DONE** |
+| P2-T02 | Provider Credential Protection | **NOT STARTED** |
+| P2-T03 | Application Default Deployment | NOT STARTED |
+| P2-T04 | Application API Key Lifecycle | NOT STARTED |
+| P2-T05 | Runtime Authentication | NOT STARTED |
+| P2-T06 | Unified Model Contract | NOT STARTED |
+| P2-T07 | Provider Adapter | NOT STARTED |
+| P2-T08 | RestClient + Single Model Proxy | NOT STARTED |
+| P2-T09 | Provider Error Mapping | NOT STARTED |
+| P2-T10 | End-to-End Integration Test | NOT STARTED |
+| P2-T11 | Phase Closeout | NOT STARTED |
 
-- ApiKey 不删除，使用 `REVOKED`
-- ModelDeployment 优先 `enabled=false`
-- Provider / Model 被 Deployment 引用时禁止删除，返回 409
-- 当前不全局引入 soft delete
+**当前执行门：等待用户确认是否开始 P2-T02。**
 
-## 13. Hot Path Decision
+---
 
-Phase 2 **允许 Runtime 每次请求访问 MySQL**。
-
-当前不要引入：
-
-```text
-Redis
-Caffeine Snapshot
-Config Push
-Local Runtime Snapshot
-```
-
-最终 Gateway hot path 不访问 MySQL，但必须等真实性能 / 多节点问题出现后再演进。
-
-## 14. Testing Baseline
-
-测试链：
-
-```text
-MockMvc
-↓
-Spring Security
-↓
-API Key Auth
-↓
-ModelProxyService
-↓
-MySQL Testcontainers
-↓
-ProviderAdapter
-↓
-Test MockLLM HTTP Server
-```
-
-核心场景至少覆盖：
-
-- 正确 API Key 调用成功
-- 无 / 错误 / revoked API Key 返回 401
-- Application 无 default Deployment
-- Deployment disabled
-- Provider 200
-- Provider 429 -> PROVIDER_RATE_LIMITED
-- Provider timeout -> PROVIDER_TIMEOUT
-- Provider 5xx -> PROVIDER_UNAVAILABLE
-- invalid response -> PROVIDER_INVALID_RESPONSE
-- 创建 API Key 后数据库无明文 secret
-- Provider Credential 数据库无明文
-- Provider / Model 被引用删除返回 409
-
-## 15. Task Order
-
-严格按顺序推进：
-
-```text
-P2-T01 Model Registry Schema
-P2-T02 Provider Credential Protection
-P2-T03 Application Default Deployment
-P2-T04 Application API Key Lifecycle
-P2-T05 Runtime Authentication
-P2-T06 Unified Model Contract
-P2-T07 Provider Adapter
-P2-T08 RestClient + Single Model Proxy
-P2-T09 Provider Error Mapping
-P2-T10 End-to-End Integration Test
-P2-T11 Phase Closeout
-```
-
-当前只执行：
-
-```text
-P2-T01 — Model Registry Schema
-```
-
-P2-T01 只实现 Provider / Model / ModelDeployment 的最小 schema、Flyway、基础 CRUD 和约束，不提前实现后续任务。
-
-## 16. Explicitly Deferred
+## 12. Explicitly Deferred
 
 Phase 2 禁止无真实问题提前引入：
 
@@ -483,9 +437,9 @@ Multimodal
 JSON Schema
 ```
 
-## 17. Acceptance Criteria
+---
 
-Phase 2 完成必须满足：
+## 13. Phase 2 Acceptance Criteria
 
 ### Business
 
@@ -517,9 +471,9 @@ Phase 2 完成必须满足：
 - MockMvc
 - 完整验证一次 Application -> AIGate -> Provider -> AIGate -> Application 链路
 
-## 18. Architecture Rule
+---
 
-整个 Phase 2 继续遵循：
+## 14. Architecture Rule
 
 ```text
 业务问题
