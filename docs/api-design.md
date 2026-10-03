@@ -1,24 +1,16 @@
-
 # AIGate API Design
 
 ## 1. 文档目的
 
-本文档记录 AIGate 当前 API 的设计约定。
+本文档记录 AIGate 当前 API 的实际设计约定。
 
-目标：
-
-- 保持接口语义一致
-- 固定 HTTP Status 与业务错误码
-- 避免不同模块各自定义不同风格
-- 为后续接口扩展提供统一基线
-
-当前内容以 Phase 1 实际实现为准。
+当前内容以 **Phase 2 / P2-T01 完成后的实现** 为准。
 
 ---
 
 ## 2. API Base Path
 
-当前业务 API 统一使用：
+当前管理 API 使用：
 
 ```text
 /api
@@ -30,389 +22,226 @@
 /api/teams
 /api/employees
 /api/applications
+/api/providers
+/api/models
+/api/model-deployments
 ```
+
+当前 `/api/**` 继续使用 HTTP Basic。
+
+Phase 2 计划中的 Runtime API：
+
+```text
+/v1/**
+```
+
+尚未实现。
 
 ---
 
-## 3. 当前资源模型
+## 3. 已有基础资源
 
-### 3.1 Team
-
-```text
-Team
-├── id
-├── name
-├── createdAt
-└── updatedAt
-```
-
-### 3.2 Employee
+### Team
 
 ```text
-Employee
-├── id
-├── name
-├── email
-├── teamId
-├── createdAt
-└── updatedAt
+id
+name
+createdAt
+updatedAt
 ```
 
-### 3.3 Application
+### Employee
 
 ```text
-Application
-├── id
-├── name
-├── teamId
-├── createdAt
-└── updatedAt
-```
-
----
-
-## 4. Team API
-
-### Create Team
-
-```http
-POST /api/teams
-```
-
-Request:
-
-```json
-{
-  "name": "Backend Team"
-}
-```
-
-Success:
-
-```text
-200 OK
-```
-
-Response:
-
-```json
-{
-  "id": 1,
-  "name": "Backend Team",
-  "createdAt": "...",
-  "updatedAt": "..."
-}
-```
-
----
-
-### Get Team
-
-```http
-GET /api/teams/{id}
-```
-
-Success:
-
-```text
-200 OK
-```
-
-Not Found:
-
-```text
-404
-TEAM_NOT_FOUND
-```
-
----
-
-### List Teams
-
-```http
-GET /api/teams
-```
-
-Success:
-
-```text
-200 OK
-```
-
-Response:
-
-```json
-[
-  {
-    "id": 1,
-    "name": "Backend Team",
-    "createdAt": "...",
-    "updatedAt": "..."
-  }
-]
-```
-
----
-
-### Update Team
-
-```http
-PUT /api/teams/{id}
-```
-
-Request:
-
-```json
-{
-  "name": "Platform Team"
-}
-```
-
-当前 PUT 语义：
-
-> 完整更新所有可修改字段。
-
-当前未实现 PATCH。
-
----
-
-### Delete Team
-
-```http
-DELETE /api/teams/{id}
-```
-
-Success:
-
-```text
-200 OK
-```
-
-如果 Team 不存在：
-
-```text
-404
-TEAM_NOT_FOUND
-```
-
-如果 Team 仍被 Employee 或 Application 引用：
-
-```text
-409
-RESOURCE_CONFLICT
-```
-
----
-
-## 5. Employee API
-
-### Create Employee
-
-```http
-POST /api/employees
-```
-
-Request:
-
-```json
-{
-  "name": "Alice",
-  "email": "alice@example.com",
-  "teamId": 1
-}
-```
-
-Success:
-
-```text
-200 OK
-```
-
-可能错误：
-
-```text
-400 VALIDATION_ERROR
-404 TEAM_NOT_FOUND
-409 EMAIL_ALREADY_EXISTS
-```
-
----
-
-### Get Employee
-
-```http
-GET /api/employees/{id}
-```
-
-可能错误：
-
-```text
-404 EMPLOYEE_NOT_FOUND
-```
-
----
-
-### List Employees
-
-```http
-GET /api/employees
-```
-
-Success:
-
-```text
-200 OK
-```
-
----
-
-### Update Employee
-
-```http
-PUT /api/employees/{id}
-```
-
-Request:
-
-```json
-{
-  "name": "Alice",
-  "email": "alice@example.com",
-  "teamId": 1
-}
-```
-
-当前 PUT 会完整更新：
-
-```text
+id
 name
 email
 teamId
+createdAt
+updatedAt
 ```
 
-可能错误：
+### Application
 
 ```text
-404 EMPLOYEE_NOT_FOUND
-404 TEAM_NOT_FOUND
-409 EMAIL_ALREADY_EXISTS
+id
+name
+teamId
+createdAt
+updatedAt
 ```
 
 ---
 
-### Delete Employee
+## 4. Provider API
 
-```http
-DELETE /api/employees/{id}
-```
-
-如果资源不存在：
+Base Path：
 
 ```text
-404 EMPLOYEE_NOT_FOUND
+/api/providers
 ```
 
----
-
-## 6. Application API
-
-### Create Application
-
-```http
-POST /api/applications
-```
-
-Request:
-
-```json
-{
-  "name": "aigate-web",
-  "teamId": 1
-}
-```
-
-Success:
+支持：
 
 ```text
-200 OK
+POST   /api/providers
+GET    /api/providers/{id}
+GET    /api/providers
+PUT    /api/providers/{id}
+DELETE /api/providers/{id}
 ```
 
-可能错误：
+Provider 当前字段：
+
+```text
+id
+name
+type
+createdAt
+updatedAt
+```
+
+`type` 当前只支持：
+
+```text
+OPENAI_COMPATIBLE
+```
+
+典型错误：
 
 ```text
 400 VALIDATION_ERROR
-404 TEAM_NOT_FOUND
-409 APPLICATION_NAME_ALREADY_EXISTS
+400 INVALID_REQUEST
+404 PROVIDER_NOT_FOUND
+409 PROVIDER_NAME_ALREADY_EXISTS
+409 RESOURCE_CONFLICT
 ```
+
+`INVALID_REQUEST` 可用于无法解析的 ProviderType，例如传入未知枚举值。
 
 ---
 
-### Get Application
+## 5. Model API
 
-```http
-GET /api/applications/{id}
-```
-
-可能错误：
+Base Path：
 
 ```text
-404 APPLICATION_NOT_FOUND
+/api/models
 ```
 
----
-
-### List Applications
-
-```http
-GET /api/applications
-```
-
----
-
-### Update Application
-
-```http
-PUT /api/applications/{id}
-```
-
-Request:
-
-```json
-{
-  "name": "aigate-admin",
-  "teamId": 1
-}
-```
-
-可能错误：
+支持：
 
 ```text
-404 APPLICATION_NOT_FOUND
-404 TEAM_NOT_FOUND
-409 APPLICATION_NAME_ALREADY_EXISTS
+POST   /api/models
+GET    /api/models/{id}
+GET    /api/models
+PUT    /api/models/{id}
+DELETE /api/models/{id}
 ```
+
+Model 当前字段：
+
+```text
+id
+name
+createdAt
+updatedAt
+```
+
+典型错误：
+
+```text
+400 VALIDATION_ERROR
+404 MODEL_NOT_FOUND
+409 MODEL_NAME_ALREADY_EXISTS
+409 RESOURCE_CONFLICT
+```
+
+Model 不直接暴露 providerId，因为当前领域设计中 Model 不直接属于 Provider。
 
 ---
 
-### Delete Application
+## 6. ModelDeployment API
 
-```http
-DELETE /api/applications/{id}
-```
-
-如果资源不存在：
+Base Path：
 
 ```text
-404 APPLICATION_NOT_FOUND
+/api/model-deployments
+```
+
+支持：
+
+```text
+POST   /api/model-deployments
+GET    /api/model-deployments/{id}
+GET    /api/model-deployments
+PUT    /api/model-deployments/{id}
+DELETE /api/model-deployments/{id}
+```
+
+当前请求主要字段：
+
+```text
+name
+providerId
+modelId
+endpointUrl
+remoteModelName
+enabled
+```
+
+当前响应主要字段：
+
+```text
+id
+name
+providerId
+modelId
+endpointUrl
+remoteModelName
+enabled
+createdAt
+updatedAt
+```
+
+**encryptedCredential 当前不会通过普通 Response 暴露。**
+
+典型错误：
+
+```text
+400 VALIDATION_ERROR
+404 PROVIDER_NOT_FOUND
+404 MODEL_NOT_FOUND
+404 MODEL_DEPLOYMENT_NOT_FOUND
+409 MODEL_DEPLOYMENT_NAME_ALREADY_EXISTS
+```
+
+Provider / Model 被 Deployment 引用时删除会返回：
+
+```text
+409 RESOURCE_CONFLICT
 ```
 
 ---
 
 ## 7. Validation Rules
 
-当前请求使用 Jakarta Bean Validation。
+继续使用 Jakarta Bean Validation。
 
-### Team
+P2-T01 主要规则：
+
+### Provider
+
+```text
+name
+→ @NotBlank
+→ @Size(max = 100)
+
+type
+→ required ProviderType
+```
+
+### Model
 
 ```text
 name
@@ -420,44 +249,48 @@ name
 → @Size(max = 100)
 ```
 
-### Employee
+### ModelDeployment
 
 ```text
 name
 → @NotBlank
 → @Size(max = 100)
 
-email
+providerId
+→ @NotNull
+
+modelId
+→ @NotNull
+
+endpointUrl
 → @NotBlank
-→ @Email
+→ @Size(max = 500)
+
+remoteModelName
+→ @NotBlank
 → @Size(max = 255)
 
-teamId
+enabled
 → @NotNull
 ```
 
-### Application
-
-```text
-name
-→ @NotBlank
-→ @Size(max = 100)
-
-teamId
-→ @NotNull
-```
-
-校验失败：
+字段校验失败：
 
 ```text
 400 VALIDATION_ERROR
+```
+
+JSON 无法反序列化为请求 DTO：
+
+```text
+400 INVALID_REQUEST
 ```
 
 ---
 
 ## 8. Error Response Format
 
-所有统一错误响应使用：
+统一错误响应仍使用：
 
 ```json
 {
@@ -468,124 +301,64 @@ teamId
 }
 ```
 
-Validation Error 示例：
-
-```json
-{
-  "code": "VALIDATION_ERROR",
-  "message": "Request validation failed",
-  "timestamp": "...",
-  "errors": {
-    "name": "must not be blank"
-  }
-}
-```
-
 ---
 
-## 9. HTTP Status 与 Error Code
+## 9. 当前 HTTP Status 与 Error Code
 
 ### 400 Bad Request
 
-用于请求参数不合法。
+```text
+VALIDATION_ERROR
+INVALID_REQUEST
+```
+
+区别：
 
 ```text
 VALIDATION_ERROR
+→ JSON 已成功绑定 DTO，但字段约束不满足
+
+INVALID_REQUEST
+→ JSON 无法绑定成有效请求模型，例如未知枚举值
 ```
 
----
-
 ### 401 Unauthorized
-
-用于未认证或认证失败。
 
 ```text
 UNAUTHORIZED
 ```
 
-例如：
-
-```text
-未提供 Basic Auth
-错误用户名
-错误密码
-```
-
----
+当前实际用于 HTTP Basic 认证失败。
 
 ### 403 Forbidden
-
-用于：
-
-> 已认证，但没有访问权限。
-
-当前 Phase 1 尚未引入 Role / Authority，因此暂时没有真实业务场景触发。
-
-错误码：
 
 ```text
 FORBIDDEN
 ```
 
----
-
 ### 404 Not Found
-
-有两类 404。
-
-#### 业务资源不存在
 
 ```text
 TEAM_NOT_FOUND
 EMPLOYEE_NOT_FOUND
 APPLICATION_NOT_FOUND
-```
-
-例如：
-
-```text
-GET /api/teams/999
-```
-
-API 存在，但业务对象不存在。
-
-#### HTTP Resource 不存在
-
-```text
+PROVIDER_NOT_FOUND
+MODEL_NOT_FOUND
+MODEL_DEPLOYMENT_NOT_FOUND
 RESOURCE_NOT_FOUND
 ```
 
-例如访问不存在的 URL / 静态资源。
-
-这类错误与业务资源不存在需要区分。
-
----
-
 ### 409 Conflict
-
-用于当前请求与系统当前状态发生冲突。
-
-业务级冲突：
 
 ```text
 TEAM_NAME_ALREADY_EXISTS
 EMAIL_ALREADY_EXISTS
 APPLICATION_NAME_ALREADY_EXISTS
-```
-
-数据库完整性冲突：
-
-```text
+PROVIDER_NAME_ALREADY_EXISTS
+MODEL_NAME_ALREADY_EXISTS
+MODEL_DEPLOYMENT_NAME_ALREADY_EXISTS
 RESOURCE_CONFLICT
 ```
-
-例如：
-
-```text
-删除仍然被其他数据引用的 Team
-```
-
----
 
 ### 500 Internal Server Error
 
@@ -593,60 +366,29 @@ RESOURCE_CONFLICT
 INTERNAL_SERVER_ERROR
 ```
 
-只用于：
-
-> 系统未预料到的内部错误。
-
-已经能够明确识别的业务冲突不应该返回 500。
+只用于未预料到的内部错误。
 
 ---
 
 ## 10. Error Handling 分层
 
-当前错误处理分为两层。
-
 ### Spring Security 层
-
-位于 Controller 之前：
-
-```text
-Security Filter Chain
-↓
-Controller
-```
-
-因此：
-
-```text
-401
-403
-```
-
-由：
 
 ```text
 RestAuthenticationEntryPoint
+→ 401
+
 RestAccessDeniedHandler
+→ 403
 ```
-
-处理。
-
----
 
 ### Spring MVC 层
 
-业务 / 参数 / 数据库异常由：
-
-```text
-GlobalExceptionHandler
-```
-
-统一处理。
-
-包括：
+当前 GlobalExceptionHandler 处理包括：
 
 ```text
 MethodArgumentNotValidException
+HttpMessageNotReadableException
 ResourceNotFoundException
 ConflictException
 DuplicateKeyException
@@ -659,39 +401,35 @@ Exception
 
 ## 11. Unique Constraint 策略
 
-唯一性采用两层保护：
+继续采用：
 
 ```text
 Service 预检查
 ↓
-返回明确业务错误
+明确业务错误码
 
 Database UNIQUE
 ↓
-作为并发情况下最终数据完整性保证
+并发场景最终保证数据完整性
 ```
 
-例如 Employee email：
+P2-T01 新增：
 
 ```text
-Service
-→ EMAIL_ALREADY_EXISTS
-
-并发绕过 Service 检查
-→ MySQL UNIQUE
-→ RESOURCE_CONFLICT
+provider.name
+model.name
+model_deployment.name
 ```
-
-数据库 UNIQUE 不允许因为已有 Service 检查而删除。
 
 ---
 
 ## 12. Authentication
 
-当前 `/api/**` 使用：
+当前真实状态：
 
 ```text
-HTTP Basic
+/api/**
+→ HTTP Basic
 ```
 
 公开路径：
@@ -702,75 +440,58 @@ HTTP Basic
 /swagger-ui.html
 ```
 
-当前没有：
+Phase 2 计划：
 
 ```text
-JWT
-OAuth2
-OIDC
-API Key
-Role
-Permission
+/v1/**
+→ Application API Key
 ```
+
+但该能力属于 P2-T05，目前 **NOT STARTED**。
 
 ---
 
 ## 13. API Design Principles
 
-当前遵循：
+继续遵循：
 
-### 13.1 Controller 不承载业务逻辑
-
-Controller 负责：
-
-```text
-接收请求
-↓
-参数绑定 / Validation
-↓
-调用 Service
-↓
-转换 Response
-```
-
-业务规则放在 Service。
-
-### 13.2 DTO 与 Entity 分离
-
-HTTP API 不直接暴露数据库 Entity 作为请求 / 响应模型。
-
-### 13.3 数据库约束不能被 Service 校验替代
-
-Service 提供友好业务错误。
-
-数据库负责最终数据完整性。
-
-### 13.4 500 只代表未知错误
-
-可预期业务问题应该映射为：
-
-```text
-400 / 404 / 409
-```
-
-而不是统一 500。
+- Controller 不承载业务逻辑
+- DTO 与 Entity 分离
+- Service 负责业务预检查
+- Database Constraint 负责最终完整性
+- 可预期问题不返回 500
+- Secret / Credential 不通过普通查询接口暴露
 
 ---
 
-## 14. 当前暂不处理的问题
+## 14. Phase 2 Runtime API Planned Contract
 
-Phase 1 暂不处理：
+以下是冻结计划，不是当前已实现 API：
 
-- API Versioning
-- Pagination
-- Sorting
-- Filtering
-- PATCH
-- Batch API
-- Idempotency Key
-- Rate Limit Header
-- API Key Authentication
-- Trace ID
-- Request ID
-- OpenAPI 细粒度 Annotation
+```text
+POST /v1/invoke
+```
 
+计划使用：
+
+```text
+Authorization: Bearer <AIGATE_API_KEY>
+```
+
+最小请求：
+
+```text
+messages
+temperature?
+maxTokens?
+```
+
+最小响应：
+
+```text
+content
+model
+finishReason
+```
+
+Runtime API 将在后续任务中实现，当前 P2-T01 收尾不会提前加入。
