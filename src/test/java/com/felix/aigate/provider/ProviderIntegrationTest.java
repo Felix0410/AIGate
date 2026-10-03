@@ -60,6 +60,23 @@ class ProviderIntegrationTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.type").value("OPENAI_COMPATIBLE"));
     }
 
+    @Test
+    @DisplayName("非法 ProviderType -> 400 INVALID_REQUEST")
+    void invalidProviderTypeShouldReturn400() throws Exception {
+
+        // type 是 ProviderType 枚举，无法通过 DTO 构造非法值，直接发送未知枚举名的原始 JSON，
+        // Jackson 反序列化失败 -> HttpMessageNotReadableException -> 400 INVALID_REQUEST
+        String body = """
+                {"name": "provider-it-invalid-type", "type": "NOT_A_VALID_TYPE"}
+                """;
+
+        mockMvc.perform(authed(post("/api/providers"))
+                        .contentType(APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
     // ---- helpers ----
 
     private CreateProviderRequest createProvider(String name) {
