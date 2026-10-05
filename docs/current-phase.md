@@ -9,11 +9,11 @@
 
 Status: **ACTIVE**
 
-Execution Gate: **P2-T01 COMPLETED / WAITING FOR USER CONFIRMATION**
+Current Task: **P2-T02 — Provider Credential Protection（ACTIVE）**
 
-Next Planned Task: **P2-T02 — Provider Credential Protection（NOT STARTED）**
+Next Planned Task: **P2-T03 — Application Default Deployment（NOT STARTED）**
 
-> P2-T01 已完成并通过开发导师 Code Review。按照项目规则，在用户明确确认前不得自动开始 P2-T02。
+> 用户已确认启动 P2-T02。当前只实现 Provider Credential Protection，不提前进入 P2-T03。
 
 ---
 
@@ -69,7 +69,7 @@ Model ──────┘
 - `ModelDeployment` 同时关联 `provider_id` 与 `model_id`
 - `ProviderType` 当前只有 `OPENAI_COMPATIBLE`
 - `ModelDeployment` 已包含 `endpoint_url / remote_model_name / encrypted_credential / enabled`
-- `encrypted_credential` 当前允许 NULL；真正的加密写入/读取属于 P2-T02，尚未开始
+- `encrypted_credential` 当前允许 NULL；真正的加密写入/读取属于当前 P2-T02
 - Provider / Model / ModelDeployment 已完成基础 CRUD
 - 名称唯一性由 Service 预检查 + MySQL UNIQUE 双层保护
 - Deployment 创建/更新时会检查 Provider / Model 是否存在
@@ -82,20 +82,81 @@ Flyway 已新增：
 V4__create_model_registry.sql
 ```
 
-P2-T01 集成测试已覆盖核心场景：
+---
 
-- Provider 创建、重复名称、枚举持久化、非法枚举输入
-- Model 创建、重复名称
-- Deployment 创建
-- Provider / Model 不存在时 404
-- Deployment 名称重复 409
-- 同名更新不误判自身
-- endpointUrl 非法时 400
-- Provider / Model 被 Deployment 引用时删除返回 409
+## 4. Current Task — P2-T02 Provider Credential Protection
+
+### Business Problem
+
+AIGate 后续需要代替 Application 调用模型 Provider，因此必须持有 Provider Credential。
+
+如果直接将 Provider Secret 明文存入 MySQL：
+
+```text
+Database leak
+→ Provider Secret directly exposed
+→ external model account can be abused
+```
+
+因此 P2-T02 的目标是：
+
+> Provider Credential 可以由 AIGate 保存和恢复使用，但不能以明文形式落库或通过普通管理 API 返回。
+
+### Minimal Scope
+
+当前只处理 `ModelDeployment.encryptedCredential`。
+
+实现：
+
+```text
+Plain Provider Secret
+↓
+CredentialService.encrypt()
+↓
+AES-GCM
+↓
+encryptedCredential
+↓
+MySQL
+```
+
+运行时恢复：
+
+```text
+encryptedCredential
+↓
+CredentialService.decrypt()
+↓
+Plain Provider Secret
+```
+
+### Frozen Decisions
+
+- 加密算法：`AES-GCM`
+- Master Key 来源：环境变量 `AIGATE_MASTER_KEY`
+- Master Key 不进入数据库、不提交 Git
+- 建议密文 envelope：`v1:<iv>:<ciphertext+tag>`
+- `encryptedCredential` 允许 NULL，以支持 MockLLM / 无认证 Provider
+- 管理 API 可以接受 credential 输入，但普通查询响应不得返回 credential 明文
+- 不做 Vault / KMS / Secret Manager
+- 不做自动 Key Rotation
+- 不提前实现 Runtime Proxy
+
+### Acceptance Focus
+
+P2-T02 至少需要证明：
+
+- credential 输入后数据库中不是明文
+- 正确 Master Key 可以恢复原始 credential
+- 错误/损坏密文能够得到受控错误，而不是静默产生错误 Secret
+- 查询 ModelDeployment API 不暴露 credential
+- 日志与异常信息不输出 Provider Secret
+- 无 credential 的 Deployment 仍然合法
+- 加密逻辑有独立测试
 
 ---
 
-## 4. Frozen Domain Model for Remaining Phase 2
+## 5. Frozen Domain Model for Remaining Phase 2
 
 ### ApplicationApiKey
 
@@ -189,7 +250,7 @@ Application -> ModelAlias -> Route -> ModelDeployment
 
 ---
 
-## 5. Credential Strategy
+## 6. Credential Strategy
 
 ### Application API Key
 
@@ -227,7 +288,7 @@ Phase 2 不引入 Vault / KMS / Secret Manager。
 
 ---
 
-## 6. Security Boundary
+## 7. Security Boundary
 
 管理面：
 
@@ -253,7 +314,7 @@ Bearer credential 在这里不是 JWT。
 
 ---
 
-## 7. Runtime Contract
+## 8. Runtime Contract
 
 Planned endpoint：
 
@@ -291,7 +352,7 @@ Phase 2 不实现正式 Usage / Cost / Ledger。
 
 ---
 
-## 8. Planned Runtime Flow
+## 9. Planned Runtime Flow
 
 ```text
 POST /v1/invoke
@@ -325,7 +386,7 @@ Unified Response
 
 ---
 
-## 9. HTTP / Provider Decisions
+## 10. HTTP / Provider Decisions
 
 Phase 2 使用：
 
@@ -363,7 +424,7 @@ PROVIDER_INVALID_RESPONSE
 
 ---
 
-## 10. Database Migration Plan
+## 11. Database Migration Plan
 
 已完成：
 
@@ -381,16 +442,16 @@ V5__add_application_default_deployment.sql
 V6__create_application_api_key.sql
 ```
 
-已经执行过的 migration 不修改。
+P2-T02 当前优先复用 V4 已存在的 `model_deployment.encrypted_credential`，不为了加密逻辑无必要修改 schema。
 
 ---
 
-## 11. Task Order / Gate
+## 12. Task Order / Gate
 
 | Task | 内容 | 状态 |
 |---|---|---|
 | P2-T01 | Model Registry Schema | **DONE** |
-| P2-T02 | Provider Credential Protection | **NOT STARTED** |
+| P2-T02 | Provider Credential Protection | **ACTIVE** |
 | P2-T03 | Application Default Deployment | NOT STARTED |
 | P2-T04 | Application API Key Lifecycle | NOT STARTED |
 | P2-T05 | Runtime Authentication | NOT STARTED |
@@ -401,11 +462,11 @@ V6__create_application_api_key.sql
 | P2-T10 | End-to-End Integration Test | NOT STARTED |
 | P2-T11 | Phase Closeout | NOT STARTED |
 
-**当前执行门：等待用户确认是否开始 P2-T02。**
+**当前只执行 P2-T02。完成并 Review 后再次停在执行门，等待用户确认 P2-T03。**
 
 ---
 
-## 12. Explicitly Deferred
+## 13. Explicitly Deferred
 
 Phase 2 禁止无真实问题提前引入：
 
@@ -439,7 +500,7 @@ JSON Schema
 
 ---
 
-## 13. Phase 2 Acceptance Criteria
+## 14. Phase 2 Acceptance Criteria
 
 ### Business
 
@@ -473,7 +534,7 @@ JSON Schema
 
 ---
 
-## 14. Architecture Rule
+## 15. Architecture Rule
 
 ```text
 业务问题
