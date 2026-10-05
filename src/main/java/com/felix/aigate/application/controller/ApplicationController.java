@@ -23,7 +23,8 @@ public class ApplicationController {
 
         Application application = applicationService.createApplication(
                 request.getName(),
-                request.getTeamId()
+                request.getTeamId(),
+                request.getDefaultDeploymentId()
         );
 
         return toResponse(application);
@@ -50,7 +51,8 @@ public class ApplicationController {
         Application application = applicationService.updateApplication(
                 id,
                 request.getName(),
-                request.getTeamId()
+                request.getTeamId(),
+                request.getDefaultDeploymentId()
         );
 
         return toResponse(application);
@@ -66,6 +68,7 @@ public class ApplicationController {
                 application.getId(),
                 application.getName(),
                 application.getTeamId(),
+                application.getDefaultDeploymentId(),
                 application.getCreatedAt(),
                 application.getUpdatedAt()
         );

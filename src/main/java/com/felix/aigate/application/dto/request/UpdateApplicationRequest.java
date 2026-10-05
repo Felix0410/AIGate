@@ -17,4 +17,6 @@ public class UpdateApplicationRequest {
     @NotNull
     private Long teamId;
 
+    private Long defaultDeploymentId;
+
 }

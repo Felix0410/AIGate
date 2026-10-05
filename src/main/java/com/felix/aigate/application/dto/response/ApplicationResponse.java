@@ -15,6 +15,8 @@ public class ApplicationResponse {
 
     private Long teamId;
 
+    private Long defaultDeploymentId;
+
     private Instant createdAt;
 
     private Instant updatedAt;

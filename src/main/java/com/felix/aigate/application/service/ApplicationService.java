@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.felix.aigate.application.entity.Application;
 import com.felix.aigate.application.mapper.ApplicationMapper;
 import com.felix.aigate.common.exception.ConflictException;
+import com.felix.aigate.deployment.mapper.ModelDeploymentMapper;
 import com.felix.aigate.team.mapper.TeamMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -16,15 +17,22 @@ public class ApplicationService {
 
     private final ApplicationMapper applicationMapper;
     private final TeamMapper teamMapper;
+    private final ModelDeploymentMapper modelDeploymentMapper;
 
-    public Application createApplication(String name, Long teamId) {
+    public Application createApplication(String name, Long teamId, Long defaultDeploymentId) {
 
         ensureTeamExists(teamId);
+
+        if (defaultDeploymentId != null) {
+            ensureModelDeploymentExists(defaultDeploymentId);
+        }
+
         ensureApplicationNameAvailable(name, null);
 
         Application application = new Application();
         application.setName(name);
         application.setTeamId(teamId);
+        application.setDefaultDeploymentId(defaultDeploymentId);
 
         applicationMapper.insert(application);
 
@@ -44,14 +52,20 @@ public class ApplicationService {
         return applicationMapper.selectList(null);
     }
 
-    public Application updateApplication(Long id, String name, Long teamId) {
+    public Application updateApplication(Long id, String name, Long teamId, Long defaultDeploymentId) {
         Application application = getApplicationById(id);
 
         ensureTeamExists(teamId);
+
+        if (defaultDeploymentId != null) {
+            ensureModelDeploymentExists(defaultDeploymentId);
+        }
+
         ensureApplicationNameAvailable(name, id);
 
         application.setName(name);
         application.setTeamId(teamId);
+        application.setDefaultDeploymentId(defaultDeploymentId);
 
         applicationMapper.updateById(application);
 
@@ -66,6 +80,12 @@ public class ApplicationService {
     private void ensureTeamExists(Long teamId) {
         if (teamMapper.selectById(teamId) == null) {
             throw new ResourceNotFoundException("TEAM_NOT_FOUND", "Team not found");
+        }
+    }
+
+    private void ensureModelDeploymentExists(Long defaultDeploymentId) {
+        if (modelDeploymentMapper.selectById(defaultDeploymentId) == null) {
+            throw new ResourceNotFoundException("MODEL_DEPLOYMENT_NOT_FOUND", "Model deployment not found");
         }
     }
 

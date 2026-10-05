@@ -17,4 +17,6 @@ public class CreateApplicationRequest {
     @NotNull
     private Long teamId;
 
+    private Long defaultDeploymentId;
+
 }
