@@ -9,11 +9,11 @@
 
 Status: **ACTIVE**
 
-Execution Gate: **P2-T02 COMPLETED / WAITING FOR USER CONFIRMATION**
+Current Task: **P2-T03 — Application Default Deployment（ACTIVE）**
 
-Next Planned Task: **P2-T03 — Application Default Deployment（NOT STARTED）**
+Next Planned Task: **P2-T04 — Application API Key Lifecycle（NOT STARTED）**
 
-> P2-T02 已通过总控验收。按照项目规则，在用户明确确认前不得自动开始 P2-T03。
+> 用户已确认继续推进。当前只实现 Application 与默认 ModelDeployment 的阶段性绑定，不提前进入 API Key。
 
 ---
 
@@ -62,101 +62,151 @@ Phase 2 只做 **single-model, non-streaming proxy**。
 
 状态：**DONE / ACCEPTED**
 
-业务目标：
-
-> Provider Credential 可以由 AIGate 保存并在运行时恢复，但不以明文落库，也不通过普通管理 API 暴露。
-
-当前实际链路：
+已实现：
 
 ```text
 credential input
 ↓
-ModelDeploymentService
-↓
 CredentialService.encrypt()
 ↓
-AES/GCM/NoPadding
+AES-256-GCM
 ↓
 v1:<base64-iv>:<base64-ciphertext+tag>
 ↓
 model_deployment.encrypted_credential
 ```
 
-恢复链路：
-
-```text
-encrypted_credential
-↓
-CredentialService.decrypt()
-↓
-plain Provider Credential
-```
-
-当前实际安全参数：
-
-```text
-AES-256
-GCM
-IV = 12 bytes random
-Authentication Tag = 128 bits
-Master Key = Base64 encoded 32 bytes
-```
-
-Master Key 来源：
-
-```text
-AIGATE_MASTER_KEY
-```
-
-关键事实：
-
-- Master Key 不在数据库中保存
-- Master Key 未写入 application.yaml
-- 相同 credential 多次加密产生不同密文
-- credential 明文不落库
-- `ModelDeploymentResponse` 不包含 `credential` 或 `encryptedCredential`
-- `credential = null` 合法，可支持无需认证的 Provider / MockLLM
-- 错误 Master Key 解密失败
-- 被篡改密文因 GCM authentication 失败
-- 无效 Master Key 长度启动/构造时失败
-- 加密/解密异常消息不包含 Provider Secret
-
-PUT 当前保持项目既有“完整更新”语义：
-
-```text
-credential = null
-→ 清空 encrypted_credential
-```
-
-这是当前明确、已有测试覆盖的行为。
-
-P2-T02 没有新增数据库 migration，直接复用 V4 已存在的：
-
-```text
-model_deployment.encrypted_credential
-```
-
-测试已覆盖：
-
-- encrypt → decrypt 可还原
-- 同一明文两次加密密文不同
-- 密文篡改解密失败
-- 错误 Master Key 解密失败
-- Master Key 长度错误失败
-- null credential
-- API 响应不泄露 credential
-- 数据库实际保存密文而非明文
-- credential 更新后重新加密
-- PUT null 清空 credential
-
-验收限制：
-
-- GitHub 当前仍无 CI status / workflow run，自动测试门禁缺失继续记为 `TD-009`
-- 本次验收基于仓库实现、测试代码与安全边界检查，不声称存在 GitHub CI 通过证明
+并已验证：明文不落库、普通 API 不暴露 credential、错误密钥/篡改密文失败、null credential 合法。
 
 ---
 
-## 4. Frozen Domain Model for Remaining Phase 2
+## 4. Current Task — P2-T03 Application Default Deployment
+
+### Business Problem
+
+P2-T01 已经有可调用目标 `ModelDeployment`，但 Application 当前与任何 Deployment 没有关系。
+
+如果现在直接做 Runtime Proxy，就无法回答：
+
+> 某个 Application 发起模型请求时，AIGate 应该调用哪个 Deployment？
+
+当前还没有进入 Routing 阶段，因此 P2-T03 用最简单的阶段性方案解决：
+
+```text
+Application
+  ↓
+defaultDeploymentId
+  ↓
+ModelDeployment
+```
+
+这不是最终路由模型，而是为了让 Phase 2 的单模型 Happy Path 能继续向前推进。
+
+### Minimal Scope
+
+新增 Flyway migration：
+
+```text
+V5__add_application_default_deployment.sql
+```
+
+在 `application` 增加：
+
+```text
+default_deployment_id BIGINT NULL
+```
+
+关系：
+
+```text
+Application N ---- 1 ModelDeployment
+```
+
+外键目标：
+
+```text
+application.default_deployment_id
+→ model_deployment.id
+```
+
+当前建议允许 NULL，因为：
+
+- Phase 1 已存在的 Application 没有默认 Deployment
+- 创建 Application 时不应被迫立即选择模型
+- “Application 尚未配置模型”是合法的管理状态
+
+### Delete Semantics
+
+默认采用真实 FK 保护：
+
+```text
+ON DELETE RESTRICT
+```
+
+如果某个 ModelDeployment 已被 Application 设为默认 Deployment，则不能直接物理删除该 Deployment。
+
+正确处理顺序应是：
+
+```text
+先解除/切换 Application.defaultDeployment
+↓
+再删除 ModelDeployment
+```
+
+不要使用：
+
+```text
+ON DELETE CASCADE
+```
+
+也不要因为删除 Deployment 自动删除 Application。
+
+### API Scope
+
+P2-T03 只需要让管理面能够配置默认 Deployment。
+
+可以沿用 Application 的完整更新模型，或增加一个简单的显式配置入口；开发导师应优先选择与当前项目 API 风格最一致、代码最简单的方案。
+
+无论采用哪一种形式，必须满足：
+
+- 绑定前检查 Application 存在
+- 非 null `defaultDeploymentId` 必须对应已存在 ModelDeployment
+- 可以将 defaultDeployment 清空为 null
+- Application Response 能让管理端知道当前 `defaultDeploymentId`
+- 不暴露 ModelDeployment credential
+
+### Explicit Non-Goals
+
+P2-T03 不做：
+
+```text
+ModelAlias
+Route
+Weighted Routing
+Gray Release
+Application-Model 多对多权限
+按请求传 deploymentId
+Runtime Proxy
+API Key
+```
+
+### Acceptance Focus
+
+P2-T03 至少需要证明：
+
+- V5 migration 可从现有 V1~V4 schema 平滑升级
+- 旧 Application 在迁移后仍然有效，defaultDeploymentId 为 null
+- Application 可绑定存在的 ModelDeployment
+- Application 可切换默认 Deployment
+- Application 可清空默认 Deployment
+- 绑定不存在 Deployment 返回明确 404
+- 删除被 Application 引用的 ModelDeployment 返回 409 RESOURCE_CONFLICT
+- Application Response 正确返回 defaultDeploymentId
+- 集成测试覆盖真实 MySQL FK 行为
+
+---
+
+## 5. Frozen Domain Model for Remaining Phase 2
 
 ### ApplicationApiKey
 
@@ -172,7 +222,6 @@ Application 1:N ApplicationApiKey
 - Key 格式概念上：`aig_live_<keyId>.<secret>`
 - 数据库存 `keyId / prefix / SHA-256 hash`，不保存明文 secret
 - 明文 Key 只在创建时返回一次
-- Phase 2 不做自动过期、自动轮换、JWT、OAuth2
 
 ### Provider / Model / ModelDeployment
 
@@ -186,25 +235,29 @@ Model ──────┘
 
 ### Application.defaultDeploymentId
 
-P2-T03 计划让 Application 临时绑定一个默认 Deployment：
+当前 P2-T03 实现：
 
 ```text
 Application
   ↓
 defaultDeploymentId
+  ↓
+ModelDeployment
 ```
 
-后续 Routing 阶段再演进为：
+这是明确的阶段性设计。
+
+未来 Routing 出现后再演进为：
 
 ```text
 Application -> ModelAlias -> Route -> ModelDeployment
 ```
 
-当前不要提前实现 ModelAlias / Route。
+当前不要提前实现未来结构。
 
 ---
 
-## 5. Security Boundary
+## 6. Security Boundary
 
 当前真正已实现：
 
@@ -225,7 +278,7 @@ Provider Credential at rest
 
 ---
 
-## 6. Planned Runtime Contract
+## 7. Planned Runtime Contract
 
 ```text
 POST /v1/invoke
@@ -251,7 +304,7 @@ Runtime API 尚未实现。
 
 ---
 
-## 7. Planned Runtime Flow
+## 8. Planned Runtime Flow
 
 ```text
 POST /v1/invoke
@@ -275,7 +328,7 @@ Provider
 
 ---
 
-## 8. Database Migration State
+## 9. Database Migration State
 
 已完成：
 
@@ -286,24 +339,29 @@ V3 → Application
 V4 → Provider / Model / ModelDeployment
 ```
 
-后续计划：
+当前任务：
 
 ```text
 V5__add_application_default_deployment.sql
+```
+
+后续计划：
+
+```text
 V6__create_application_api_key.sql
 ```
 
-P2-T02 无 schema 变化，因此没有为了任务数量人为增加 migration。
+已执行 migration 不允许修改。
 
 ---
 
-## 9. Task Order / Gate
+## 10. Task Order / Gate
 
 | Task | 内容 | 状态 |
 |---|---|---|
 | P2-T01 | Model Registry Schema | **DONE** |
 | P2-T02 | Provider Credential Protection | **DONE** |
-| P2-T03 | Application Default Deployment | **NOT STARTED** |
+| P2-T03 | Application Default Deployment | **ACTIVE** |
 | P2-T04 | Application API Key Lifecycle | NOT STARTED |
 | P2-T05 | Runtime Authentication | NOT STARTED |
 | P2-T06 | Unified Model Contract | NOT STARTED |
@@ -313,11 +371,11 @@ P2-T02 无 schema 变化，因此没有为了任务数量人为增加 migration�
 | P2-T10 | End-to-End Integration Test | NOT STARTED |
 | P2-T11 | Phase Closeout | NOT STARTED |
 
-**当前执行门：等待用户明确确认是否开始 P2-T03。**
+**当前只执行 P2-T03。完成实现、测试、Code Review 和总控验收后，再等待用户确认 P2-T04。**
 
 ---
 
-## 10. Explicitly Deferred
+## 11. Explicitly Deferred
 
 ```text
 WebFlux
@@ -348,19 +406,20 @@ JSON Schema
 
 ---
 
-## 11. Phase 2 Acceptance Criteria
+## 12. Phase 2 Acceptance Criteria
 
-Phase 2 整体尚未完成。当前只确认：
+Phase 2 整体尚未完成。当前进度：
 
 ```text
 P2-T01 ✅
 P2-T02 ✅
-P2-T03 ~ P2-T11 ⏸
+P2-T03 🟢
+P2-T04 ~ P2-T11 ⏸
 ```
 
 ---
 
-## 12. Architecture Rule
+## 13. Architecture Rule
 
 ```text
 业务问题
