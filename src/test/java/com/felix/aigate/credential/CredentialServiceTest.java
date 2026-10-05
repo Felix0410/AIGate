@@ -57,9 +57,8 @@ class CredentialServiceTest {
         String encrypted =
                 credentialService.encrypt("sk-test-secret");
 
-        String tampered =
-                encrypted.substring(0, encrypted.length() - 2)
-                        + "AA";
+        // 确定性篡改：拆信封后固定翻转密文首字节，保证密文一定发生变化
+        String tampered = tamperCiphertext(encrypted);
 
         assertThrows(
                 IllegalStateException.class,
@@ -81,6 +80,25 @@ class CredentialServiceTest {
     }
 
     @Test
+    @DisplayName("使用错误 Master Key 解密应失败")
+    void decryptWithWrongMasterKeyShouldFail() {
+
+        CredentialService encryptService =
+                new CredentialService(createMasterKey());
+
+        String encrypted =
+                encryptService.encrypt("sk-test-secret");
+
+        CredentialService wrongService =
+                new CredentialService(createMasterKey());
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> wrongService.decrypt(encrypted)
+        );
+    }
+
+    @Test
     @DisplayName("Credential 为 null 时保持 null")
     void nullCredentialShouldRemainNull() {
 
@@ -89,6 +107,18 @@ class CredentialServiceTest {
 
         assertNull(credentialService.encrypt(null));
         assertNull(credentialService.decrypt(null));
+    }
+
+    /** 拆信封 -> 解码密文段 -> 固定翻转首字节 -> 重新编码回信封，确保确定性篡改。 */
+    private String tamperCiphertext(String encrypted) {
+        String[] parts = encrypted.split(":", 3);
+
+        byte[] cipherText = Base64.getDecoder().decode(parts[2]);
+        cipherText[0] ^= 0x01;
+
+        parts[2] = Base64.getEncoder().encodeToString(cipherText);
+
+        return parts[0] + ":" + parts[1] + ":" + parts[2];
     }
 
     private String createMasterKey() {
