@@ -22,6 +22,8 @@ public class Application {
 
     private Long teamId;
 
+    private Long defaultDeploymentId;
+
     private Instant createdAt;
 
     private Instant updatedAt;
