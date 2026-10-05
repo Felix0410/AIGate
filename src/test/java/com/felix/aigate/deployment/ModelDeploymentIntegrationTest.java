@@ -1,14 +1,23 @@
 package com.felix.aigate.deployment;
 
+import com.felix.aigate.credential.service.CredentialService;
 import com.felix.aigate.deployment.dto.request.CreateModelDeploymentRequest;
 import com.felix.aigate.deployment.dto.request.UpdateModelDeploymentRequest;
+import com.felix.aigate.deployment.mapper.ModelDeploymentMapper;
 import com.felix.aigate.model.dto.request.CreateModelRequest;
 import com.felix.aigate.provider.dto.request.CreateProviderRequest;
 import com.felix.aigate.provider.entity.ProviderType;
 import com.felix.aigate.support.IntegrationTestBase;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -21,6 +30,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 同名更新 / endpointUrl 空 400 / 删除被引用的 Provider、Model -> 409 RESOURCE_CONFLICT。
  */
 class ModelDeploymentIntegrationTest extends IntegrationTestBase {
+
+    @Autowired
+    private ModelDeploymentMapper modelDeploymentMapper;
+
+    @Autowired
+    private CredentialService credentialService;
 
     @Test
     @DisplayName("创建 Deployment -> 200，providerId/modelId 正确")
@@ -155,6 +170,125 @@ class ModelDeploymentIntegrationTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.code").value("RESOURCE_CONFLICT"));
     }
 
+    @Test
+    @DisplayName("创建带 credential 的 Deployment -> 200")
+    void createWithCredentialShouldSucceed() throws Exception {
+
+        long providerId = createProvider("dep-cred-create-provider");
+        long modelId = createModel("dep-cred-create-model");
+
+        CreateModelDeploymentRequest request =
+                createRequest("dep-cred-create", providerId, modelId);
+        request.setCredential("sk-test-secret");
+
+        mockMvc.perform(authed(post("/api/model-deployments"))
+                        .contentType(APPLICATION_JSON)
+                        .content(json(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").isNumber())
+                .andExpect(jsonPath("$.name").value("dep-cred-create"));
+    }
+
+    @Test
+    @DisplayName("创建带 credential 的 Deployment -> 响应不泄露 credential")
+    void responseShouldNotLeakCredential() throws Exception {
+
+        long providerId = createProvider("dep-cred-leak-provider");
+        long modelId = createModel("dep-cred-leak-model");
+
+        CreateModelDeploymentRequest request =
+                createRequest("dep-cred-leak", providerId, modelId);
+        request.setCredential("sk-test-secret");
+
+        String body = mockMvc.perform(authed(post("/api/model-deployments"))
+                        .contentType(APPLICATION_JSON)
+                        .content(json(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.credential").doesNotExist())
+                .andExpect(jsonPath("$.encryptedCredential").doesNotExist())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        assertFalse(body.contains("sk-test-secret"));
+    }
+
+    @Test
+    @DisplayName("credential 以密文落库：DB 值 != 明文、以 v1: 开头、可解密还原")
+    void credentialShouldBeStoredEncrypted() throws Exception {
+
+        long providerId = createProvider("dep-cred-db-provider");
+        long modelId = createModel("dep-cred-db-model");
+
+        long id = createDeploymentWithCredential(
+                "dep-cred-db", providerId, modelId, "sk-test-secret");
+
+        String stored = readStoredCredential(id);
+
+        assertNotNull(stored);
+        assertNotEquals("sk-test-secret", stored);
+        assertTrue(stored.startsWith("v1:"));
+        assertEquals("sk-test-secret", credentialService.decrypt(stored));
+    }
+
+    @Test
+    @DisplayName("credential = null -> 200，DB encryptedCredential 为 null")
+    void createWithNullCredentialShouldSucceed() throws Exception {
+
+        long providerId = createProvider("dep-cred-null-provider");
+        long modelId = createModel("dep-cred-null-model");
+
+        long id = createDeploymentWithCredential(
+                "dep-cred-null", providerId, modelId, null);
+
+        assertNull(readStoredCredential(id));
+    }
+
+    @Test
+    @DisplayName("更新 credential -> DB 密文改变，解密得到新值")
+    void updateCredentialShouldReEncrypt() throws Exception {
+
+        long providerId = createProvider("dep-cred-upd-provider");
+        long modelId = createModel("dep-cred-upd-model");
+
+        long id = createDeploymentWithCredential(
+                "dep-cred-upd", providerId, modelId, "old-secret");
+        String oldStored = readStoredCredential(id);
+
+        mockMvc.perform(authed(put("/api/model-deployments/" + id))
+                        .contentType(APPLICATION_JSON)
+                        .content(json(updateRequest(
+                                "dep-cred-upd", providerId, modelId, "new-secret"))))
+                .andExpect(status().isOk());
+
+        String newStored = readStoredCredential(id);
+
+        assertNotEquals(oldStored, newStored);
+        assertNotEquals("old-secret", newStored);
+        assertNotEquals("new-secret", newStored);
+        assertEquals("new-secret", credentialService.decrypt(newStored));
+    }
+
+    @Test
+    @DisplayName("PUT credential = null -> 全量更新语义下 DB encryptedCredential 变 null")
+    void updateWithNullCredentialShouldClear() throws Exception {
+
+        long providerId = createProvider("dep-cred-clear-provider");
+        long modelId = createModel("dep-cred-clear-model");
+
+        long id = createDeploymentWithCredential(
+                "dep-cred-clear", providerId, modelId, "old-secret");
+        assertNotNull(readStoredCredential(id));
+
+        mockMvc.perform(authed(put("/api/model-deployments/" + id))
+                        .contentType(APPLICATION_JSON)
+                        .content(json(updateRequest(
+                                "dep-cred-clear", providerId, modelId, null))))
+                .andExpect(status().isOk());
+
+        assertNull(readStoredCredential(id));
+    }
+
     // ---- helpers ----
 
     private CreateModelDeploymentRequest createRequest(
@@ -214,5 +348,41 @@ class ModelDeploymentIntegrationTest extends IntegrationTestBase {
                 .getContentAsString();
 
         return jsonMapper.readTree(body).get("id").asLong();
+    }
+
+    private long createDeploymentWithCredential(
+            String name, long providerId, long modelId, String credential) throws Exception {
+
+        CreateModelDeploymentRequest request = createRequest(name, providerId, modelId);
+        request.setCredential(credential);
+
+        String body = mockMvc.perform(authed(post("/api/model-deployments"))
+                        .contentType(APPLICATION_JSON)
+                        .content(json(request)))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        return jsonMapper.readTree(body).get("id").asLong();
+    }
+
+    private UpdateModelDeploymentRequest updateRequest(
+            String name, long providerId, long modelId, String credential) {
+
+        UpdateModelDeploymentRequest update = new UpdateModelDeploymentRequest();
+        update.setName(name);
+        update.setProviderId(providerId);
+        update.setModelId(modelId);
+        update.setEndpointUrl("http://localhost:9999/v1");
+        update.setRemoteModelName("test-model");
+        update.setEnabled(true);
+        update.setCredential(credential);
+        return update;
+    }
+
+    /** 直接查库读取落库后的 credential，验证真实存储内容。 */
+    private String readStoredCredential(long id) {
+        return modelDeploymentMapper.selectById(id).getEncryptedCredential();
     }
 }

@@ -3,6 +3,7 @@ package com.felix.aigate.deployment.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.felix.aigate.common.exception.ConflictException;
 import com.felix.aigate.common.exception.ResourceNotFoundException;
+import com.felix.aigate.credential.service.CredentialService;
 import com.felix.aigate.deployment.entity.ModelDeployment;
 import com.felix.aigate.deployment.mapper.ModelDeploymentMapper;
 import com.felix.aigate.model.entity.Model;
@@ -21,6 +22,7 @@ public class ModelDeploymentService {
     private final ModelDeploymentMapper modelDeploymentMapper;
     private final ProviderMapper providerMapper;
     private final ModelMapper modelMapper;
+    private final CredentialService credentialService;
 
     public ModelDeployment createModelDeployment(
             String name,
@@ -28,7 +30,8 @@ public class ModelDeploymentService {
             Long modelId,
             String endpointUrl,
             String remoteModelName,
-            Boolean enabled
+            Boolean enabled,
+            String credential
     ) {
         ensureProviderExists(providerId);
         ensureModelExists(modelId);
@@ -41,6 +44,7 @@ public class ModelDeploymentService {
         deployment.setEndpointUrl(endpointUrl);
         deployment.setRemoteModelName(remoteModelName);
         deployment.setEnabled(enabled);
+        deployment.setEncryptedCredential(credentialService.encrypt(credential));
 
         modelDeploymentMapper.insert(deployment);
 
@@ -71,7 +75,8 @@ public class ModelDeploymentService {
             Long modelId,
             String endpointUrl,
             String remoteModelName,
-            Boolean enabled
+            Boolean enabled,
+            String credential
     ) {
         ModelDeployment deployment = getModelDeploymentById(id);
 
@@ -85,6 +90,7 @@ public class ModelDeploymentService {
         deployment.setEndpointUrl(endpointUrl);
         deployment.setRemoteModelName(remoteModelName);
         deployment.setEnabled(enabled);
+        deployment.setEncryptedCredential(credentialService.encrypt(credential));
 
         modelDeploymentMapper.updateById(deployment);
 

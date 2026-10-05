@@ -29,7 +29,8 @@ public class ModelDeploymentController {
                         request.getModelId(),
                         request.getEndpointUrl(),
                         request.getRemoteModelName(),
-                        request.getEnabled()
+                        request.getEnabled(),
+                        request.getCredential()
                 );
 
         return toResponse(deployment);
@@ -65,7 +66,8 @@ public class ModelDeploymentController {
                         request.getModelId(),
                         request.getEndpointUrl(),
                         request.getRemoteModelName(),
-                        request.getEnabled()
+                        request.getEnabled(),
+                        request.getCredential()
                 );
 
         return toResponse(deployment);

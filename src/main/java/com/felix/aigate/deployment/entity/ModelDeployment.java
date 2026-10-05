@@ -1,6 +1,8 @@
 package com.felix.aigate.deployment.entity;
 
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Getter;
@@ -28,6 +30,8 @@ public class ModelDeployment {
 
     private String remoteModelName;
 
+    /** PUT 为全量更新：credential 传 null 时也要落库清空，故该列更新时始终参与。 */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private String encryptedCredential;
 
     private Boolean enabled;

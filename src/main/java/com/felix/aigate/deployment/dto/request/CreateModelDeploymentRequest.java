@@ -28,4 +28,6 @@ public class CreateModelDeploymentRequest {
 
     @NotNull
     private Boolean enabled;
+
+    private String credential;
 }

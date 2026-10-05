@@ -9,6 +9,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.util.Base64;
+
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 
 /**
@@ -27,6 +29,10 @@ public abstract class IntegrationTestBase {
     protected static final String TEST_USERNAME = "test-admin";
     protected static final String TEST_PASSWORD = "test-password";
 
+    /** 测试用 AES 主密钥：固定 32 字节的 Base64，仅用于测试上下文，不依赖本机真实环境变量。 */
+    protected static final String TEST_MASTER_KEY =
+            Base64.getEncoder().encodeToString(new byte[32]);
+
     @DynamicPropertySource
     static void datasourceProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", MySqlTestContainer.MYSQL::getJdbcUrl);
@@ -38,6 +44,11 @@ public abstract class IntegrationTestBase {
     static void securityProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.security.user.name", () -> TEST_USERNAME);
         registry.add("spring.security.user.password", () -> TEST_PASSWORD);
+    }
+
+    @DynamicPropertySource
+    static void credentialProperties(DynamicPropertyRegistry registry) {
+        registry.add("AIGATE_MASTER_KEY", () -> TEST_MASTER_KEY);
     }
 
     @Autowired
