@@ -10,15 +10,16 @@
 
 **ACTIVE**
 
-当前执行门：
+当前任务：
 
-**P2-T01 COMPLETED / WAITING FOR USER CONFIRMATION**
+**P2-T02 — Provider Credential Protection（ACTIVE）**
 
 下一计划任务：
 
-**P2-T02 — Provider Credential Protection（NOT STARTED）**
+**P2-T03 — Application Default Deployment（NOT STARTED）**
 
 Phase 1 已完成并验收通过。
+P2-T01 已完成并通过开发导师 Code Review。
 
 ---
 
@@ -79,7 +80,7 @@ Phase 2 只做 single-model、non-streaming proxy。
 | Task | 内容 | 状态 |
 |---|---|---|
 | P2-T01 | Model Registry Schema | **DONE** |
-| P2-T02 | Provider Credential Protection | **NOT STARTED** |
+| P2-T02 | Provider Credential Protection | **ACTIVE** |
 | P2-T03 | Application Default Deployment | NOT STARTED |
 | P2-T04 | Application API Key Lifecycle | NOT STARTED |
 | P2-T05 | Runtime Authentication | NOT STARTED |
@@ -90,7 +91,7 @@ Phase 2 只做 single-model、non-streaming proxy。
 | P2-T10 | End-to-End Integration Test | NOT STARTED |
 | P2-T11 | Phase Closeout | NOT STARTED |
 
-当前不会自动开始 P2-T02，等待用户确认。
+当前只执行 P2-T02，不提前进入 P2-T03。
 
 ---
 
@@ -133,11 +134,61 @@ Model ──────┘
 - endpointUrl
 - remoteModelName
 - enabled
-- encryptedCredential 字段已预留，但 P2-T02 前不处理真实加密流程
+- encryptedCredential 字段已预留
 
 ---
 
-## 6. 当前数据库
+## 6. 当前任务 P2-T02
+
+目标：
+
+> Provider Credential 可以由 AIGate 安全保存和恢复使用，但不能以明文形式落库或通过普通管理 API 返回。
+
+当前冻结方案：
+
+```text
+Plain Provider Secret
+↓
+AES-GCM
+↓
+encryptedCredential
+↓
+MySQL
+```
+
+Master Key：
+
+```text
+AIGATE_MASTER_KEY
+```
+
+来自环境变量，不进入数据库、不提交 Git。
+
+建议密文格式：
+
+```text
+v1:<iv>:<ciphertext+tag>
+```
+
+P2-T02 当前重点：
+
+- CredentialService encrypt / decrypt
+- credential 明文不落库
+- 查询 API 不返回 credential
+- 错误/损坏密文受控失败
+- 无 credential Deployment 仍然合法
+- 加密逻辑独立测试
+
+明确不做：
+
+- Vault / KMS / Secret Manager
+- 自动 Key Rotation
+- Runtime Proxy
+- Application API Key
+
+---
+
+## 7. 当前数据库
 
 数据库：**MySQL 8.4**
 
@@ -159,11 +210,11 @@ V4 → Provider / Model / ModelDeployment
 - ModelDeployment.model_id FK → Model.id
 - Provider / Model 删除使用 ON DELETE RESTRICT
 
-已执行 migration 不修改，后续变更继续新增 migration。
+P2-T02 优先复用 V4 已有 `model_deployment.encrypted_credential`，没有真实 schema 变化则不新增 migration。
 
 ---
 
-## 7. 当前 API Error Contract 增量
+## 8. 当前 API Error Contract 增量
 
 在 Phase 1 错误码基础上，P2-T01 新增：
 
@@ -183,26 +234,26 @@ MODEL_DEPLOYMENT_NAME_ALREADY_EXISTS
 RESOURCE_CONFLICT
 ```
 
-`INVALID_REQUEST` 当前用于 JSON 无法反序列化为有效请求模型，例如未知 ProviderType 枚举值。
+P2-T02 如产生新的受控 credential 错误语义，应在任务完成收尾时按实际实现更新，不提前虚构。
 
 ---
 
-## 8. Security
+## 9. Security
 
-当前真正已实现的安全方案仍为：
+当前真正已实现的管理面安全方案仍为：
 
 ```text
 /api/**
 → HTTP Basic
 ```
 
-Phase 2 计划中的 `/v1/**` Application API Key 认证尚未实现。
+P2-T02 增加的是 Provider Credential 的存储安全，不等同于 Runtime Application API Key Authentication。
 
-不要把计划状态写成已完成事实。
+Phase 2 计划中的 `/v1/**` Application API Key 认证尚未实现。
 
 ---
 
-## 9. Testing
+## 10. Testing
 
 当前继续使用：
 
@@ -212,20 +263,12 @@ Phase 2 计划中的 `/v1/**` Application API Key 认证尚未实现。
 - Testcontainers
 - MySQL 8.4
 
-P2-T01 新增集成测试覆盖：
-
-- Provider 创建 / 重名 / ProviderType 持久化 / 非法 ProviderType
-- Model 创建 / 重名
-- ModelDeployment 创建
-- Provider / Model 不存在 404
-- Deployment 重名 409
-- 同名更新
-- endpointUrl validation
-- Provider / Model 被 Deployment 引用时删除冲突
+P2-T01 集成测试已覆盖 Model Registry 核心场景。
+P2-T02 应重点补充 credential 加密/解密与“不暴露明文”相关测试。
 
 ---
 
-## 10. 当前架构
+## 11. 当前架构
 
 当前仍然是：
 
@@ -249,7 +292,7 @@ security
 
 ---
 
-## 11. 当前技术债
+## 12. 当前技术债
 
 ### TD-001 HTTP Basic 是临时管理面认证方案
 
@@ -291,7 +334,7 @@ Phase 2 后续会为 Runtime 引入 Application API Key，但管理面的最终�
 
 ---
 
-## 12. P2-T01 Acceptance Result
+## 13. P2-T01 Acceptance Result
 
 P2-T01 收尾结果：
 
@@ -312,4 +355,10 @@ P2-T01 收尾结果：
 
 **P2-T01 — Model Registry Schema：COMPLETED**
 
-当前停在阶段门，等待用户确认是否进入 P2-T02。
+---
+
+## 14. Current Execution Gate
+
+**P2-T02 — Provider Credential Protection：ACTIVE**
+
+完成实现、测试和 Code Review 后，再回到总控进行 P2-T02 收尾；未经过用户确认不得进入 P2-T03。
