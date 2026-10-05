@@ -6,82 +6,29 @@
 
 **Phase 2 — Model Registry & Single Model Proxy**
 
-状态：
+状态：**ACTIVE**
 
-**ACTIVE**
+当前执行门：
 
-当前任务：
-
-**P2-T02 — Provider Credential Protection（ACTIVE）**
+**P2-T02 COMPLETED / WAITING FOR USER CONFIRMATION**
 
 下一计划任务：
 
 **P2-T03 — Application Default Deployment（NOT STARTED）**
 
 Phase 1 已完成并验收通过。
-P2-T01 已完成并通过开发导师 Code Review。
+P2-T01 已完成。
+P2-T02 已通过总控验收。
 
 ---
 
-## 2. Phase 1 完成结果
-
-Phase 1 — Foundation & Core Identity 已完成：
-
-```text
-Team
-├── Employee
-└── Application
-```
-
-已具备：
-
-- Team / Employee / Application CRUD
-- Team 归属关系
-- Bean Validation
-- Global Exception Handling
-- HTTP Basic 管理 API 安全边界
-- Flyway
-- MySQL 8.4
-- MyBatis-Plus
-- Testcontainers + MockMvc 集成测试
-
-Phase 1 任务 P1-T01 ~ P1-T09 全部 DONE。
-
----
-
-## 3. Phase 2 Business Goal
-
-Phase 2 的目标是让一个 Application 第一次通过 AIGate 安全调用 AI Model，同时 Application 不持有 Provider Secret。
-
-目标主流程：
-
-```text
-Application
-↓
-AIGate API Key
-↓
-AIGate
-↓
-Application.defaultDeployment
-↓
-ModelDeployment
-↓
-ProviderAdapter
-↓
-Provider
-```
-
-Phase 2 只做 single-model、non-streaming proxy。
-
----
-
-## 4. Phase 2 Task Status
+## 2. Phase 2 Task Status
 
 | Task | 内容 | 状态 |
 |---|---|---|
 | P2-T01 | Model Registry Schema | **DONE** |
-| P2-T02 | Provider Credential Protection | **ACTIVE** |
-| P2-T03 | Application Default Deployment | NOT STARTED |
+| P2-T02 | Provider Credential Protection | **DONE** |
+| P2-T03 | Application Default Deployment | **NOT STARTED** |
 | P2-T04 | Application API Key Lifecycle | NOT STARTED |
 | P2-T05 | Runtime Authentication | NOT STARTED |
 | P2-T06 | Unified Model Contract | NOT STARTED |
@@ -91,13 +38,15 @@ Phase 2 只做 single-model、non-streaming proxy。
 | P2-T10 | End-to-End Integration Test | NOT STARTED |
 | P2-T11 | Phase Closeout | NOT STARTED |
 
-当前只执行 P2-T02，不提前进入 P2-T03。
+当前不会自动开始 P2-T03。
 
 ---
 
-## 5. P2-T01 完成能力
+## 3. 已完成能力
 
-P2-T01 已建立 Model Registry 的第一版最小业务模型：
+### P2-T01 Model Registry
+
+已建立：
 
 ```text
 Provider ───┐
@@ -105,94 +54,51 @@ Provider ───┐
 Model ──────┘
 ```
 
-### 5.1 Provider
+Provider / Model / ModelDeployment 已完成基础 CRUD、唯一约束、外键约束和核心集成测试。
 
-已支持：
+### P2-T02 Provider Credential Protection
 
-- create / get / list / update / delete
-- name 唯一性
-- `ProviderType.OPENAI_COMPATIBLE`
-- 非法 ProviderType JSON 返回 `400 INVALID_REQUEST`
-- 被 ModelDeployment 引用时删除返回 `409 RESOURCE_CONFLICT`
-
-### 5.2 Model
-
-已支持：
-
-- create / get / list / update / delete
-- name 唯一性
-- 被 ModelDeployment 引用时删除返回 `409 RESOURCE_CONFLICT`
-
-### 5.3 ModelDeployment
-
-已支持：
-
-- create / get / list / update / delete
-- name 唯一性
-- 必须关联已存在 Provider
-- 必须关联已存在 Model
-- endpointUrl
-- remoteModelName
-- enabled
-- encryptedCredential 字段已预留
-
----
-
-## 6. 当前任务 P2-T02
-
-目标：
-
-> Provider Credential 可以由 AIGate 安全保存和恢复使用，但不能以明文形式落库或通过普通管理 API 返回。
-
-当前冻结方案：
+已实现：
 
 ```text
-Plain Provider Secret
+Plain Provider Credential
 ↓
-AES-GCM
+CredentialService
 ↓
-encryptedCredential
+AES/GCM/NoPadding
 ↓
-MySQL
-```
-
-Master Key：
-
-```text
-AIGATE_MASTER_KEY
-```
-
-来自环境变量，不进入数据库、不提交 Git。
-
-建议密文格式：
-
-```text
 v1:<iv>:<ciphertext+tag>
+↓
+model_deployment.encrypted_credential
 ```
 
-P2-T02 当前重点：
+安全参数：
 
-- CredentialService encrypt / decrypt
-- credential 明文不落库
-- 查询 API 不返回 credential
-- 错误/损坏密文受控失败
-- 无 credential Deployment 仍然合法
-- 加密逻辑独立测试
+- AES-256
+- 12-byte random IV
+- 128-bit GCM authentication tag
+- Master Key 为 Base64 编码的 32 bytes
+- Master Key 从 `AIGATE_MASTER_KEY` 注入
 
-明确不做：
+当前行为：
 
-- Vault / KMS / Secret Manager
-- 自动 Key Rotation
-- Runtime Proxy
-- Application API Key
+- 创建/更新 ModelDeployment 时可提交 `credential`
+- credential 在 Service 层加密后写入数据库
+- 相同明文重复加密产生不同密文
+- 普通 ModelDeployment Response 不返回明文或密文 credential
+- null credential 合法
+- PUT 是完整更新，`credential = null` 会清空数据库中的 encrypted credential
+- 错误 Master Key / 被篡改密文无法成功解密
+
+P2-T02 没有 schema 变化，直接复用 V4 的 `encrypted_credential` 字段。
 
 ---
 
-## 7. 当前数据库
+## 4. 当前数据库
 
-数据库：**MySQL 8.4**
+MySQL 8.4。
 
-当前 Flyway Migration：
+Flyway：
 
 ```text
 V1 → Team
@@ -201,78 +107,59 @@ V3 → Application
 V4 → Provider / Model / ModelDeployment
 ```
 
-当前新增主要约束：
-
-- Provider name UNIQUE
-- Model name UNIQUE
-- ModelDeployment name UNIQUE
-- ModelDeployment.provider_id FK → Provider.id
-- ModelDeployment.model_id FK → Model.id
-- Provider / Model 删除使用 ON DELETE RESTRICT
-
-P2-T02 优先复用 V4 已有 `model_deployment.encrypted_credential`，没有真实 schema 变化则不新增 migration。
+P2-T03 才计划新增 `application.default_deployment_id`。
 
 ---
 
-## 8. 当前 API Error Contract 增量
+## 5. Security 状态
 
-在 Phase 1 错误码基础上，P2-T01 新增：
-
-```text
-400
-INVALID_REQUEST
-
-404
-PROVIDER_NOT_FOUND
-MODEL_NOT_FOUND
-MODEL_DEPLOYMENT_NOT_FOUND
-
-409
-PROVIDER_NAME_ALREADY_EXISTS
-MODEL_NAME_ALREADY_EXISTS
-MODEL_DEPLOYMENT_NAME_ALREADY_EXISTS
-RESOURCE_CONFLICT
-```
-
-P2-T02 如产生新的受控 credential 错误语义，应在任务完成收尾时按实际实现更新，不提前虚构。
-
----
-
-## 9. Security
-
-当前真正已实现的管理面安全方案仍为：
+当前已经实现：
 
 ```text
 /api/**
 → HTTP Basic
+
+Provider Credential at rest
+→ AES-GCM encrypted
 ```
 
-P2-T02 增加的是 Provider Credential 的存储安全，不等同于 Runtime Application API Key Authentication。
+尚未实现：
 
-Phase 2 计划中的 `/v1/**` Application API Key 认证尚未实现。
+```text
+/v1/**
+→ Application API Key
+```
 
----
-
-## 10. Testing
-
-当前继续使用：
-
-- Spring Boot Test
-- MockMvc
-- Spring Security Test
-- Testcontainers
-- MySQL 8.4
-
-P2-T01 集成测试已覆盖 Model Registry 核心场景。
-P2-T02 应重点补充 credential 加密/解密与“不暴露明文”相关测试。
+Application API Key 属于后续 P2-T04 / P2-T05。
 
 ---
 
-## 11. 当前架构
+## 6. Testing
 
-当前仍然是：
+P2-T02 新增单元测试与集成测试，覆盖：
 
-**单体应用 + 模块化代码组织**
+- encrypt/decrypt round trip
+- 同一 credential 随机 IV 导致不同密文
+- 密文篡改检测
+- 错误 Master Key
+- 非法 Master Key 长度
+- null credential
+- API Response 不泄露 credential
+- 数据库实际保存密文
+- credential 更新
+- PUT null 清空 credential
+
+测试上下文通过 DynamicPropertySource 提供测试 Master Key，不依赖开发机真实环境变量。
+
+GitHub 当前仍无 CI status / workflow run，因此自动测试门禁缺失继续保留为 TD-009。
+
+---
+
+## 7. 当前架构
+
+继续保持：
+
+**模块化单体**
 
 当前主要模块：
 
@@ -283,20 +170,21 @@ application
 provider
 model
 deployment
+credential
 common
 config
 security
 ```
 
-当前没有拆微服务，也没有引入 Redis / MQ / Nacos / Spring Cloud。
+没有因为 Secret 管理引入 Vault / KMS / 微服务。
 
 ---
 
-## 12. 当前技术债
+## 8. 当前技术债
 
 ### TD-001 HTTP Basic 是临时管理面认证方案
 
-Phase 2 后续会为 Runtime 引入 Application API Key，但管理面的最终身份体系仍未确定。
+最终管理身份体系尚未确定。
 
 ### TD-002 暂无 Role / Permission
 
@@ -304,61 +192,58 @@ Phase 2 后续会为 Runtime 引入 Application API Key，但管理面的最终�
 
 ### TD-003 Service 暂无统一事务设计
 
-当前主要操作仍以单表写为主。出现真实多表原子操作后再设计事务边界。
+出现真实多表原子操作后再明确事务边界。
 
 ### TD-004 跨模块存在少量 Mapper 依赖
 
-例如 Employee / Application 使用 TeamMapper，ModelDeploymentService 使用 ProviderMapper / ModelMapper 做存在性检查。
-
-当前保持简单；跨模块规则复杂后再考虑更清晰边界。
+当前保持简单。
 
 ### TD-005 Error Code 使用字符串
 
-错误码规模扩大后考虑统一管理。
+规模扩大后考虑统一管理。
 
 ### TD-006 ApiErrorResponse 可观测性不足
 
-当前仍缺少 traceId / requestId / path。
+缺少 traceId / requestId / path。
 
 ### TD-007 当前唯一约束基于单 Organization 假设
 
-未来 Multi-Tenant 时重新评估唯一约束范围。
+未来 Multi-Tenant 时重新评估。
 
-### TD-008 当前测试覆盖关键链路，不追求完整覆盖率
+### TD-008 测试覆盖关键链路，不追求完整覆盖率
 
-后续随着业务复杂度增长逐步补充。
+随复杂度逐步增加。
 
 ### TD-009 暂无 CI Test Gate
 
-当前测试主要通过本地 `./mvnw test` 执行，尚未建立 GitHub Actions 自动测试门禁。
+GitHub 当前无自动测试状态检查。
+
+### TD-010 Provider Master Key Rotation 尚未设计
+
+当前一个 `AIGATE_MASTER_KEY` 负责 v1 Credential 解密。
+
+Phase 2 不做自动 Key Rotation；如果未来需要更换 Master Key，需要设计旧密文迁移 / 多版本 Key 读取策略。当前版本化 envelope 已为此预留演进空间。
 
 ---
 
-## 13. P2-T01 Acceptance Result
+## 9. P2-T02 Acceptance Result
 
-P2-T01 收尾结果：
-
-- [x] Provider schema / CRUD
-- [x] Model schema / CRUD
-- [x] ModelDeployment schema / CRUD
-- [x] Provider 与 Model 不直接绑定
-- [x] ModelDeployment 同时关联 Provider 与 Model
-- [x] Flyway V4 生效
-- [x] name UNIQUE 约束
-- [x] FK + ON DELETE RESTRICT
-- [x] ProviderType 当前只支持 OPENAI_COMPATIBLE
-- [x] 非法 ProviderType 请求返回 400 INVALID_REQUEST
-- [x] 关键集成测试已补充
-- [x] 已通过开发导师 Code Review
+- [x] AES-GCM 加密/解密
+- [x] 32-byte Master Key 校验
+- [x] 随机 IV
+- [x] 版本化 `v1` envelope
+- [x] credential 明文不落库
+- [x] API Response 不暴露 credential
+- [x] null credential 合法
+- [x] 错误 Master Key 失败
+- [x] 篡改密文失败
+- [x] 独立 CredentialService 测试
+- [x] ModelDeployment 集成测试覆盖真实 DB 密文
+- [x] 无不必要 schema migration
+- [x] 未提前引入 Vault / KMS / Runtime Proxy
 
 结论：
 
-**P2-T01 — Model Registry Schema：COMPLETED**
+**P2-T02 — Provider Credential Protection：COMPLETED / ACCEPTED**
 
----
-
-## 14. Current Execution Gate
-
-**P2-T02 — Provider Credential Protection：ACTIVE**
-
-完成实现、测试和 Code Review 后，再回到总控进行 P2-T02 收尾；未经过用户确认不得进入 P2-T03。
+当前停在执行门，等待用户确认是否进入 P2-T03。
