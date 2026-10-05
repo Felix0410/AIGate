@@ -19,58 +19,52 @@ P2-T01 Model Registry Schema
 → COMPLETED
 
 P2-T02 Provider Credential Protection
+→ COMPLETED / ACCEPTED
+
+P2-T03 Application Default Deployment
 → NOT STARTED
 ```
 
-当前不会自动进入 P2-T02，等待用户确认。
+当前停在执行门，等待用户确认是否进入 P2-T03。
 
 ---
 
 ## 3. 当前系统形态
 
-AIGate 仍采用：
+AIGate 继续采用：
 
 **单体应用 + 模块化代码组织**
 
-当前没有拆分微服务。
+当前没有拆分微服务，也没有为了 Secret 管理引入 Vault / KMS。
 
-原因：
+当前重点仍是：
 
-- 仍处于单节点、单数据库阶段
-- 尚未出现独立扩缩容需求
-- 尚未出现服务间通信问题
-- 尚未出现分布式一致性问题
-- 当前重点是先打通 AI Gateway 主流程
-
-当前阶段优先保证：
-
-- 业务闭环
-- 数据一致性
-- 可维护性
-- 可测试性
-- 架构可演进但不过度设计
+```text
+先打通 AI Gateway 主流程
+再根据真实问题演进基础设施
+```
 
 ---
 
 ## 4. 当前整体架构
 
-当前已经实现的主链仍是管理面 CRUD：
+管理面当前链路：
 
 ```text
 Client
-  ↓
-Spring Security Filter Chain
-  ↓
+↓
+HTTP Basic
+↓
 Spring MVC Controller
-  ↓
+↓
 Service
-  ↓
-MyBatis-Plus Mapper
-  ↓
+↓
+MyBatis-Plus
+↓
 MySQL
 ```
 
-当前新增 Model Registry：
+Model Registry：
 
 ```text
 Provider ───┐
@@ -78,29 +72,39 @@ Provider ───┐
 Model ──────┘
 ```
 
-Phase 2 后续目标运行时链路尚未实现：
+Provider Credential 保护链路：
 
 ```text
-Application
+credential input
 ↓
-AIGate API Key
+ModelDeploymentService
 ↓
-AIGate
+CredentialService.encrypt()
 ↓
-Application.defaultDeployment
+AES-GCM
 ↓
-ModelDeployment
+model_deployment.encrypted_credential
+```
+
+未来 Runtime 使用时：
+
+```text
+model_deployment.encrypted_credential
+↓
+CredentialService.decrypt()
 ↓
 ProviderAdapter
 ↓
 Provider
 ```
 
+Runtime Proxy 本身尚未实现。
+
 ---
 
 ## 5. 当前模块划分
 
-当前主要业务模块：
+业务模块：
 
 ```text
 team
@@ -111,88 +115,48 @@ model
 deployment
 ```
 
-基础模块：
+基础能力：
 
 ```text
+credential
 common
 config
 security
 ```
 
-各业务模块继续采用简单结构：
+`credential` 当前只负责 Provider Credential 的对称加密/解密边界。
 
-```text
-controller
-dto
-entity
-mapper
-service
-```
+没有额外引入：
 
-当前没有额外引入：
-
-- Repository 抽象层
+- Repository abstraction
 - Domain Service
 - CQRS
-- DDD Aggregate
 - Event Bus
-
-原因仍然是当前业务复杂度不足以支撑这些额外抽象成本。
-
----
-
-## 6. Phase 1 Identity Model
-
-Phase 1 已完成：
-
-```text
-Team
-├── Employee
-└── Application
-```
-
-Employee 仍是业务人员实体，不等同于登录账号。
-
-Application 仍表示未来调用 AIGate 的机器应用身份主体。
+- Secret Manager client
 
 ---
 
-## 7. P2-T01 Model Registry
+## 6. Model Registry
 
-### 7.1 Provider
+### Provider
 
-Provider 表示模型服务提供方 / 协议类别。
+表示模型服务提供方 / 协议类别。
 
-当前实际支持：
-
-```text
-ProviderType.OPENAI_COMPATIBLE
-```
-
-当前 Provider 不保存 endpoint / credential 等部署级运行配置。
-
-### 7.2 Model
-
-Model 表示逻辑模型。
-
-当前重要设计：
-
-> Model 不直接属于 Provider。
-
-原因是同一个逻辑模型未来可以由不同 Provider 承载。
-
-### 7.3 ModelDeployment
-
-ModelDeployment 表示真正可调用的模型部署实例。
-
-关系：
+当前只支持：
 
 ```text
-Provider 1 ---- N ModelDeployment
-Model    1 ---- N ModelDeployment
+OPENAI_COMPATIBLE
 ```
 
-当前字段已经包含：
+### Model
+
+表示逻辑模型，不直接属于 Provider。
+
+### ModelDeployment
+
+真正可调用的部署实例，同时关联 Provider 与 Model。
+
+当前关键运行字段：
 
 ```text
 endpointUrl
@@ -201,28 +165,136 @@ encryptedCredential
 enabled
 ```
 
-其中 `encryptedCredential` 只是 schema 预留；真正 Credential 加密/解密逻辑属于 P2-T02，尚未实现。
-
-### 7.4 为什么运行时最终选择 Deployment
-
-真正影响调用的是：
-
-```text
-endpoint
-remote model identifier
-credential
-enabled
-```
-
-这些都属于具体部署实例，而不是逻辑 Model。
-
-因此未来 Routing 的真实目标也会是 ModelDeployment。
+运行时最终应选择 ModelDeployment。
 
 ---
 
-## 8. 数据库设计原则
+## 7. P2-T02 Credential Protection
 
-当前数据库使用 MySQL 8.4，Schema 通过 Flyway 管理。
+### 7.1 为什么需要加密而不是 Hash
+
+Provider Credential 后续还要被 AIGate 恢复原文并发送给 Provider，因此：
+
+```text
+Hash
+→ 无法恢复原文
+→ 不适用
+
+Encryption
+→ 可以受控恢复原文
+→ 适用
+```
+
+因此当前使用对称认证加密。
+
+### 7.2 当前算法
+
+```text
+AES/GCM/NoPadding
+```
+
+参数：
+
+```text
+AES key: 256 bits
+IV: 12 random bytes
+GCM tag: 128 bits
+```
+
+使用 `SecureRandom` 为每次加密产生新的 IV。
+
+因此相同 credential 多次加密也不会得到相同密文。
+
+### 7.3 密文 Envelope
+
+当前格式：
+
+```text
+v1:<base64(iv)>:<base64(ciphertext+tag)>
+```
+
+版本号 `v1` 为未来算法 / Key 策略演进保留兼容入口。
+
+### 7.4 Master Key
+
+来源：
+
+```text
+AIGATE_MASTER_KEY
+```
+
+要求：
+
+```text
+Base64 decode
+→ exactly 32 bytes
+```
+
+Master Key 不存入数据库，也未写进 application.yaml。
+
+缺失或格式非法时应用不能正常建立 CredentialService，属于 fail-fast 配置错误。
+
+### 7.5 Authentication Integrity
+
+GCM 同时提供：
+
+```text
+Confidentiality
++
+Integrity / Authenticity
+```
+
+因此：
+
+- 密文被篡改 → 解密失败
+- 错误 Master Key → 解密失败
+
+不会静默得到错误的 Provider Secret。
+
+### 7.6 API Secret Boundary
+
+HTTP Request DTO 可以接受：
+
+```text
+credential
+```
+
+但 Response DTO 不包含：
+
+```text
+credential
+encryptedCredential
+```
+
+因此普通管理 API 不回显 Secret。
+
+### 7.7 Null Credential
+
+`encryptedCredential` 允许 NULL。
+
+原因：
+
+- MockLLM 可能无需认证
+- 私有 Provider 可能暂时不需要 Secret
+
+### 7.8 PUT 语义
+
+当前项目 PUT 是完整更新。
+
+因此：
+
+```text
+PUT credential = null
+→ encryptedCredential = null
+```
+
+Entity 对该字段使用 `FieldStrategy.ALWAYS`，确保 null 能真正写入数据库。
+
+这是当前明确行为，不是 PATCH 语义。
+
+---
+
+## 8. 数据库与 Flyway
 
 当前 migration：
 
@@ -233,136 +305,43 @@ V3 → Application
 V4 → Provider / Model / ModelDeployment
 ```
 
-已执行 migration 不允许修改。
+P2-T02 没有新增 migration。
 
-数据库继续负责最终数据完整性：
+原因：
 
-```text
-UNIQUE
-FOREIGN KEY
-NOT NULL
-```
+> V4 已经存在 `model_deployment.encrypted_credential`，本任务只有应用层安全逻辑变化，没有 schema 变化。
 
-P2-T01 新增：
-
-```text
-model_deployment.provider_id
-→ provider.id
-→ ON DELETE RESTRICT
-
-model_deployment.model_id
-→ model.id
-→ ON DELETE RESTRICT
-```
-
-正常业务路径仍采用：
-
-```text
-Service 预检查
-+
-Database Constraint 最终保护
-```
+不为了“每个任务一个 migration”人为制造数据库版本。
 
 ---
 
-## 9. API 层
+## 9. Security
 
-当前实际管理 API 新增：
+当前真实安全边界：
 
 ```text
-/api/providers
-/api/models
-/api/model-deployments
+Management API
+/api/**
+→ HTTP Basic
+
+Provider Secret at rest
+→ AES-GCM
 ```
 
-仍全部受 Phase 1 HTTP Basic 保护。
-
-Phase 2 计划中的：
+尚未实现：
 
 ```text
-/v1/**
+Runtime /v1/**
 → Application API Key
 ```
 
-尚未实现。
+Employee 仍不等于登录账号。
 
 ---
 
-## 10. Validation 与错误处理
+## 10. Testing Architecture
 
-继续使用 Jakarta Bean Validation 和 GlobalExceptionHandler。
-
-P2-T01 新增了 JSON 反序列化错误语义：
-
-```text
-HttpMessageNotReadableException
-↓
-400 INVALID_REQUEST
-```
-
-典型场景：
-
-```text
-ProviderType = NOT_A_VALID_TYPE
-```
-
-因此目前可区分：
-
-```text
-VALIDATION_ERROR
-→ DTO 字段校验失败
-
-INVALID_REQUEST
-→ 请求体无法反序列化为有效请求模型
-```
-
----
-
-## 11. Spring Security
-
-当前真正已实现的认证仍是：
-
-```text
-/api/**
-→ HTTP Basic
-```
-
-公开范围：
-
-```text
-/v3/api-docs/**
-/swagger-ui/**
-/swagger-ui.html
-```
-
-当前还没有：
-
-- Runtime API Key Authentication
-- Role / Permission
-- JWT
-- OAuth2 / OIDC
-
-后续 Phase 2 会让管理面和运行时安全边界开始分化，但当前事实仍只有管理面 HTTP Basic。
-
----
-
-## 12. Jackson
-
-项目基于 Spring Boot 4 / Jackson 3。
-
-当前继续使用：
-
-```text
-tools.jackson.databind.json.JsonMapper
-```
-
-P2-T01 中 ProviderType 非法枚举值会在 Jackson 反序列化阶段失败，再由 GlobalExceptionHandler 转换为 `400 INVALID_REQUEST`。
-
----
-
-## 13. 集成测试架构
-
-当前测试仍是：
+原有集成测试链保持：
 
 ```text
 MockMvc
@@ -371,8 +350,6 @@ Spring Security
 ↓
 Controller
 ↓
-Validation / JSON Binding
-↓
 Service
 ↓
 MyBatis-Plus
@@ -380,129 +357,106 @@ MyBatis-Plus
 Real MySQL Testcontainer
 ```
 
-P2-T01 新增 Provider / Model / ModelDeployment 集成测试，重点验证：
+P2-T02 新增两层测试：
 
-- 正常创建
-- 唯一性冲突
-- ProviderType VARCHAR 往返
-- 非法 ProviderType JSON
-- Deployment 外键存在性
-- Deployment validation
-- FK RESTRICT 删除冲突
+### CredentialService Unit Test
+
+验证：
+
+- round-trip
+- random IV
+- tamper detection
+- wrong master key
+- invalid master key length
+- null credential
+
+### ModelDeployment Integration Test
+
+验证：
+
+- API 可以接收 credential
+- Response 不泄露 Secret
+- DB 保存的是密文
+- 密文可恢复原文
+- update 后重新加密
+- PUT null 清空 credential
+
+测试上下文通过 DynamicPropertySource 提供专用测试 Master Key。
+
+GitHub 当前仍无 CI 自动测试门禁。
 
 ---
 
-## 14. 当前架构演进过程
+## 11. 当前架构演进
 
 ```text
 Phase 1
 Identity Foundation
-Team / Employee / Application
-↓
-Validation / Exception Contract
-↓
-HTTP Basic
-↓
-Testcontainers
 ↓
 
-Phase 2 / P2-T01
+P2-T01
 Model Registry
 Provider / Model / ModelDeployment
 ↓
-建立未来模型调用目标的领域边界
+
+P2-T02
+Provider Credential Protection
+AES-GCM + external Master Key
 ```
 
-当前还没有真正发生：
+尚未发生：
 
 ```text
-Credential Protection
+Application Default Deployment
 Application API Key
 Runtime Authentication
 Provider Adapter
 Outbound HTTP Proxy
 ```
 
-这些仍然是后续任务，不应写成当前事实。
-
 ---
 
-## 15. 当前技术债
+## 12. 当前技术债
 
-### 15.1 HTTP Basic 是临时管理面认证方案
+继续保留既有 TD-001 ~ TD-009。
 
-后续 Runtime 会出现 Application API Key，但最终管理身份体系仍需后续需求驱动。
+新增：
 
-### 15.2 当前没有 Role / Permission
+### TD-010 Provider Master Key Rotation 尚未设计
 
-等真实授权需求再加入。
-
-### 15.3 Service 没有统一事务设计
-
-当前以单表操作为主，多表原子写出现后再明确事务边界。
-
-### 15.4 跨模块存在少量 Mapper 直接依赖
-
-当前包括：
+当前只有：
 
 ```text
-Employee / Application → TeamMapper
-ModelDeploymentService → ProviderMapper / ModelMapper
+AIGATE_MASTER_KEY
++
+v1 envelope
 ```
 
-当前保持简单；跨模块业务规则复杂后再演进。
+未来如果需要更换 Master Key，需要解决：
 
-### 15.5 错误码仍使用字符串
+- 旧密文如何继续读取
+- 是否批量 re-encrypt
+- 多 Key version 如何识别
+- Rotation 失败如何回滚
 
-错误码规模扩大后考虑集中管理。
-
-### 15.6 ApiErrorResponse 缺少 traceId / requestId / path
-
-后续 Observability 阶段处理。
-
-### 15.7 当前唯一约束基于单 Organization 假设
-
-未来 Multi-Tenant 时重新评估。
-
-### 15.8 测试只覆盖关键链路
-
-当前不追求覆盖率数字。
-
-### 15.9 暂无 CI Test Gate
-
-当前仍缺少 GitHub Actions 自动测试门禁。
+当前没有真实轮换需求，因此 Phase 2 不提前引入 KMS / Vault / Key Ring。
 
 ---
 
-## 16. 当前仍不做微服务
+## 13. 当前架构结论
 
-当前继续保持模块化单体。
-
-只有出现真实问题时才考虑拆分，例如：
-
-- 独立扩缩容需求
-- 不同运行时资源模型
-- 发布节奏必须独立
-- 单体耦合真正成为维护障碍
-
-拆分前必须有清晰问题证据和 ADR。
-
----
-
-## 17. 当前架构结论
-
-P2-T01 完成后，AIGate 已从单纯 Identity Foundation 扩展到具备第一版 Model Registry：
+P2-T02 完成后，AIGate 已具备：
 
 ```text
-Identity
+Identity Foundation
 +
 Model Registry
 +
-稳定数据库约束
+Provider Credential Encryption at Rest
 +
-管理 API
+稳定管理 API
 +
-集成测试
+真实数据库集成测试
 ```
 
-下一步计划是 Provider Credential Protection，但当前尚未启动。
+下一计划任务是 P2-T03，但当前尚未启动。
