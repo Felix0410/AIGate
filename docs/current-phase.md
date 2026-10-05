@@ -9,11 +9,11 @@
 
 Status: **ACTIVE**
 
-Current Task: **P2-T02 — Provider Credential Protection（ACTIVE）**
+Execution Gate: **P2-T02 COMPLETED / WAITING FOR USER CONFIRMATION**
 
 Next Planned Task: **P2-T03 — Application Default Deployment（NOT STARTED）**
 
-> 用户已确认启动 P2-T02。当前只实现 Provider Credential Protection，不提前进入 P2-T03。
+> P2-T02 已通过总控验收。按照项目规则，在用户明确确认前不得自动开始 P2-T03。
 
 ---
 
@@ -43,120 +43,120 @@ Phase 2 只做 **single-model, non-streaming proxy**。
 
 ---
 
-## 3. P2-T01 Closure — Model Registry Schema
+## 3. Completed Tasks
+
+### P2-T01 — Model Registry Schema
 
 状态：**DONE**
 
-已落地：
+已完成：
+
+- Provider / Model / ModelDeployment
+- `Provider` 与 `Model` 在 `ModelDeployment` 汇合
+- `ProviderType.OPENAI_COMPATIBLE`
+- V4 Flyway migration
+- CRUD、UNIQUE、FK、ON DELETE RESTRICT
+- Model Registry 核心集成测试
+
+### P2-T02 — Provider Credential Protection
+
+状态：**DONE / ACCEPTED**
+
+业务目标：
+
+> Provider Credential 可以由 AIGate 保存并在运行时恢复，但不以明文落库，也不通过普通管理 API 暴露。
+
+当前实际链路：
 
 ```text
-Provider
-Model
-ModelDeployment
+credential input
+↓
+ModelDeploymentService
+↓
+CredentialService.encrypt()
+↓
+AES/GCM/NoPadding
+↓
+v1:<base64-iv>:<base64-ciphertext+tag>
+↓
+model_deployment.encrypted_credential
 ```
 
-当前实际关系：
+恢复链路：
 
 ```text
-Provider ───┐
-            ├── ModelDeployment
-Model ──────┘
+encrypted_credential
+↓
+CredentialService.decrypt()
+↓
+plain Provider Credential
+```
+
+当前实际安全参数：
+
+```text
+AES-256
+GCM
+IV = 12 bytes random
+Authentication Tag = 128 bits
+Master Key = Base64 encoded 32 bytes
+```
+
+Master Key 来源：
+
+```text
+AIGATE_MASTER_KEY
 ```
 
 关键事实：
 
-- `Model` 不直接属于 `Provider`
-- `ModelDeployment` 同时关联 `provider_id` 与 `model_id`
-- `ProviderType` 当前只有 `OPENAI_COMPATIBLE`
-- `ModelDeployment` 已包含 `endpoint_url / remote_model_name / encrypted_credential / enabled`
-- `encrypted_credential` 当前允许 NULL；真正的加密写入/读取属于当前 P2-T02
-- Provider / Model / ModelDeployment 已完成基础 CRUD
-- 名称唯一性由 Service 预检查 + MySQL UNIQUE 双层保护
-- Deployment 创建/更新时会检查 Provider / Model 是否存在
-- 删除仍被 Deployment 引用的 Provider / Model 会由 FK RESTRICT 阻止，并映射为 `409 RESOURCE_CONFLICT`
-- 非法 `ProviderType` JSON 已映射为 `400 INVALID_REQUEST`
+- Master Key 不在数据库中保存
+- Master Key 未写入 application.yaml
+- 相同 credential 多次加密产生不同密文
+- credential 明文不落库
+- `ModelDeploymentResponse` 不包含 `credential` 或 `encryptedCredential`
+- `credential = null` 合法，可支持无需认证的 Provider / MockLLM
+- 错误 Master Key 解密失败
+- 被篡改密文因 GCM authentication 失败
+- 无效 Master Key 长度启动/构造时失败
+- 加密/解密异常消息不包含 Provider Secret
 
-Flyway 已新增：
+PUT 当前保持项目既有“完整更新”语义：
 
 ```text
-V4__create_model_registry.sql
+credential = null
+→ 清空 encrypted_credential
 ```
+
+这是当前明确、已有测试覆盖的行为。
+
+P2-T02 没有新增数据库 migration，直接复用 V4 已存在的：
+
+```text
+model_deployment.encrypted_credential
+```
+
+测试已覆盖：
+
+- encrypt → decrypt 可还原
+- 同一明文两次加密密文不同
+- 密文篡改解密失败
+- 错误 Master Key 解密失败
+- Master Key 长度错误失败
+- null credential
+- API 响应不泄露 credential
+- 数据库实际保存密文而非明文
+- credential 更新后重新加密
+- PUT null 清空 credential
+
+验收限制：
+
+- GitHub 当前仍无 CI status / workflow run，自动测试门禁缺失继续记为 `TD-009`
+- 本次验收基于仓库实现、测试代码与安全边界检查，不声称存在 GitHub CI 通过证明
 
 ---
 
-## 4. Current Task — P2-T02 Provider Credential Protection
-
-### Business Problem
-
-AIGate 后续需要代替 Application 调用模型 Provider，因此必须持有 Provider Credential。
-
-如果直接将 Provider Secret 明文存入 MySQL：
-
-```text
-Database leak
-→ Provider Secret directly exposed
-→ external model account can be abused
-```
-
-因此 P2-T02 的目标是：
-
-> Provider Credential 可以由 AIGate 保存和恢复使用，但不能以明文形式落库或通过普通管理 API 返回。
-
-### Minimal Scope
-
-当前只处理 `ModelDeployment.encryptedCredential`。
-
-实现：
-
-```text
-Plain Provider Secret
-↓
-CredentialService.encrypt()
-↓
-AES-GCM
-↓
-encryptedCredential
-↓
-MySQL
-```
-
-运行时恢复：
-
-```text
-encryptedCredential
-↓
-CredentialService.decrypt()
-↓
-Plain Provider Secret
-```
-
-### Frozen Decisions
-
-- 加密算法：`AES-GCM`
-- Master Key 来源：环境变量 `AIGATE_MASTER_KEY`
-- Master Key 不进入数据库、不提交 Git
-- 建议密文 envelope：`v1:<iv>:<ciphertext+tag>`
-- `encryptedCredential` 允许 NULL，以支持 MockLLM / 无认证 Provider
-- 管理 API 可以接受 credential 输入，但普通查询响应不得返回 credential 明文
-- 不做 Vault / KMS / Secret Manager
-- 不做自动 Key Rotation
-- 不提前实现 Runtime Proxy
-
-### Acceptance Focus
-
-P2-T02 至少需要证明：
-
-- credential 输入后数据库中不是明文
-- 正确 Master Key 可以恢复原始 credential
-- 错误/损坏密文能够得到受控错误，而不是静默产生错误 Secret
-- 查询 ModelDeployment API 不暴露 credential
-- 日志与异常信息不输出 Provider Secret
-- 无 credential 的 Deployment 仍然合法
-- 加密逻辑有独立测试
-
----
-
-## 5. Frozen Domain Model for Remaining Phase 2
+## 4. Frozen Domain Model for Remaining Phase 2
 
 ### ApplicationApiKey
 
@@ -174,58 +174,12 @@ Application 1:N ApplicationApiKey
 - 明文 Key 只在创建时返回一次
 - Phase 2 不做自动过期、自动轮换、JWT、OAuth2
 
-### Provider
-
-表示模型服务提供方 / 协议类别。
-
-当前实际字段：
+### Provider / Model / ModelDeployment
 
 ```text
-id
-name
-type
-createdAt
-updatedAt
-```
-
-当前只支持：
-
-```text
-OPENAI_COMPATIBLE
-```
-
-### Model
-
-表示逻辑模型本身。
-
-当前实际字段：
-
-```text
-id
-name
-createdAt
-updatedAt
-```
-
-**Model 不直接属于 Provider。**
-
-### ModelDeployment
-
-表示真正可调用的模型实例，同时关联 Provider 和 Model。
-
-当前实际字段：
-
-```text
-id
-name
-providerId
-modelId
-endpointUrl
-remoteModelName
-encryptedCredential
-enabled
-createdAt
-updatedAt
+Provider ───┐
+            ├── ModelDeployment
+Model ──────┘
 ```
 
 运行时真正选择的是 `ModelDeployment`。
@@ -250,73 +204,28 @@ Application -> ModelAlias -> Route -> ModelDeployment
 
 ---
 
-## 6. Credential Strategy
+## 5. Security Boundary
 
-### Application API Key
-
-只需要验证，不需要恢复原文：
-
-```text
-high-entropy random secret
-→ SHA-256
-→ DB stores hash only
-```
-
-### Provider Credential
-
-运行时必须恢复原文调用 Provider：
-
-```text
-Provider Secret
-→ AES-GCM
-→ encryptedCredential in MySQL
-```
-
-Master Key 来自环境变量：
-
-```text
-AIGATE_MASTER_KEY
-```
-
-建议密文使用版本化 envelope：
-
-```text
-v1:<iv>:<ciphertext+tag>
-```
-
-Phase 2 不引入 Vault / KMS / Secret Manager。
-
----
-
-## 7. Security Boundary
-
-管理面：
+当前真正已实现：
 
 ```text
 /api/**
 → HTTP Basic
+
+Provider Credential at rest
+→ AES-GCM encrypted
 ```
 
-运行时：
+计划但尚未实现：
 
 ```text
 /v1/**
 → Application API Key
 ```
 
-Runtime Header：
-
-```http
-Authorization: Bearer <AIGATE_API_KEY>
-```
-
-Bearer credential 在这里不是 JWT。
-
 ---
 
-## 8. Runtime Contract
-
-Planned endpoint：
+## 6. Planned Runtime Contract
 
 ```text
 POST /v1/invoke
@@ -330,16 +239,6 @@ temperature?
 maxTokens?
 ```
 
-Message 只支持：
-
-```text
-system
-user
-assistant
-```
-
-Request 不携带 `providerId / modelId / deploymentId`。
-
 Minimal Response：
 
 ```text
@@ -348,18 +247,16 @@ model
 finishReason
 ```
 
-Phase 2 不实现正式 Usage / Cost / Ledger。
+Runtime API 尚未实现。
 
 ---
 
-## 9. Planned Runtime Flow
+## 7. Planned Runtime Flow
 
 ```text
 POST /v1/invoke
 ↓
 ApiKeyAuthenticationFilter
-↓
-ApiKeyAuthenticationService
 ↓
 ApplicationIdentity
 ↓
@@ -367,64 +264,18 @@ ModelProxyService
 ↓
 Application.defaultDeployment
 ↓
-check deployment.enabled
-↓
-load Provider + Model
-↓
 CredentialService.decrypt()
 ↓
-ProviderAdapterRegistry
-↓
-OpenAICompatibleProviderAdapter
+ProviderAdapter
 ↓
 RestClient
 ↓
 Provider
-↓
-Unified Response
 ```
 
 ---
 
-## 10. HTTP / Provider Decisions
-
-Phase 2 使用：
-
-```text
-Spring RestClient
-```
-
-必须配置基本：
-
-```text
-connect timeout
-read timeout
-```
-
-Provider Adapter 只做：
-
-```text
-ProviderAdapter
-ProviderAdapterRegistry
-OpenAICompatibleProviderAdapter
-```
-
-Provider Error 至少统一为：
-
-```text
-PROVIDER_BAD_REQUEST
-PROVIDER_AUTH_ERROR
-PROVIDER_RATE_LIMITED
-PROVIDER_TIMEOUT
-PROVIDER_UNAVAILABLE
-PROVIDER_INVALID_RESPONSE
-```
-
-当前不做 Retry / Fallback / Circuit Breaker。
-
----
-
-## 11. Database Migration Plan
+## 8. Database Migration State
 
 已完成：
 
@@ -442,17 +293,17 @@ V5__add_application_default_deployment.sql
 V6__create_application_api_key.sql
 ```
 
-P2-T02 当前优先复用 V4 已存在的 `model_deployment.encrypted_credential`，不为了加密逻辑无必要修改 schema。
+P2-T02 无 schema 变化，因此没有为了任务数量人为增加 migration。
 
 ---
 
-## 12. Task Order / Gate
+## 9. Task Order / Gate
 
 | Task | 内容 | 状态 |
 |---|---|---|
 | P2-T01 | Model Registry Schema | **DONE** |
-| P2-T02 | Provider Credential Protection | **ACTIVE** |
-| P2-T03 | Application Default Deployment | NOT STARTED |
+| P2-T02 | Provider Credential Protection | **DONE** |
+| P2-T03 | Application Default Deployment | **NOT STARTED** |
 | P2-T04 | Application API Key Lifecycle | NOT STARTED |
 | P2-T05 | Runtime Authentication | NOT STARTED |
 | P2-T06 | Unified Model Contract | NOT STARTED |
@@ -462,13 +313,11 @@ P2-T02 当前优先复用 V4 已存在的 `model_deployment.encrypted_credential
 | P2-T10 | End-to-End Integration Test | NOT STARTED |
 | P2-T11 | Phase Closeout | NOT STARTED |
 
-**当前只执行 P2-T02。完成并 Review 后再次停在执行门，等待用户确认 P2-T03。**
+**当前执行门：等待用户明确确认是否开始 P2-T03。**
 
 ---
 
-## 13. Explicitly Deferred
-
-Phase 2 禁止无真实问题提前引入：
+## 10. Explicitly Deferred
 
 ```text
 WebFlux
@@ -485,7 +334,6 @@ Quota
 Retry
 Fallback
 Circuit Breaker
-Resilience4j / Sentinel
 RocketMQ
 Usage Ledger
 Nacos
@@ -500,41 +348,19 @@ JSON Schema
 
 ---
 
-## 14. Phase 2 Acceptance Criteria
+## 11. Phase 2 Acceptance Criteria
 
-### Business
+Phase 2 整体尚未完成。当前只确认：
 
-- Application 可以拥有 API Key
-- Application 可以绑定默认 Deployment
-- Application 可以通过 AIGate 调用模型
-
-### Security
-
-- ApiKey 明文不落库
-- Provider Credential 明文不落库
-- Provider Secret 不返回 Client
-- revoked Key 无法调用
-- Management / Runtime 使用不同认证方式
-
-### Runtime
-
-- Provider / Model / Deployment 可配置
-- disabled Deployment 无法调用
-- OpenAI-Compatible Adapter 工作正常
-- RestClient 能完成真实出站 HTTP
-- Provider Error 可以统一映射
-- timeout 可控
-
-### Test
-
-- MySQL Testcontainers
-- Mock Provider
-- MockMvc
-- 完整验证一次 Application -> AIGate -> Provider -> AIGate -> Application 链路
+```text
+P2-T01 ✅
+P2-T02 ✅
+P2-T03 ~ P2-T11 ⏸
+```
 
 ---
 
-## 15. Architecture Rule
+## 12. Architecture Rule
 
 ```text
 业务问题
@@ -544,5 +370,3 @@ JSON Schema
 → 暴露真实问题
 → 再优化架构
 ```
-
-不要为了丰富技术栈提前加入技术。
