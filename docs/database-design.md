@@ -4,27 +4,13 @@
 
 本文档记录 AIGate 当前实际数据库设计。
 
-目标：
-
-- 描述现有表结构
-- 固定表之间的关系
-- 记录 UNIQUE / FK / INDEX 等约束
-- 解释数据库层承担的数据完整性职责
-- 为后续 migration 演进提供基线
-
-当前内容以 **Phase 2 / P2-T01 完成后的实际实现** 为准。
+当前内容以 **Phase 2 / P2-T02 完成后的实际实现** 为准。
 
 ---
 
 ## 2. 当前数据库
 
 数据库：**MySQL 8.4**
-
-Schema：
-
-```text
-aigate
-```
 
 当前 Flyway migration：
 
@@ -35,111 +21,71 @@ V3 → application
 V4 → provider / model / model_deployment
 ```
 
-原则：
-
-> 已执行 migration 不允许修改，后续变化必须新增 migration。
+原则：已执行 migration 不允许修改，后续变化必须新增 migration。
 
 ---
 
 ## 3. 当前领域关系
 
-Identity：
-
 ```text
 Team 1 ---- N Employee
 Team 1 ---- N Application
-```
 
-Model Registry：
-
-```text
 Provider 1 ---- N ModelDeployment
 Model    1 ---- N ModelDeployment
-```
-
-因此：
-
-```text
-Provider ───┐
-            ├── ModelDeployment
-Model ──────┘
 ```
 
 重要：`Model` 不直接属于 `Provider`。
 
 ---
 
-## 4. team
+## 4. Identity Tables
 
-| 字段 | 类型 | 约束 |
-|---|---|---|
-| id | BIGINT | PK, AUTO_INCREMENT |
-| name | VARCHAR(100) | NOT NULL, UNIQUE |
-| created_at | TIMESTAMP | NOT NULL |
-| updated_at | TIMESTAMP | NOT NULL |
-
----
-
-## 5. employee
-
-| 字段 | 类型 | 约束 |
-|---|---|---|
-| id | BIGINT | PK, AUTO_INCREMENT |
-| name | VARCHAR(100) | NOT NULL |
-| email | VARCHAR(255) | NOT NULL, UNIQUE |
-| team_id | BIGINT | NOT NULL, FK |
-| created_at | TIMESTAMP | NOT NULL |
-| updated_at | TIMESTAMP | NOT NULL |
-
-约束：
+### team
 
 ```text
-FOREIGN KEY (team_id)
-REFERENCES team(id)
-ON DELETE RESTRICT
+id BIGINT PK AUTO_INCREMENT
+name VARCHAR(100) NOT NULL UNIQUE
+created_at TIMESTAMP NOT NULL
+updated_at TIMESTAMP NOT NULL
 ```
 
-索引：`idx_employee_team_id`
-
----
-
-## 6. application
-
-| 字段 | 类型 | 约束 |
-|---|---|---|
-| id | BIGINT | PK, AUTO_INCREMENT |
-| name | VARCHAR(100) | NOT NULL, UNIQUE |
-| team_id | BIGINT | NOT NULL, FK |
-| created_at | TIMESTAMP | NOT NULL |
-| updated_at | TIMESTAMP | NOT NULL |
-
-约束：
+### employee
 
 ```text
-FOREIGN KEY (team_id)
-REFERENCES team(id)
-ON DELETE RESTRICT
+id BIGINT PK AUTO_INCREMENT
+name VARCHAR(100) NOT NULL
+email VARCHAR(255) NOT NULL UNIQUE
+team_id BIGINT NOT NULL FK -> team.id
+created_at TIMESTAMP NOT NULL
+updated_at TIMESTAMP NOT NULL
 ```
 
-索引：`idx_application_team_id`
+### application
 
-`default_deployment_id` 尚未加入；该变化属于 P2-T03。
+```text
+id BIGINT PK AUTO_INCREMENT
+name VARCHAR(100) NOT NULL UNIQUE
+team_id BIGINT NOT NULL FK -> team.id
+created_at TIMESTAMP NOT NULL
+updated_at TIMESTAMP NOT NULL
+```
+
+`default_deployment_id` 尚未加入，属于 P2-T03。
 
 ---
 
-## 7. provider
+## 5. provider
 
-P2-T01 新增。
+```text
+id BIGINT PK AUTO_INCREMENT
+name VARCHAR(100) NOT NULL UNIQUE
+type VARCHAR(50) NOT NULL
+created_at TIMESTAMP NOT NULL
+updated_at TIMESTAMP NOT NULL
+```
 
-| 字段 | 类型 | 约束 | 说明 |
-|---|---|---|---|
-| id | BIGINT | PK, AUTO_INCREMENT | Provider ID |
-| name | VARCHAR(100) | NOT NULL, UNIQUE | Provider 名称 |
-| type | VARCHAR(50) | NOT NULL | Provider 协议类型 |
-| created_at | TIMESTAMP | NOT NULL | 创建时间 |
-| updated_at | TIMESTAMP | NOT NULL | 更新时间 |
-
-当前 `type` 在 Java 中对应：
+当前 Java enum：
 
 ```text
 ProviderType.OPENAI_COMPATIBLE
@@ -147,48 +93,39 @@ ProviderType.OPENAI_COMPATIBLE
 
 ---
 
-## 8. model
+## 6. model
 
-P2-T01 新增。
+```text
+id BIGINT PK AUTO_INCREMENT
+name VARCHAR(100) NOT NULL UNIQUE
+created_at TIMESTAMP NOT NULL
+updated_at TIMESTAMP NOT NULL
+```
 
-| 字段 | 类型 | 约束 |
-|---|---|---|
-| id | BIGINT | PK, AUTO_INCREMENT |
-| name | VARCHAR(100) | NOT NULL, UNIQUE |
-| created_at | TIMESTAMP | NOT NULL |
-| updated_at | TIMESTAMP | NOT NULL |
-
-Model 当前只表示逻辑模型，不直接保存 Provider 关系。
+Model 只表示逻辑模型。
 
 ---
 
-## 9. model_deployment
+## 7. model_deployment
 
-P2-T01 新增。
-
-| 字段 | 类型 | 约束 | 说明 |
-|---|---|---|---|
-| id | BIGINT | PK, AUTO_INCREMENT | Deployment ID |
-| name | VARCHAR(100) | NOT NULL, UNIQUE | Deployment 名称 |
-| provider_id | BIGINT | NOT NULL, FK | 所属 Provider |
-| model_id | BIGINT | NOT NULL, FK | 对应逻辑 Model |
-| endpoint_url | VARCHAR(500) | NOT NULL | 实际调用地址 |
-| remote_model_name | VARCHAR(255) | NOT NULL | 上游模型标识 |
-| encrypted_credential | TEXT | NULL | Provider Credential 密文预留 |
-| enabled | BOOLEAN | NOT NULL, DEFAULT TRUE | 是否启用 |
-| created_at | TIMESTAMP | NOT NULL | 创建时间 |
-| updated_at | TIMESTAMP | NOT NULL | 更新时间 |
+```text
+id BIGINT PK AUTO_INCREMENT
+name VARCHAR(100) NOT NULL UNIQUE
+provider_id BIGINT NOT NULL FK
+model_id BIGINT NOT NULL FK
+endpoint_url VARCHAR(500) NOT NULL
+remote_model_name VARCHAR(255) NOT NULL
+encrypted_credential TEXT NULL
+enabled BOOLEAN NOT NULL DEFAULT TRUE
+created_at TIMESTAMP NOT NULL
+updated_at TIMESTAMP NOT NULL
+```
 
 外键：
 
 ```text
-model_deployment.provider_id
-→ provider.id
-→ ON DELETE RESTRICT
-
-model_deployment.model_id
-→ model.id
-→ ON DELETE RESTRICT
+provider_id → provider.id ON DELETE RESTRICT
+model_id    → model.id    ON DELETE RESTRICT
 ```
 
 索引：
@@ -198,13 +135,86 @@ idx_model_deployment_provider_id
 idx_model_deployment_model_id
 ```
 
-注意：`encrypted_credential` 字段已经存在，但 P2-T02 尚未开始，因此当前不能把“Credential 已安全加密存储”当作已完成事实。
+---
+
+## 8. encrypted_credential 当前真实语义
+
+P2-T02 已正式启用 `model_deployment.encrypted_credential`。
+
+数据库只保存：
+
+```text
+v1:<base64(iv)>:<base64(ciphertext+tag)>
+```
+
+不保存 Provider Credential 明文。
+
+当前加密方案：
+
+```text
+AES-256-GCM
+IV = 12 random bytes
+Tag = 128 bits
+```
+
+Master Key：
+
+```text
+AIGATE_MASTER_KEY
+```
+
+Master Key 不存 MySQL。
+
+### nullable
+
+`encrypted_credential` 允许 NULL。
+
+表示该 Deployment 当前不需要 Provider Credential。
+
+### update null
+
+当前 PUT 是完整更新，因此：
+
+```text
+credential = null
+→ encrypted_credential = NULL
+```
+
+MyBatis-Plus Entity 使用 `FieldStrategy.ALWAYS` 保证 null 更新不会被跳过。
 
 ---
 
-## 10. UNIQUE 策略
+## 9. 为什么 P2-T02 没有 V5 Migration
 
-当前主要唯一约束：
+P2-T02 没有改变数据库 schema。
+
+V4 已经建立：
+
+```text
+model_deployment.encrypted_credential TEXT NULL
+```
+
+因此本任务只增加：
+
+```text
+应用层加密 / 解密行为
+```
+
+不需要新增空洞 migration。
+
+下一计划 migration 仍为：
+
+```text
+V5__add_application_default_deployment.sql
+```
+
+只有进入 P2-T03 后才实施。
+
+---
+
+## 10. UNIQUE / FK Strategy
+
+主要 UNIQUE：
 
 ```text
 team.name
@@ -215,116 +225,57 @@ model.name
 model_deployment.name
 ```
 
-采用两层保护：
+数据库继续作为最终完整性边界。
 
-```text
-Service 预检查
-→ 明确业务错误
-
-Database UNIQUE
-→ 并发情况下最终保证数据完整性
-```
+Provider / Model 若被 ModelDeployment 引用，删除由 FK RESTRICT 阻止并映射为 409 RESOURCE_CONFLICT。
 
 ---
 
-## 11. FK / ON DELETE RESTRICT
+## 11. 删除策略
 
-当前真实外键包括：
+当前没有全局 Soft Delete。
 
-```text
-employee.team_id → team.id
-application.team_id → team.id
-model_deployment.provider_id → provider.id
-model_deployment.model_id → model.id
-```
-
-统一采用 RESTRICT 思路：
-
-> 仍被业务对象引用的资源不能被隐式级联删除。
-
-因此删除被 Deployment 引用的 Provider / Model 时，数据库拒绝删除，应用层映射为 `409 RESOURCE_CONFLICT`。
+- Provider / Model / Deployment 当前使用物理删除
+- Provider / Model 被引用时禁止删除
+- Deployment 使用 `enabled` 表达保留配置但禁止未来调用
+- ApplicationApiKey 的 REVOKED 策略尚未实现
 
 ---
 
-## 12. 时间字段
+## 12. 时间与主键
 
-继续统一使用：
+Java 时间类型：
 
 ```text
-created_at
-updated_at
+Instant
 ```
 
-数据库类型：`TIMESTAMP`
+数据库：
 
-Java 对应：`Instant`
+```text
+TIMESTAMP
+```
 
-数据库负责默认创建与更新时间。
+主键继续：
+
+```text
+BIGINT AUTO_INCREMENT
+```
+
+当前不引入 UUID / Snowflake。
 
 ---
 
-## 13. 数据完整性职责
-
-数据库负责最终保证：
-
-```text
-PRIMARY KEY
-NOT NULL
-UNIQUE
-FOREIGN KEY
-```
-
-应用层负责：
-
-```text
-业务语义
-友好错误码
-存在性预检查
-唯一性预检查
-```
-
-两者不能互相替代。
-
----
-
-## 14. 当前删除策略
-
-当前没有全局软删除。
-
-P2-T01 中：
-
-- Provider / Model / ModelDeployment CRUD 当前仍允许物理删除
-- Provider / Model 若被 Deployment 引用则由 FK RESTRICT 阻止
-- Deployment 已有 `enabled` 字段，用于未来“保留配置但禁止调用”的业务语义
-
-ApiKey 的 `REVOKED` 策略属于 P2-T04，尚未实现。
-
----
-
-## 15. 当前不做的数据库能力
-
-当前不引入：
+## 13. 当前不做
 
 ```text
 Multi-Tenant
-UUID / Snowflake
 Soft Delete Framework
 分库分表
 读写分离
 Redis Runtime Snapshot
+Vault / KMS 数据模型
+Credential Key Ring
 ```
 
-必须等真实问题出现后再演进。
-
----
-
-## 16. 后续计划 Migration
-
-当前冻结计划：
-
-```text
-V5__add_application_default_deployment.sql
-V6__create_application_api_key.sql
-```
-
-但 P2-T02 尚未启动，后续 migration 只有进入对应任务后才实施。
+Master Key Rotation 属于后续真实需求驱动的架构演进。
