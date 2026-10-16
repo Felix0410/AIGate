@@ -6,9 +6,9 @@
 
 状态：**ACTIVE**
 
-当前任务：
+当前执行门：
 
-**P2-T05 — Runtime Authentication（ACTIVE）**
+**P2-T05 COMPLETED / WAITING FOR USER CONFIRMATION**
 
 下一计划任务：
 
@@ -24,8 +24,8 @@
 | P2-T02 | Provider Credential Protection | DONE |
 | P2-T03 | Application Default Deployment | DONE |
 | P2-T04 | Application API Key Lifecycle | DONE |
-| P2-T05 | Runtime Authentication | **ACTIVE** |
-| P2-T06 | Unified Model Contract | NOT STARTED |
+| P2-T05 | Runtime Authentication | **DONE / ACCEPTED** |
+| P2-T06 | Unified Model Contract | **NOT STARTED** |
 | P2-T07 | Provider Adapter | NOT STARTED |
 | P2-T08 | RestClient + Single Model Proxy | NOT STARTED |
 | P2-T09 | Provider Error Mapping | NOT STARTED |
@@ -34,39 +34,42 @@
 
 ---
 
-## 3. 当前已完成基础
+## 3. 当前已完成能力
+
+### P2-T01 Model Registry
 
 ```text
-P2-T01
-Provider / Model / ModelDeployment
-
-P2-T02
-Provider Credential AES-GCM
-
-P2-T03
-Application.defaultDeploymentId
-
-P2-T04
-Application API Key Lifecycle
+Provider ───┐
+            ├── ModelDeployment
+Model ──────┘
 ```
 
-API Key 当前已经具备：
+### P2-T02 Provider Credential Protection
 
 ```text
-aig_live_<keyId>.<secret>
-ACTIVE / REVOKED
-SHA-256(secret) at rest
+Provider Credential
+→ AES-256-GCM
+→ MySQL encryptedCredential
 ```
 
----
+### P2-T03 Application Default Deployment
 
-## 4. P2-T05 Goal
+```text
+Application
+→ defaultDeploymentId
+→ ModelDeployment
+```
 
-目标：
+### P2-T04 Application API Key Lifecycle
 
-> 使用 Application API Key 认证 /v1/** 请求，并在 Spring SecurityContext 中建立 ApplicationIdentity。
+```text
+Application 1:N ApplicationApiKey
+ACTIVE → REVOKED
+```
 
-冻结安全边界：
+### P2-T05 Runtime Authentication
+
+当前安全边界：
 
 ```text
 /api/**
@@ -76,30 +79,17 @@ SHA-256(secret) at rest
 → Application API Key
 ```
 
-计划使用两条 SecurityFilterChain 隔离认证机制，避免 HTTP Basic 与 API Key 在两个平面之间串用。
-
----
-
-## 5. Planned Authentication Flow
+已实现：
 
 ```text
-Authorization: Bearer aig_live_<keyId>.<secret>
-↓
-ApiKeyAuthenticationFilter
-↓
-ApiKeyAuthenticationService
-↓
-lookup by keyId
-↓
-ACTIVE?
-↓
-SHA-256(secret)
-↓
-constant-time compare
-↓
-ApplicationIdentity
-↓
-SecurityContext
+Bearer API Key
+→ parse keyId + secret
+→ lookup by keyId
+→ check ACTIVE
+→ SHA-256
+→ constant-time compare
+→ ApplicationIdentity
+→ SecurityContext
 ```
 
 ApplicationIdentity：
@@ -112,73 +102,122 @@ teamId
 
 ---
 
-## 6. P2-T05 Implementation Scope
+## 4. Security Architecture
 
-计划最小组件：
+P2-T05 将单一 SecurityFilterChain 演进为两条独立 chain：
 
 ```text
-ApplicationIdentity
-ApiKeyAuthenticationFilter
-ApiKeyAuthenticationService
-ApplicationApiKeyHasher
-SecurityConfig runtime/management chain split
+@Order(1)
+Runtime /v1/**
+→ API Key only
+
+@Order(2)
+Management /api/**
+→ HTTP Basic
 ```
 
-P2-T04 的 SHA-256 生成逻辑可以在本任务中提取为共享 Hasher，避免创建与认证算法重复。
+验证了双向隔离：
+
+- HTTP Basic 不能访问 Runtime
+- API Key 不能访问 Management
+- Swagger 公开路径保持不变
 
 ---
 
-## 7. Authentication Failure Contract
+## 5. API Key Verification
 
-以下统一：
+新增共享：
 
 ```text
-missing header
-wrong scheme
-malformed key
+ApplicationApiKeyHasher
+```
+
+创建与认证共用：
+
+```text
+UTF-8
+→ SHA-256
+→ lowercase hex
+```
+
+认证比较：
+
+```text
+MessageDigest.isEqual
+```
+
+API Key 查询：
+
+```text
+WHERE key_id = ?
+```
+
+不扫描所有 Key Hash。
+
+---
+
+## 6. Authentication Failure Semantics
+
+以下全部统一：
+
+```text
+missing Authorization
+non-Bearer
+malformed Key
 unknown keyId
-revoked key
+revoked Key
 wrong secret
-invalid application state
+missing Application
 → 401 UNAUTHORIZED
 ```
 
-不向未认证客户端暴露 Key 内部状态。
+避免向未认证调用方暴露凭证内部状态。
 
-不得记录：
+---
+
+## 7. Testing
+
+P2-T05 集成测试覆盖：
+
+- ACTIVE Key 认证成功
+- ApplicationIdentity 正确
+- missing Authorization
+- non-Bearer
+- malformed Key
+- unknown keyId
+- wrong secret
+- REVOKED Key
+- Basic 不能越界访问 /v1/**
+- API Key 不能越界访问 /api/**
+- Basic 继续可访问 /api/**
+- Swagger 保持公开
+
+Hasher 单元测试覆盖 hash 格式和 matches。
+
+测试使用现有真实 MySQL Testcontainers。
+
+GitHub 最新 commit 仍无 CI status / workflow run，因此 TD-009 继续保留。
+
+---
+
+## 8. 当前数据库
+
+Flyway 仍为：
 
 ```text
-Authorization header
-full API key
-secret
-keyHash
+V1 Team
+V2 Employee
+V3 Application
+V4 Provider / Model / ModelDeployment
+V5 Application.default_deployment_id
+V6 ApplicationApiKey
 ```
 
----
-
-## 8. P2-T05 Acceptance Focus
-
-至少验证：
-
-- valid ACTIVE Key 可以通过 /v1/** Security Chain
-- ApplicationIdentity 正确
-- missing header → 401
-- malformed / wrong scheme → 401
-- unknown keyId → 401
-- wrong secret → 401
-- revoked Key → 401
-- Runtime 不接受 HTTP Basic 替代 API Key
-- Management /api/** 继续保持 HTTP Basic
-- API Key 不改变管理面原有认证行为
-- hash 验证使用 constant-time compare
-- 按 keyId 查询单条记录，不扫描所有 Hash
-- SecurityContext 不保留完整 secret
-
-正式 `POST /v1/invoke` 属于 P2-T06，不提前实现。
+P2-T05 无 schema 变化，因此没有新增 migration。
 
 ---
 
-## 9. Current Technical Debt
+## 9. 当前技术债
 
 继续保留：
 
@@ -193,14 +232,28 @@ keyHash
 - TD-009 暂无 CI Test Gate
 - TD-010 Provider Master Key Rotation 尚未设计
 
+P2-T05 没有引入新的阻塞性技术债。
+
 ---
 
-## 10. Execution Gate
+## 10. P2-T05 Acceptance Result
 
-当前只执行：
+- [x] /v1/** 使用 Application API Key
+- [x] /api/** 保持 HTTP Basic
+- [x] 双 SecurityFilterChain 隔离
+- [x] 按 keyId 单条查询
+- [x] ACTIVE 校验
+- [x] SHA-256 与创建规则复用
+- [x] constant-time compare
+- [x] ApplicationIdentity 最小化
+- [x] credentials 不进入 SecurityContext
+- [x] 认证失败统一 401
+- [x] 不暴露 key 内部状态
+- [x] Runtime / Management 双向认证隔离测试
+- [x] 未提前实现 /v1/invoke
 
-**P2-T05 — Runtime Authentication**
+结论：
 
-完成实现、测试、开发导师 Code Review 后回总控验收。
+**P2-T05 — Runtime Authentication：COMPLETED / ACCEPTED**
 
-**不得自动进入 P2-T06。**
+当前停在执行门，等待用户确认是否进入 P2-T06。
