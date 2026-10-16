@@ -10,13 +10,9 @@ import com.felix.aigate.common.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
-import java.util.HexFormat;
 import java.util.List;
 
 @Service
@@ -29,6 +25,7 @@ public class ApplicationApiKeyService {
 
     private final ApplicationApiKeyMapper applicationApiKeyMapper;
     private final ApplicationMapper applicationMapper;
+    private final ApplicationApiKeyHasher applicationApiKeyHasher;
 
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -39,7 +36,7 @@ public class ApplicationApiKeyService {
         String keyId = randomUrlSafe(KEY_ID_BYTES);
         String secret = randomUrlSafe(SECRET_BYTES);
         String apiKey = KEY_PREFIX + keyId + "." + secret;
-        String keyHash = sha256Hex(secret);
+        String keyHash = applicationApiKeyHasher.hash(secret);
 
         ApplicationApiKey apiKeyEntity = new ApplicationApiKey();
         apiKeyEntity.setApplicationId(applicationId);
@@ -112,15 +109,5 @@ public class ApplicationApiKeyService {
         byte[] bytes = new byte[byteLength];
         secureRandom.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
-
-    private String sha256Hex(String secret) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(secret.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash);
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("Failed to hash API key", exception);
-        }
     }
 }
