@@ -8,11 +8,11 @@
 
 Status: **ACTIVE**
 
-Current Task: **P2-T05 — Runtime Authentication（ACTIVE）**
+Execution Gate: **P2-T05 COMPLETED / WAITING FOR USER CONFIRMATION**
 
 Next Planned Task: **P2-T06 — Unified Model Contract（NOT STARTED）**
 
-> 用户已确认启动 P2-T05。当前只建立 /v1/** 的 Application API Key 身份认证，不提前实现 /v1/invoke、Provider Adapter 或模型代理。
+> P2-T05 已通过总控验收。在用户明确确认前，不得自动开始 P2-T06。
 
 ---
 
@@ -24,8 +24,8 @@ Next Planned Task: **P2-T06 — Unified Model Contract（NOT STARTED）**
 | P2-T02 | Provider Credential Protection | DONE |
 | P2-T03 | Application Default Deployment | DONE |
 | P2-T04 | Application API Key Lifecycle | DONE |
-| P2-T05 | Runtime Authentication | **ACTIVE** |
-| P2-T06 | Unified Model Contract | NOT STARTED |
+| P2-T05 | Runtime Authentication | **DONE / ACCEPTED** |
+| P2-T06 | Unified Model Contract | **NOT STARTED** |
 | P2-T07 | Provider Adapter | NOT STARTED |
 | P2-T08 | RestClient + Single Model Proxy | NOT STARTED |
 | P2-T09 | Provider Error Mapping | NOT STARTED |
@@ -34,151 +34,102 @@ Next Planned Task: **P2-T06 — Unified Model Contract（NOT STARTED）**
 
 ---
 
-## 3. Business Goal
+## 3. P2-T05 — Runtime Authentication
 
-P2-T04 已经解决：
+业务目标：
 
-```text
-Application
-→ 可以签发 API Key
-→ DB 只保存 hash
-→ 可以 revoke
-```
+> 使用 Application API Key 认证 /v1/** 请求，并在 Spring SecurityContext 中建立最小 ApplicationIdentity。
 
-但当前 Spring Security 仍只有：
+当前真实安全边界：
 
 ```text
 /api/**
-→ HTTP Basic
-```
-
-而 `/v1/**` 尚未建立 Application 身份。
-
-P2-T05 的目标：
-
-> 当客户端携带 Application API Key 请求 Runtime API 时，AIGate 能认证出“这是哪个 Application”，并把 Application 身份写入 Spring SecurityContext。
-
----
-
-## 4. Why a Separate Runtime Authentication Path
-
-管理面与运行时代表两种不同身份：
-
-```text
-/api/**
-→ 管理身份
 → HTTP Basic
 
 /v1/**
-→ 机器 Application 身份
 → Application API Key
 ```
 
-不能简单写成：
+两种认证机制已经通过两条 SecurityFilterChain 隔离。
 
-```text
-/api/** + /v1/**
-→ authenticated()
-→ 同时开启 HTTP Basic + API Key
-```
+---
 
-否则可能出现认证机制串用，例如 Runtime 被 HTTP Basic 登录状态放行。
+## 4. SecurityFilterChain Design
 
-因此 P2-T05 冻结为两条明确的 SecurityFilterChain：
+### Runtime Chain
 
 ```text
 @Order(1)
 securityMatcher("/v1/**")
-→ API Key Authentication only
-
-@Order(2)
-management/default chain
-→ /api/** HTTP Basic
-→ Swagger permitAll
-```
-
-目标是认证机制隔离，而不是拆微服务。
-
----
-
-## 5. Runtime Credential Contract
-
-Header：
-
-```http
-Authorization: Bearer <AIGATE_API_KEY>
-```
-
-这里的 Bearer 只是 bearer credential，不代表 JWT。
-
-当前 Key 格式：
-
-```text
-aig_live_<keyId>.<secret>
-```
-
-解析结果：
-
-```text
-keyId
-→ DB locator
-
-secret
-→ credential proof
-```
-
-Runtime request 不携带 applicationId。
-
----
-
-## 6. Authentication Flow
-
-冻结主流程：
-
-```text
-Request /v1/**
 ↓
 ApiKeyAuthenticationFilter
 ↓
-read Authorization: Bearer ...
+authenticated()
+```
+
+特征：
+
+- 不启用 HTTP Basic
+- 只处理 Runtime /v1/**
+- API Key 认证成功后建立 SecurityContext
+- 使用统一 RestAuthenticationEntryPoint 返回 401
+
+### Management Chain
+
+```text
+@Order(2)
+/api/** → HTTP Basic
+Swagger → permitAll
+```
+
+Management chain 不注册 API Key Filter。
+
+因此：
+
+```text
+HTTP Basic 不能代替 API Key 访问 /v1/**
+API Key 不能代替 HTTP Basic 访问 /api/**
+```
+
+---
+
+## 5. Runtime Authentication Flow
+
+```text
+Authorization: Bearer aig_live_<keyId>.<secret>
 ↓
-parse aig_live_<keyId>.<secret>
+ApiKeyAuthenticationFilter
 ↓
 ApiKeyAuthenticationService
 ↓
-SELECT ApplicationApiKey WHERE key_id = ?
+parse keyId + secret
 ↓
-check status == ACTIVE
+SELECT application_api_key WHERE key_id = ?
 ↓
-SHA-256(supplied secret)
+check ACTIVE
 ↓
-constant-time compare with stored key_hash
+ApplicationApiKeyHasher.matches(...)
+↓
+SHA-256(secret)
+↓
+MessageDigest.isEqual(...)
 ↓
 load Application
 ↓
 ApplicationIdentity
 ↓
-Spring Security Authentication
+UsernamePasswordAuthenticationToken
 ↓
 SecurityContext
-↓
-continue filter chain
 ```
 
-禁止：
-
-```text
-扫描全部 API Key hash
-按 applicationId 查所有 Key 再比较
-把完整 API Key 放入 principal
-把 secret 留在 SecurityContext
-```
+API Key 通过 keyId 单条查询，不扫描所有 key hash。
 
 ---
 
-## 7. ApplicationIdentity
+## 6. ApplicationIdentity
 
-认证成功后对后续 Runtime 暴露最小身份：
+当前 principal：
 
 ```text
 applicationId
@@ -186,210 +137,120 @@ applicationName
 teamId
 ```
 
-后续 P2-T06 / P2-T08 业务代码只依赖 ApplicationIdentity，不应关心：
+明确不包含：
 
 ```text
-API Key 表
-keyHash
+apiKey
 secret
+keyHash
+keyId
 Authorization header
 ```
 
+Authentication credentials 设为 null，避免凭证进入 SecurityContext。
+
 ---
 
-## 8. Hash Verification
+## 7. Shared API Key Hasher
 
-P2-T04 当前创建时使用：
-
-```text
-SHA-256(secret)
-→ lowercase hex key_hash
-```
-
-P2-T05 必须与创建算法保持完全一致。
-
-推荐在本任务中提取一个小型共享组件，例如：
+P2-T04 创建 Key 时的 SHA-256 逻辑已提取为：
 
 ```text
 ApplicationApiKeyHasher
 ```
 
-负责：
+职责：
 
 ```text
 hash(secret)
 matches(secret, storedHash)
 ```
 
-这样创建和认证不各自复制一份 SHA-256 规则。
+创建和认证共用同一套：
 
-比较必须使用 constant-time compare，例如：
+```text
+UTF-8
+→ SHA-256
+→ lowercase hex
+```
+
+认证比较使用：
 
 ```text
 MessageDigest.isEqual(...)
 ```
 
-不要直接使用普通 String.equals 作为 Secret Hash 比较逻辑。
+避免直接使用普通 String.equals 做 Secret Hash 比较。
 
 ---
 
-## 9. Authentication Failure Semantics
+## 8. Authentication Failure Contract
 
-以下情况统一视为认证失败：
+以下情况统一：
 
 ```text
 Authorization 缺失
-不是 Bearer
-Key 格式错误
+非 Bearer
+API Key 格式错误
 keyId 不存在
 Key 已 REVOKED
-secret 不匹配
-Application 数据异常/不存在
+secret 错误
+Application 不存在
+→ 401 UNAUTHORIZED
 ```
 
-对外统一：
+对外不返回：
 
 ```text
-401 UNAUTHORIZED
-```
-
-不要细分成：
-
-```text
-KEY_NOT_FOUND
+API_KEY_NOT_FOUND
 KEY_REVOKED
 WRONG_SECRET
 ```
 
-原因：Runtime 认证失败不应向未认证客户端暴露凭证内部状态。
-
-错误消息、日志、异常中不得输出：
-
-```text
-完整 Authorization header
-完整 API Key
-secret
-keyHash
-```
+认证异常使用固定内部文案，不携带完整 API Key / secret / keyHash。
 
 ---
 
-## 10. Spring Security Shape
+## 9. P2-T05 Test Coverage
 
-当前 `SecurityConfig` 只有一条 chain。
+使用 test-only Runtime Controller 验证 Security Chain，不提前实现正式 /v1/invoke。
 
-P2-T05 允许把它演进为：
+集成测试覆盖：
 
-### Runtime Chain
-
-```text
-@Order(1)
-securityMatcher("/v1/**")
-csrf disabled
-/v1/** authenticated
-ApiKeyAuthenticationFilter
-RestAuthenticationEntryPoint
-NO httpBasic
-```
-
-### Management Chain
-
-```text
-@Order(2)
-/v3/api-docs/** permitAll
-/swagger-ui/** permitAll
-/api/** authenticated
-HTTP Basic
-existing 401/403 handlers
-```
-
-不要为了这一任务引入：
-
-```text
-OAuth2 Resource Server
-JWT decoder
-Authentication Server
-Redis session/token cache
-```
-
----
-
-## 11. Minimal Implementation Components
-
-P2-T05 最小组件建议：
-
-```text
-ApplicationIdentity
-ApiKeyAuthenticationFilter
-ApiKeyAuthenticationService
-ApplicationApiKeyHasher
-SecurityConfig changes
-```
-
-可以根据 Spring Security 最简实现选择是否增加一个很小的 Authentication 类型；不要为了模式完整性建立复杂 Provider/Manager 体系。
-
-核心要求是职责清晰：
-
-```text
-Filter
-→ HTTP Header / SecurityContext 边界
-
-AuthenticationService
-→ API Key 验证与 ApplicationIdentity
-
-Hasher
-→ SHA-256 + constant-time match
-```
-
----
-
-## 12. Testing Focus
-
-P2-T05 至少验证：
-
-- valid ACTIVE API Key → /v1/** 可通过
-- 认证后的 principal / ApplicationIdentity 包含正确 applicationId / applicationName / teamId
-- 缺少 Authorization → 401 UNAUTHORIZED
-- 非 Bearer header → 401
-- malformed API Key → 401
-- 不存在 keyId → 401
+- ACTIVE API Key → /v1/** 200
+- principal 中 applicationId / applicationName / teamId 正确
+- 缺 Authorization → 401 UNAUTHORIZED
+- 非 Bearer → 401
+- malformed Key → 401
+- unknown keyId → 401
 - wrong secret → 401
 - REVOKED Key → 401
-- /v1/** 不接受 HTTP Basic 代替 API Key
-- /api/** 继续接受 HTTP Basic
-- /api/** 不因为 API Key 而改变原有管理认证语义
-- Swagger 公共路径保持原行为
-- Authentication / SecurityContext 中不保留完整 secret
-- API Key 验证按 keyId 单条查询，不扫描全部 Hash
-- hash 比较采用 constant-time compare
+- HTTP Basic 无法访问 /v1/**
+- API Key 无法访问 /api/**
+- HTTP Basic 继续可以访问 /api/**
+- Swagger 公共路径保持公开
 
-测试可以使用 test-only Runtime endpoint / controller 来证明 Security Chain，不要求 P2-T05 提前实现正式 `POST /v1/invoke`。
+Hasher 单元测试覆盖：
+
+- hash 稳定
+- 64 位 lowercase hex
+- 正确 secret matches=true
+- 错误 secret matches=false
+
+GitHub 当前仍无 CI status / workflow run；TD-009 继续保留。
 
 ---
 
-## 13. Existing Phase 2 Facts
+## 10. Existing Phase 2 Facts
 
-### API Key Lifecycle
+### Application API Key
 
 ```text
 Application 1:N ApplicationApiKey
-
 ACTIVE → REVOKED
 ```
 
-Key：
-
-```text
-aig_live_<keyId>.<secret>
-```
-
-DB：
-
-```text
-keyId + keyPrefix + SHA-256(secret)
-```
-
-### Application Default Deployment
+### Default Deployment
 
 ```text
 Application
@@ -409,12 +270,26 @@ Provider Credential
 
 ---
 
-## 14. Explicitly Deferred
+## 11. Next Planned Task
 
-P2-T05 不实现：
+**P2-T06 — Unified Model Contract**
+
+计划才会开始定义：
 
 ```text
-POST /v1/invoke 正式模型请求协议
+POST /v1/invoke
+InvokeRequest
+Message
+InvokeResponse
+```
+
+P2-T05 没有提前实现正式模型调用 API、Provider Adapter 或 RestClient。
+
+---
+
+## 12. Explicitly Deferred
+
+```text
 ProviderAdapter
 RestClient Provider 调用
 Provider Error Mapping
@@ -433,12 +308,8 @@ Microservices
 
 ---
 
-## 15. Acceptance Gate
+## 13. Acceptance Gate
 
-当前只执行：
+P2-T05 已完成并验收。
 
-**P2-T05 — Runtime Authentication**
-
-完成实现、测试、开发导师 Code Review 后回总控验收。
-
-**不得自动进入 P2-T06。**
+**当前等待用户确认是否开始 P2-T06。**
