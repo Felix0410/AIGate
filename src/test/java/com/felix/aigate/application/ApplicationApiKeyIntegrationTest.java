@@ -243,6 +243,17 @@ class ApplicationApiKeyIntegrationTest extends IntegrationTestBase {
         assertNull(applicationApiKeyMapper.selectById(keyId));
     }
 
+    @Test
+    @DisplayName("Revoke 时 Application 不存在 -> 404 APPLICATION_NOT_FOUND")
+    void revokeOnMissingApplicationShouldReturn404() throws Exception {
+
+        long missingAppId = 999999999L;
+
+        mockMvc.perform(authed(post("/api/applications/" + missingAppId + "/api-keys/1/revoke")))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("APPLICATION_NOT_FOUND"));
+    }
+
     // ---- helpers ----
 
     private long createTeam(String name) throws Exception {
