@@ -2,7 +2,7 @@
 
 ## 1. 当前基线
 
-当前内容以 **Phase 2 / P2-T03 完成后的实现** 为准。
+当前内容以 **Phase 2 / P2-T04 完成后的实现** 为准。
 
 管理 API：
 
@@ -23,7 +23,7 @@ Base Path：
 /api/applications
 ```
 
-支持：
+Application 当前支持：
 
 ```text
 POST   /api/applications
@@ -33,9 +33,7 @@ PUT    /api/applications/{id}
 DELETE /api/applications/{id}
 ```
 
-### Create / Update Request
-
-当前字段：
+Create / Update 字段：
 
 ```text
 name
@@ -43,90 +41,188 @@ teamId
 defaultDeploymentId?
 ```
 
-`defaultDeploymentId` 可为 null。
+---
 
-示例：
+## 3. Application API Key Management
+
+Base Path：
+
+```text
+/api/applications/{applicationId}/api-keys
+```
+
+### Create
+
+```text
+POST /api/applications/{applicationId}/api-keys
+```
+
+Request：
 
 ```json
 {
-  "name": "dev-agent",
-  "teamId": 1,
-  "defaultDeploymentId": 10
+  "name": "dev-agent-primary"
 }
 ```
 
-不指定模型部署：
-
-```json
-{
-  "name": "dev-agent",
-  "teamId": 1,
-  "defaultDeploymentId": null
-}
-```
-
-### Response
-
-当前返回：
+成功响应：
 
 ```text
 id
+applicationId
 name
-teamId
-defaultDeploymentId
+keyId
+keyPrefix
+status
 createdAt
-updatedAt
+revokedAt
+apiKey
+```
+
+其中 `apiKey` 是完整明文 Key，**只在创建响应中返回一次**。
+
+当前 Key 格式：
+
+```text
+aig_live_<keyId>.<secret>
 ```
 
 ---
 
-## 3. Application Default Deployment Semantics
-
-创建 / 更新时：
+## 4. List API Key Metadata
 
 ```text
-defaultDeploymentId = existing id
-→ 绑定成功
-
-defaultDeploymentId = missing id
-→ 404 MODEL_DEPLOYMENT_NOT_FOUND
-
-defaultDeploymentId = null
-→ 不绑定 / 解绑
-```
-
-当前 PUT 是完整更新语义，因此：
-
-```text
-PUT defaultDeploymentId = null
-→ 清空现有绑定
-```
-
-更新可以直接从 Deployment A 切换到 Deployment B。
-
----
-
-## 4. Deployment Delete Conflict
-
-如果某个 ModelDeployment 正被 Application 作为 default Deployment 引用：
-
-```http
-DELETE /api/model-deployments/{id}
+GET /api/applications/{applicationId}/api-keys
 ```
 
 返回：
 
 ```text
-409 RESOURCE_CONFLICT
+id
+applicationId
+name
+keyId
+keyPrefix
+status
+createdAt
+revokedAt
 ```
 
-底层由 MySQL `ON DELETE RESTRICT` 保证最终数据完整性。
+明确不返回：
+
+```text
+apiKey
+secret
+keyHash
+```
+
+因此完整 Key 无法通过普通管理 GET 再次恢复。
+
+Application 存在但没有 Key：
+
+```text
+200 []
+```
 
 ---
 
-## 5. ModelDeployment Credential Boundary
+## 5. Revoke API Key
 
-P2-T02 规则继续有效。
+```text
+POST /api/applications/{applicationId}/api-keys/{id}/revoke
+```
+
+状态变化：
+
+```text
+ACTIVE
+→ REVOKED
+→ revokedAt = now
+```
+
+撤销不删除记录。
+
+重复 revoke：
+
+```text
+REVOKED
+→ 再次调用
+→ 200
+→ 保持原 revokedAt
+```
+
+当前为幂等操作。
+
+---
+
+## 6. API Key Error Semantics
+
+```text
+400 VALIDATION_ERROR
+→ name 为空或超过限制
+
+404 APPLICATION_NOT_FOUND
+→ 路径中的 Application 不存在
+
+404 API_KEY_NOT_FOUND
+→ Key 不存在
+→ 或 Key 不属于路径中的 Application
+```
+
+跨 Application 操作不会泄露 Key 是否属于其他 Application，统一返回 API_KEY_NOT_FOUND。
+
+---
+
+## 7. API Key Secret Boundary
+
+API Key 仅在创建时作为明文输出：
+
+```text
+Create Response
+→ apiKey
+```
+
+持久化：
+
+```text
+secret
+→ SHA-256
+→ keyHash
+```
+
+数据库与普通 API 都不暴露：
+
+```text
+secret
+完整 apiKey
+keyHash
+```
+
+---
+
+## 8. Application Delete Semantics
+
+删除 Application：
+
+```text
+DELETE /api/applications/{id}
+```
+
+数据库使用：
+
+```text
+application_api_key.application_id
+→ application.id
+→ ON DELETE CASCADE
+```
+
+因此 Application 删除后其所有 API Key 一并删除/失效。
+
+---
+
+## 9. ModelDeployment Credential Boundary
+
+P2-T02 规则继续有效：
 
 Create / Update 可输入：
 
@@ -141,11 +237,9 @@ credential
 encryptedCredential
 ```
 
-Provider Secret 不通过普通 CRUD API 回显。
-
 ---
 
-## 6. Error Contract
+## 10. Current Error Contract
 
 当前相关错误包括：
 
@@ -154,51 +248,65 @@ Provider Secret 不通过普通 CRUD API 回显。
 400 INVALID_REQUEST
 401 UNAUTHORIZED
 403 FORBIDDEN
+
 404 TEAM_NOT_FOUND
 404 APPLICATION_NOT_FOUND
 404 PROVIDER_NOT_FOUND
 404 MODEL_NOT_FOUND
 404 MODEL_DEPLOYMENT_NOT_FOUND
+404 API_KEY_NOT_FOUND
+
 409 APPLICATION_NAME_ALREADY_EXISTS
 409 PROVIDER_NAME_ALREADY_EXISTS
 409 MODEL_NAME_ALREADY_EXISTS
 409 MODEL_DEPLOYMENT_NAME_ALREADY_EXISTS
 409 RESOURCE_CONFLICT
+
 500 INTERNAL_SERVER_ERROR
 ```
 
-P2-T03 没有新增新的错误码类型，复用 `MODEL_DEPLOYMENT_NOT_FOUND` 与 `RESOURCE_CONFLICT`。
-
 ---
 
-## 7. 当前 API Design Principles
+## 11. Planned Runtime Authentication
 
-- Controller 只做请求/响应转换
-- DTO 与 Entity 分离
-- Service 提供明确业务预检查
-- Database FK / UNIQUE 做最终完整性保护
-- PUT 当前是完整更新
-- Secret 不通过普通 Response 暴露
-- Client 不直接通过 Runtime request 传 deploymentId；当前绑定发生在 Application 管理配置中
-
----
-
-## 8. Planned Runtime API
+P2-T04 只创建和管理 API Key。
 
 尚未实现：
 
 ```text
-POST /v1/invoke
+Authorization: Bearer <AIGATE_API_KEY>
+↓
+/v1/**
 ```
 
-未来 Runtime 会根据认证出的 Application 读取：
+该能力属于 P2-T05。
+
+计划验证链路：
 
 ```text
-Application.defaultDeploymentId
+parse keyId
+↓
+lookup ApplicationApiKey
+↓
+check ACTIVE
+↓
+SHA-256(secret)
+↓
+constant-time compare
+↓
+ApplicationIdentity
+↓
+SecurityContext
 ```
 
-从而找到 ModelDeployment。
+---
 
-客户端 Runtime 请求不需要知道内部 Deployment ID。
+## 12. API Design Principles
 
-Application API Key Authentication 仍属于后续 P2-T04 / P2-T05。
+- Controller 只做请求/响应转换
+- DTO 与 Entity 分离
+- Secret 只在必要输入/一次性创建输出边界出现
+- hash 不通过 API 暴露
+- revoke 使用状态流转而不是删除
+- 路径中的 Application 与 Key 归属一起校验
+- Runtime 请求未来不直接携带内部 deploymentId
