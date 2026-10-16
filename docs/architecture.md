@@ -20,6 +20,9 @@ P2-T04 Application API Key Lifecycle
 → COMPLETED / ACCEPTED
 
 P2-T05 Runtime Authentication
+→ COMPLETED / ACCEPTED
+
+P2-T06 Unified Model Contract
 → NOT STARTED
 ```
 
@@ -35,7 +38,7 @@ AIGate 继续采用：
 
 ---
 
-## 3. 当前领域关系
+## 3. 当前身份与模型关系
 
 Identity：
 
@@ -64,174 +67,209 @@ ModelDeployment
 
 ---
 
-## 4. Application Runtime Identity 基础
+## 4. Management Plane 与 Runtime Plane 认证分离
 
-P2-T04 建立了机器身份凭证的数据基础：
+P2-T05 后，单体应用内部已经形成逻辑双平面认证：
 
 ```text
-Application
+Management
+/api/**
+→ HTTP Basic
+
+Runtime
+/v1/**
+→ Application API Key
+```
+
+两者仍运行在同一个 Spring Boot 进程中，但认证机制已经隔离。
+
+这是“逻辑控制面 / 数据面分离”，不是微服务拆分。
+
+---
+
+## 5. 为什么使用两条 SecurityFilterChain
+
+如果把 HTTP Basic 和 API Key 同时放进一条 authenticated() 规则：
+
+```text
+/api/** + /v1/**
+→ 任意一种认证成功即可
+```
+
+会模糊身份边界，甚至让管理凭证误用于 Runtime。
+
+因此当前采用：
+
+```text
+@Order(1)
+securityMatcher("/v1/**")
+→ API Key only
+
+@Order(2)
+management/default
+→ /api/** HTTP Basic
+→ Swagger permitAll
+```
+
+收益：
+
+- Runtime 不接受 HTTP Basic
+- Management 不接受 API Key
+- 后续两个平面可以独立演进
+
+代价：
+
+- Security 配置复杂度上升
+- 需要明确 Filter 顺序与 chain 匹配规则
+
+当前复杂度是由真实身份边界需求驱动的，合理。
+
+---
+
+## 6. Runtime API Key Authentication
+
+认证流程：
+
+```text
+Authorization: Bearer aig_live_<keyId>.<secret>
 ↓
-ApplicationApiKey
+ApiKeyAuthenticationFilter
 ↓
-未来 /v1/** Runtime Authentication
+ApiKeyAuthenticationService
+↓
+parse keyId + secret
+↓
+SELECT ApplicationApiKey WHERE key_id = ?
+↓
+status == ACTIVE
+↓
+ApplicationApiKeyHasher.matches(secret, keyHash)
+↓
+load Application
+↓
+ApplicationIdentity
+↓
+UsernamePasswordAuthenticationToken
+↓
+SecurityContext
 ```
 
-API Key 属于 Application，而不是 Employee。
-
-一个 Application 可以同时拥有多把 Key，便于手工轮换：
-
-```text
-create new key
-→ client switches
-→ verify
-→ revoke old key
-```
-
-当前不做自动 rotation / expiry。
+Runtime 请求不携带 applicationId；Application 身份由凭证本身确定。
 
 ---
 
-## 5. API Key 为什么用 Hash
+## 7. ApplicationIdentity Boundary
 
-Provider Credential 后续需要恢复原文，因此使用 AES-GCM。
-
-Application API Key 只需要验证，不需要恢复：
+SecurityContext principal 当前只携带：
 
 ```text
-supplied secret
-→ SHA-256
-→ compare stored hash
+applicationId
+applicationName
+teamId
 ```
 
-因此 P2-T04 使用：
+不携带：
 
 ```text
-SecureRandom high-entropy secret
-+
-SHA-256
-```
-
-而不是可逆加密。
-
-这里不使用 BCrypt / Argon2，是因为 secret 由服务器生成，具备高随机熵，不是低熵人类密码。
-
----
-
-## 6. API Key Format
-
-当前格式：
-
-```text
-aig_live_<keyId>.<secret>
-```
-
-其中：
-
-```text
-keyId
-→ 非秘密定位符
-→ P2-T05 可据此 O(1) 查询数据库记录
-
-secret
-→ 真正的 bearer secret
-```
-
-生成参数：
-
-```text
-keyId  = SecureRandom 16 bytes
-secret = SecureRandom 32 bytes
-encoding = URL-safe Base64 without padding
-```
-
-完整明文 Key 只在创建时返回一次。
-
----
-
-## 7. API Key Storage Boundary
-
-数据库保存：
-
-```text
-key_id
-key_prefix
-key_hash
-status
-metadata
-```
-
-不保存：
-
-```text
-完整 apiKey
-secret 明文
-```
-
-普通 List / Revoke Response 也不暴露：
-
-```text
-apiKey
+full API key
 secret
 keyHash
+keyId
+Authorization header
+defaultDeploymentId
 ```
 
-因此管理面无法通过普通查询恢复完整 Key。
+Authentication credentials 为 null。
+
+后续 Runtime 业务逻辑应只依赖 ApplicationIdentity，而不是直接解析 Header 或读取 API Key 表。
 
 ---
 
-## 8. API Key Lifecycle
+## 8. API Key Hashing
 
-当前状态机只做：
+P2-T04 的 SHA-256 逻辑已在 P2-T05 提取为：
 
 ```text
-ACTIVE
-  ↓ revoke
-REVOKED
+ApplicationApiKeyHasher
 ```
 
-撤销会写入：
+创建与验证共用：
 
 ```text
-revokedAt = now
+UTF-8
+→ SHA-256
+→ lowercase hex
 ```
 
-记录保留，不物理删除。
-
-重复 revoke 是幂等的：
+验证采用：
 
 ```text
-REVOKED
-→ 再 revoke
-→ 返回原记录
-→ 不重写 revokedAt
+MessageDigest.isEqual(...)
+```
+
+避免普通 String.equals 直接比较 Secret Hash。
+
+API Key 通过 `key_id` 单条查询，不扫描所有 Hash。
+
+---
+
+## 9. Authentication Failure Boundary
+
+Runtime 以下失败统一返回：
+
+```text
+401 UNAUTHORIZED
+```
+
+包括：
+
+- 缺少 Authorization
+- 非 Bearer
+- Key 格式错误
+- keyId 不存在
+- Key 已 REVOKED
+- secret 错误
+- Application 不存在
+
+不向未认证客户端区分 KEY_NOT_FOUND / REVOKED / WRONG_SECRET。
+
+异常文案不包含 API Key、secret 或 hash。
+
+---
+
+## 10. Existing Secret Strategies
+
+Application API Key：
+
+```text
+high-entropy secret
+→ SHA-256
+→ verification only
+```
+
+Provider Credential：
+
+```text
+Provider Secret
+→ AES-256-GCM
+→ reversible for upstream call
+```
+
+两种凭证使用不同策略，因为业务需求不同：
+
+```text
+API Key
+→ only verify
+
+Provider Credential
+→ must recover plaintext
 ```
 
 ---
 
-## 9. Application 删除与 CASCADE
+## 11. Existing Runtime Configuration
 
-`application_api_key.application_id` 使用：
-
-```text
-ON DELETE CASCADE
-```
-
-这是项目通常 RESTRICT 策略的局部例外。
-
-原因：
-
-- API Key 是 Application 的强生命周期从属凭证
-- Application 删除后所有 Key 必须失效
-- Key 没有脱离 Application 独立存在的业务意义
-- Key 本身不提供物理删除接口
-
-这不意味着其他业务关系改用 CASCADE。
-
----
-
-## 10. Existing Runtime Configuration
-
-P2-T03 已建立：
+Application 当前还直接绑定：
 
 ```text
 Application
@@ -241,126 +279,48 @@ defaultDeploymentId
 ModelDeployment
 ```
 
-这是 single-model proxy 阶段的临时绑定。
+这是 single-model proxy 阶段的临时设计。
 
-后续 Routing 阶段才演进：
-
-```text
-Application
-↓
-ModelAlias / Route
-↓
-ModelDeployment
-```
+Runtime Authentication 只确认“哪个 Application”，尚未执行模型选择或 Provider 调用。
 
 ---
 
-## 11. Provider Credential Protection
+## 12. Testing Architecture
 
-P2-T02 安全边界继续有效：
-
-```text
-Provider Credential
-→ AES/GCM/NoPadding
-→ encrypted_credential
-```
-
-Master Key：
-
-```text
-AIGATE_MASTER_KEY
-```
-
-普通 Response 不返回 credential 或 encryptedCredential。
-
----
-
-## 12. 当前 Security
-
-已经实现：
-
-```text
-/api/**
-→ HTTP Basic
-
-Provider Secret at rest
-→ AES-GCM
-
-Application API Key at rest
-→ SHA-256(secret)
-```
-
-尚未实现：
-
-```text
-/v1/**
-→ Application API Key Authentication
-```
-
-P2-T04 只建立凭证生命周期，不建立 SecurityContext。
-
----
-
-## 13. P2-T05 Planned Authentication Flow
-
-下一任务计划：
-
-```text
-Authorization: Bearer <AIGATE_API_KEY>
-↓
-parse keyId + secret
-↓
-lookup ApplicationApiKey by keyId
-↓
-check ACTIVE
-↓
-SHA-256(supplied secret)
-↓
-constant-time compare
-↓
-ApplicationIdentity
-↓
-Spring Security Authentication
-↓
-SecurityContext
-```
-
-管理面 HTTP Basic 与运行时 API Key 认证将开始分离。
-
----
-
-## 14. Testing Architecture
-
-当前测试继续使用：
+P2-T05 使用 test-only Runtime Controller 验证真正的 Security Chain：
 
 ```text
 MockMvc
 ↓
-Spring Security
+Runtime SecurityFilterChain
 ↓
-Controller
+ApiKeyAuthenticationFilter
 ↓
-Service
-↓
-MyBatis-Plus
+ApiKeyAuthenticationService
 ↓
 MySQL Testcontainer
+↓
+ApplicationIdentity
+↓
+test-only Controller
 ```
 
-P2-T04 已验证：
+验证了：
 
-- 多 Key
-- hash storage
-- secret boundary
-- revoke / idempotency
-- cross-application isolation
-- FK CASCADE
+- ACTIVE Key 成功
+- principal 正确
+- 各种错误凭证 401
+- REVOKED 401
+- Runtime 不接受 Basic
+- Management 不接受 API Key
+- Management Basic 原行为不变
+- Swagger 保持公开
 
 GitHub 当前仍无 CI Test Gate。
 
 ---
 
-## 15. 当前架构演进
+## 13. 当前架构演进
 
 ```text
 Phase 1
@@ -377,20 +337,43 @@ Application -> default ModelDeployment
 ↓
 P2-T04
 Application API Key Lifecycle
+↓
+P2-T05
+Runtime Authentication
+Management / Runtime auth separation
 ```
 
 下一步：
 
 ```text
-P2-T05 Runtime Authentication
+P2-T06 Unified Model Contract
 ```
 
 ---
 
-## 16. 当前技术债
+## 14. ADR
+
+P2-T05 落地后新增：
+
+```text
+ADR-002 — Application Runtime Authentication
+```
+
+记录：
+
+- 为什么不复用 HTTP Basic
+- 为什么 API Key 属于 Application
+- 为什么 API Key 只存 Hash
+- 为什么使用两条 SecurityFilterChain
+- 为什么认证失败统一 401
+- 为什么暂不引入 JWT / OAuth2
+
+---
+
+## 15. 当前技术债
 
 继续保留 TD-001 ~ TD-010。
 
-API Key expiration / automatic rotation 当前是明确非需求，不作为技术债强行记录。
+P2-T05 没有引入 Redis token cache、JWT、OAuth Server 等额外基础设施。
 
-P2-T04 没有引入 Redis Token Cache、JWT、OAuth Server 等额外复杂度。
+Runtime 认证目前每次请求访问 MySQL；这是 Phase 2 有意保留的简单实现，等真实性能/多节点问题出现后再演进。
