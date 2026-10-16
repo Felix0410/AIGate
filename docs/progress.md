@@ -6,13 +6,13 @@
 
 状态：**ACTIVE**
 
-当前执行门：
+当前任务：
 
-**P2-T04 COMPLETED / WAITING FOR USER CONFIRMATION**
+**P2-T05 — Runtime Authentication（ACTIVE）**
 
 下一计划任务：
 
-**P2-T05 — Runtime Authentication（NOT STARTED）**
+**P2-T06 — Unified Model Contract（NOT STARTED）**
 
 ---
 
@@ -23,8 +23,8 @@
 | P2-T01 | Model Registry Schema | DONE |
 | P2-T02 | Provider Credential Protection | DONE |
 | P2-T03 | Application Default Deployment | DONE |
-| P2-T04 | Application API Key Lifecycle | **DONE / ACCEPTED** |
-| P2-T05 | Runtime Authentication | **NOT STARTED** |
+| P2-T04 | Application API Key Lifecycle | DONE |
+| P2-T05 | Runtime Authentication | **ACTIVE** |
 | P2-T06 | Unified Model Contract | NOT STARTED |
 | P2-T07 | Provider Adapter | NOT STARTED |
 | P2-T08 | RestClient + Single Model Proxy | NOT STARTED |
@@ -34,173 +34,151 @@
 
 ---
 
-## 3. 当前已完成能力
-
-### P2-T01 Model Registry
+## 3. 当前已完成基础
 
 ```text
-Provider ───┐
-            ├── ModelDeployment
-Model ──────┘
+P2-T01
+Provider / Model / ModelDeployment
+
+P2-T02
+Provider Credential AES-GCM
+
+P2-T03
+Application.defaultDeploymentId
+
+P2-T04
+Application API Key Lifecycle
 ```
 
-### P2-T02 Provider Credential Protection
-
-```text
-Provider Credential
-→ AES-256-GCM
-→ encryptedCredential
-→ MySQL
-```
-
-### P2-T03 Application Default Deployment
-
-```text
-Application
-↓
-defaultDeploymentId
-↓
-ModelDeployment
-```
-
-### P2-T04 Application API Key Lifecycle
-
-新增：
-
-```text
-Application 1:N ApplicationApiKey
-```
-
-Flyway：
-
-```text
-V6__create_application_api_key.sql
-```
-
-API Key 格式：
+API Key 当前已经具备：
 
 ```text
 aig_live_<keyId>.<secret>
-```
-
-生成：
-
-- keyId：SecureRandom 16 bytes
-- secret：SecureRandom 32 bytes
-- URL-safe Base64 without padding
-
-存储：
-
-```text
-secret
-→ SHA-256
-→ key_hash
-```
-
-完整 Key 只在创建响应返回一次。
-
-生命周期：
-
-```text
-ACTIVE → REVOKED
-```
-
-当前管理 API：
-
-```text
-POST /api/applications/{applicationId}/api-keys
-GET  /api/applications/{applicationId}/api-keys
-POST /api/applications/{applicationId}/api-keys/{id}/revoke
-```
-
-Application 删除时，其 Key 通过 FK `ON DELETE CASCADE` 一并删除。
-
----
-
-## 4. 当前数据库
-
-MySQL 8.4。
-
-Flyway：
-
-```text
-V1 → Team
-V2 → Employee
-V3 → Application
-V4 → Provider / Model / ModelDeployment
-V5 → Application.default_deployment_id
-V6 → ApplicationApiKey
-```
-
-V6 关键结构：
-
-```text
-application_api_key
-- id PK
-- application_id FK -> application.id ON DELETE CASCADE
-- name
-- key_id UNIQUE
-- key_prefix
-- key_hash CHAR(64)
-- status
-- created_at
-- revoked_at
+ACTIVE / REVOKED
+SHA-256(secret) at rest
 ```
 
 ---
 
-## 5. Security 状态
+## 4. P2-T05 Goal
 
-当前已经实现：
+目标：
+
+> 使用 Application API Key 认证 /v1/** 请求，并在 Spring SecurityContext 中建立 ApplicationIdentity。
+
+冻结安全边界：
 
 ```text
 /api/**
 → HTTP Basic
 
-Provider Credential at rest
-→ AES-GCM
-
-Application API Key at rest
-→ SHA-256(secret)
+/v1/**
+→ Application API Key
 ```
 
-尚未实现：
+计划使用两条 SecurityFilterChain 隔离认证机制，避免 HTTP Basic 与 API Key 在两个平面之间串用。
+
+---
+
+## 5. Planned Authentication Flow
 
 ```text
-/v1/**
-→ Application API Key Authentication
+Authorization: Bearer aig_live_<keyId>.<secret>
+↓
+ApiKeyAuthenticationFilter
+↓
+ApiKeyAuthenticationService
+↓
+lookup by keyId
+↓
+ACTIVE?
+↓
+SHA-256(secret)
+↓
+constant-time compare
+↓
+ApplicationIdentity
+↓
+SecurityContext
 ```
 
-该能力属于 P2-T05。
+ApplicationIdentity：
+
+```text
+applicationId
+applicationName
+teamId
+```
 
 ---
 
-## 6. Testing
+## 6. P2-T05 Implementation Scope
 
-P2-T04 集成测试覆盖：
+计划最小组件：
 
-- 创建 Key
-- 同 Application 多 Key
-- DB 不保存明文 secret / 完整 Key
-- DB hash 与 SHA-256(secret) 一致
-- List 不泄露敏感字段
-- 空列表
-- Application 不存在 404
-- name validation
-- ACTIVE → REVOKED
-- revoke row 保留
-- 重复 revoke 幂等
-- API_KEY_NOT_FOUND
-- 跨 Application 隔离
-- Application 删除级联删除 Key
+```text
+ApplicationIdentity
+ApiKeyAuthenticationFilter
+ApiKeyAuthenticationService
+ApplicationApiKeyHasher
+SecurityConfig runtime/management chain split
+```
 
-测试使用真实 MySQL Testcontainers。
-
-GitHub 当前仍无 CI status / workflow run，因此 TD-009 继续保留。
+P2-T04 的 SHA-256 生成逻辑可以在本任务中提取为共享 Hasher，避免创建与认证算法重复。
 
 ---
 
-## 7. 当前技术债
+## 7. Authentication Failure Contract
+
+以下统一：
+
+```text
+missing header
+wrong scheme
+malformed key
+unknown keyId
+revoked key
+wrong secret
+invalid application state
+→ 401 UNAUTHORIZED
+```
+
+不向未认证客户端暴露 Key 内部状态。
+
+不得记录：
+
+```text
+Authorization header
+full API key
+secret
+keyHash
+```
+
+---
+
+## 8. P2-T05 Acceptance Focus
+
+至少验证：
+
+- valid ACTIVE Key 可以通过 /v1/** Security Chain
+- ApplicationIdentity 正确
+- missing header → 401
+- malformed / wrong scheme → 401
+- unknown keyId → 401
+- wrong secret → 401
+- revoked Key → 401
+- Runtime 不接受 HTTP Basic 替代 API Key
+- Management /api/** 继续保持 HTTP Basic
+- API Key 不改变管理面原有认证行为
+- hash 验证使用 constant-time compare
+- 按 keyId 查询单条记录，不扫描所有 Hash
+- SecurityContext 不保留完整 secret
+
+正式 `POST /v1/invoke` 属于 P2-T06，不提前实现。
+
+---
+
+## 9. Current Technical Debt
 
 继续保留：
 
@@ -215,30 +193,14 @@ GitHub 当前仍无 CI status / workflow run，因此 TD-009 继续保留。
 - TD-009 暂无 CI Test Gate
 - TD-010 Provider Master Key Rotation 尚未设计
 
-API Key expiration / automatic rotation 当前是明确非需求，不单独记为技术债。
-
 ---
 
-## 8. P2-T04 Acceptance Result
+## 10. Execution Gate
 
-- [x] Application 1:N ApplicationApiKey
-- [x] V6 migration
-- [x] keyId UNIQUE
-- [x] SecureRandom 高熵 secret
-- [x] SHA-256 hash 存储
-- [x] 完整 Key 只在创建响应出现
-- [x] List 不暴露 apiKey / secret / keyHash
-- [x] ACTIVE → REVOKED
-- [x] revoke row 保留
-- [x] 重复 revoke 幂等
-- [x] API_KEY_NOT_FOUND
-- [x] 跨 Application 隔离
-- [x] Application 删除 CASCADE Key
-- [x] Testcontainers 覆盖真实 DB 行为
-- [x] 未提前实现 Runtime Authentication
+当前只执行：
 
-结论：
+**P2-T05 — Runtime Authentication**
 
-**P2-T04 — Application API Key Lifecycle：COMPLETED / ACCEPTED**
+完成实现、测试、开发导师 Code Review 后回总控验收。
 
-当前停在执行门，等待用户确认是否进入 P2-T05。
+**不得自动进入 P2-T06。**
