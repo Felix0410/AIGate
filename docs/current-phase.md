@@ -8,11 +8,11 @@
 
 Status: **ACTIVE**
 
-Current Task: **P2-T04 — Application API Key Lifecycle（ACTIVE）**
+Execution Gate: **P2-T04 COMPLETED / WAITING FOR USER CONFIRMATION**
 
 Next Planned Task: **P2-T05 — Runtime Authentication（NOT STARTED）**
 
-> 用户已确认启动 P2-T04。当前只实现 Application API Key 的生命周期，不提前把 Key 接入 `/v1/**` Spring Security 认证链。
+> P2-T04 已通过总控验收。在用户明确确认前，不得自动开始 P2-T05。
 
 ---
 
@@ -23,8 +23,8 @@ Next Planned Task: **P2-T05 — Runtime Authentication（NOT STARTED）**
 | P2-T01 | Model Registry Schema | DONE |
 | P2-T02 | Provider Credential Protection | DONE |
 | P2-T03 | Application Default Deployment | DONE |
-| P2-T04 | Application API Key Lifecycle | **ACTIVE** |
-| P2-T05 | Runtime Authentication | NOT STARTED |
+| P2-T04 | Application API Key Lifecycle | **DONE / ACCEPTED** |
+| P2-T05 | Runtime Authentication | **NOT STARTED** |
 | P2-T06 | Unified Model Contract | NOT STARTED |
 | P2-T07 | Provider Adapter | NOT STARTED |
 | P2-T08 | RestClient + Single Model Proxy | NOT STARTED |
@@ -34,275 +34,101 @@ Next Planned Task: **P2-T05 — Runtime Authentication（NOT STARTED）**
 
 ---
 
-## 3. Current Task — P2-T04 Application API Key Lifecycle
+## 3. P2-T04 — Application API Key Lifecycle
 
-### Business Goal
+业务目标：
 
-Phase 1 的 HTTP Basic 解决的是管理 API 的人/管理端认证。
+> 为 Application 建立可签发、可撤销、明文不可恢复的机器访问凭证生命周期，为 P2-T05 Runtime Authentication 提供数据基础。
 
-P2-T04 要建立另一类身份凭证：
-
-```text
-Application
-↓
-Application API Key
-↓
-未来 Runtime /v1/**
-```
-
-API Key 代表机器 Application，而不是 Employee。
-
-本任务只解决：
-
-> 如何安全签发、保存、展示元数据和撤销 Application API Key。
-
-真正的请求认证与 SecurityContext 建立属于 P2-T05。
-
----
-
-## 4. Frozen Domain Model
-
-关系：
+当前实际关系：
 
 ```text
 Application 1 ---- N ApplicationApiKey
 ```
 
-最小字段：
+### Database
+
+Flyway 已新增：
 
 ```text
+V6__create_application_api_key.sql
+```
+
+当前表：
+
+```text
+application_api_key
+
 id
-applicationId
+application_id
 name
-keyId
-keyPrefix
-keyHash
+key_id
+key_prefix
+key_hash
 status
-createdAt
-revokedAt
+created_at
+revoked_at
 ```
 
-状态只做：
+关键约束：
 
 ```text
-ACTIVE
-REVOKED
+key_id UNIQUE
+application_id INDEX
+application_id FK -> application.id ON DELETE CASCADE
 ```
 
-不做：
+CASCADE 是强生命周期从属凭证的局部例外：Application 删除后，其 API Key 必须一并失效/删除。
 
-```text
-EXPIRED
-SUSPENDED
-COMPROMISED
-automatic rotation
-TTL
-```
+### Key Format
 
----
-
-## 5. Key Format / Generation
-
-概念格式冻结为：
+当前格式：
 
 ```text
 aig_live_<keyId>.<secret>
 ```
 
-其中：
+生成策略：
 
 ```text
-keyId
-→ 非秘密标识，用于未来快速定位数据库记录
-
-secret
-→ 真正的 bearer secret
+keyId  = SecureRandom 16 bytes
+secret = SecureRandom 32 bytes
+编码   = URL-safe Base64 without padding
 ```
 
-生成要求：
+其中 secret 具备 256-bit 随机熵。
 
-- 使用 `SecureRandom`
-- secret 至少 256-bit 随机熵
-- 建议使用 URL-safe Base64 无 padding 编码
-- 每次创建生成全新 keyId + secret
-
-明文完整 Key：
-
-```text
-只在创建成功响应中返回一次
-```
-
-之后普通 GET / LIST 不允许再次返回完整 Key。
-
----
-
-## 6. Hash Strategy
-
-Application API Key 与 Provider Credential 不同。
-
-API Key 运行时只需要验证，不需要恢复原文，因此：
+### Storage Strategy
 
 ```text
 secret
 ↓
 SHA-256
 ↓
-key_hash
+64-char hex key_hash
+↓
+MySQL
 ```
 
-数据库不得保存：
+数据库不保存：
 
 ```text
 完整 API Key
 secret 明文
 ```
 
-这里不使用 BCrypt / Argon2，原因是 secret 由服务器生成并具有高随机熵，不是低熵人类密码。
+完整明文 Key 只在 Create Response 中返回一次。
 
-P2-T05 验证时流程计划为：
+### Lifecycle
 
-```text
-parse keyId
-↓
-lookup row by keyId
-↓
-check ACTIVE
-↓
-hash supplied secret
-↓
-constant-time compare
-```
-
-但认证逻辑本任务不实现。
-
----
-
-## 7. Database Plan
-
-新增：
+当前状态只有：
 
 ```text
-V6__create_application_api_key.sql
+ACTIVE
+REVOKED
 ```
 
-建议表：
-
-```text
-application_api_key
-```
-
-核心约束：
-
-```text
-id BIGINT PK AUTO_INCREMENT
-application_id BIGINT NOT NULL
-name VARCHAR(100) NOT NULL
-key_id VARCHAR(...) NOT NULL UNIQUE
-key_prefix VARCHAR(...) NOT NULL
-key_hash CHAR(64) NOT NULL
-status VARCHAR(20) NOT NULL
-created_at TIMESTAMP NOT NULL
-revoked_at TIMESTAMP NULL
-```
-
-索引：
-
-```text
-idx_application_api_key_application_id
-UNIQUE(key_id)
-```
-
-### Application 删除语义
-
-本表是 Application 生命周期内的从属凭证。
-
-P2-T04 推荐：
-
-```text
-application_api_key.application_id
-→ application.id
-→ ON DELETE CASCADE
-```
-
-这是对项目通常 `RESTRICT` 原则的有意识例外：
-
-- ApiKey 没有脱离 Application 独立存在的意义
-- Application 被删除后所有其 Key 必须立即失效
-- ApiKey 本身不提供物理删除接口
-- 如果使用 RESTRICT，Application 一旦拥有 Key 将无法删除，因为 revoked row 仍需保留
-
-不要把 CASCADE 扩展成全局默认策略；这里只用于强生命周期从属关系。
-
----
-
-## 8. Management API Scope
-
-Base Path：
-
-```text
-/api/applications/{applicationId}/api-keys
-```
-
-### Create
-
-```text
-POST /api/applications/{applicationId}/api-keys
-```
-
-Request 最小字段：
-
-```text
-name
-```
-
-Create Response 可以返回：
-
-```text
-id
-applicationId
-name
-keyId
-keyPrefix
-status
-createdAt
-revokedAt
-apiKey   ← 完整明文，只在这一次出现
-```
-
-### List Metadata
-
-```text
-GET /api/applications/{applicationId}/api-keys
-```
-
-只能返回元数据：
-
-```text
-id
-applicationId
-name
-keyId
-keyPrefix
-status
-createdAt
-revokedAt
-```
-
-明确不得返回：
-
-```text
-apiKey
-secret
-keyHash
-```
-
-### Revoke
-
-```text
-POST /api/applications/{applicationId}/api-keys/{id}/revoke
-```
-
-语义：
+撤销：
 
 ```text
 ACTIVE
@@ -310,15 +136,38 @@ ACTIVE
 → revokedAt = now
 ```
 
-记录保留，不物理删除。
+记录不物理删除。
 
-重复 revoke 建议保持幂等：已 REVOKED 再 revoke 仍返回当前 REVOKED 元数据，不制造额外状态。
+重复 revoke 保持幂等：已 REVOKED 时直接返回原记录，不重写 revokedAt。
 
----
+### Management API
 
-## 9. Error Semantics
+```text
+POST /api/applications/{applicationId}/api-keys
+→ create
 
-至少处理：
+GET /api/applications/{applicationId}/api-keys
+→ list metadata
+
+POST /api/applications/{applicationId}/api-keys/{id}/revoke
+→ revoke
+```
+
+Create Response 可以包含一次性字段：
+
+```text
+apiKey
+```
+
+普通 metadata response 不包含：
+
+```text
+apiKey
+secret
+keyHash
+```
+
+### Error Semantics
 
 ```text
 Application 不存在
@@ -327,45 +176,46 @@ Application 不存在
 ApiKey 不存在 / 不属于该 Application
 → 404 API_KEY_NOT_FOUND
 
-Create name validation error
+name 校验失败
 → 400 VALIDATION_ERROR
 ```
 
-不要在错误消息或日志中输出完整 API Key / secret / keyHash。
-
 ---
 
-## 10. Acceptance Focus
+## 4. P2-T04 Test Coverage
 
-P2-T04 至少证明：
+集成测试已覆盖：
 
-- Application 可以创建多把 API Key
-- 创建成功时完整 Key 只返回一次
-- 数据库不保存完整 Key / secret 明文
-- DB 保存 SHA-256 hash
-- keyId 唯一且可用于未来查找
-- list 只返回元数据，不暴露 keyHash / secret
-- ACTIVE Key 可以 revoke
-- revoke 后 row 保留，状态为 REVOKED，revokedAt 非空
-- 重复 revoke 行为稳定/幂等
-- 不存在 Application 返回 404
-- 不存在或不属于该 Application 的 Key 返回 404
-- 删除 Application 后其从属 Key 不再存在（若采用冻结 CASCADE 方案）
-- 使用真实 MySQL Testcontainers 验证存储与 FK 行为
+- 创建 Key：ACTIVE、revokedAt=null、完整 Key 格式正确
+- 同一 Application 创建多把 Key，keyId / apiKey 不同
+- 数据库 keyHash 不等于 secret / 完整 Key，并等于 SHA-256(secret)
+- List 不泄露 apiKey / secret / keyHash
+- 无 Key Application 返回空列表
+- Application 不存在时 Create / List 返回 404
+- name 为空返回 400
+- ACTIVE → REVOKED
+- revoke 后 row 仍存在
+- 重复 revoke 幂等，revokedAt 不变化
+- 不存在 Key 返回 404 API_KEY_NOT_FOUND
+- 跨 Application revoke 返回 404，原 Key 保持 ACTIVE
+- 删除 Application 后 Key 由真实 MySQL FK CASCADE 删除
 
----
-
-## 11. Existing Phase 2 Facts
-
-### Application Default Deployment
+测试继续走：
 
 ```text
-Application
-↓
-defaultDeploymentId
-↓
-ModelDeployment
+MockMvc
+→ HTTP Basic
+→ Controller
+→ Service
+→ MyBatis-Plus
+→ MySQL Testcontainer
 ```
+
+GitHub 当前没有 CI status / workflow run；TD-009 继续保留。
+
+---
+
+## 5. Existing Phase 2 Facts
 
 ### Model Registry
 
@@ -383,52 +233,87 @@ Provider Credential
 → encryptedCredential
 ```
 
+### Application Default Deployment
+
+```text
+Application
+↓
+defaultDeploymentId
+↓
+ModelDeployment
+```
+
 ### Current Security
+
+当前已实现：
 
 ```text
 /api/**
 → HTTP Basic
 ```
 
-`/v1/**` Application API Key Authentication 尚未实现。
+当前已经存在 Application API Key 数据，但它还没有接入 Spring Security Runtime 认证链。
 
 ---
 
-## 12. Explicitly Deferred
+## 6. Next Planned Task — P2-T05
 
-P2-T04 不实现：
+**P2-T05 — Runtime Authentication**
+
+冻结目标：
 
 ```text
-ApiKeyAuthenticationFilter
-SecurityContext ApplicationIdentity
-/v1/** runtime authentication
+Authorization: Bearer <AIGATE_API_KEY>
+↓
+parse keyId
+↓
+lookup ApplicationApiKey by keyId
+↓
+check ACTIVE
+↓
+SHA-256(supplied secret)
+↓
+constant-time compare
+↓
+ApplicationIdentity
+↓
+Spring Security Authentication / SecurityContext
+```
+
+计划边界：
+
+```text
+/api/**
+→ HTTP Basic
+
+/v1/**
+→ Application API Key
+```
+
+P2-T05 尚未启动。
+
+---
+
+## 7. Explicitly Deferred
+
+```text
 API Key expiration
-API Key automatic rotation
+automatic rotation
 JWT
 OAuth2 / OIDC
 Redis API Key cache
 Rate Limit / Quota
 Routing
 Runtime Proxy
+WebFlux
+SSE
+MQ
+Microservices
 ```
 
 ---
 
-## 13. Execution Gate
-
-当前只执行：
-
-```text
-P2-T04 — Application API Key Lifecycle
-```
-
-完成实现、测试、开发导师 Code Review 后回总控验收。
-
-**不得自动进入 P2-T05。**
-
----
-
-## 14. Architecture Rule
+## 8. Architecture Rule
 
 ```text
 业务问题
