@@ -2,7 +2,7 @@
 
 ## 1. 当前基线
 
-当前内容以 **Phase 2 / P2-T03 完成后的实际实现** 为准。
+当前内容以 **Phase 2 / P2-T04 完成后的实际实现** 为准。
 
 数据库：**MySQL 8.4**
 
@@ -14,6 +14,7 @@ V2 → employee
 V3 → application
 V4 → provider / model / model_deployment
 V5 → application.default_deployment_id
+V6 → application_api_key
 ```
 
 已执行 migration 不修改，后续变化继续新增 migration。
@@ -31,9 +32,9 @@ Model    1 ---- N ModelDeployment
 
 Application N ---- 0..1 ModelDeployment
         via default_deployment_id
-```
 
-注意：多个 Application 可以暂时指向同一个默认 Deployment；一个 Application 当前最多配置一个默认 Deployment。
+Application 1 ---- N ApplicationApiKey
+```
 
 ---
 
@@ -50,31 +51,11 @@ created_at TIMESTAMP NOT NULL
 updated_at TIMESTAMP NOT NULL
 ```
 
-`default_deployment_id` 在 V5 新增。
-
-外键：
+`default_deployment_id` 使用：
 
 ```text
-FOREIGN KEY (default_deployment_id)
-REFERENCES model_deployment(id)
 ON DELETE RESTRICT
 ```
-
-为什么 nullable：
-
-```text
-Application 可以先创建
-模型绑定可以稍后完成
-```
-
-为什么 RESTRICT：
-
-```text
-Application 仍引用 Deployment
-→ 不允许直接删除 Deployment
-```
-
-避免 Application 留下无效运行配置。
 
 ---
 
@@ -100,49 +81,125 @@ provider_id → provider.id ON DELETE RESTRICT
 model_id    → model.id    ON DELETE RESTRICT
 ```
 
-P2-T02 已启用 `encrypted_credential` 的 AES-GCM 密文语义。
+---
+
+## 5. application_api_key
+
+P2-T04 新增。
+
+```text
+id BIGINT PK AUTO_INCREMENT
+application_id BIGINT NOT NULL
+name VARCHAR(100) NOT NULL
+key_id VARCHAR(64) NOT NULL UNIQUE
+key_prefix VARCHAR(100) NOT NULL
+key_hash CHAR(64) NOT NULL
+status VARCHAR(20) NOT NULL
+created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+revoked_at TIMESTAMP NULL
+```
+
+索引：
+
+```text
+UNIQUE(key_id)
+INDEX(application_id)
+```
+
+外键：
+
+```text
+application_id
+→ application.id
+→ ON DELETE CASCADE
+```
 
 ---
 
-## 5. P2-T03 数据完整性策略
+## 6. API Key Storage Semantics
 
-Application 绑定默认 Deployment 时采用两层保护：
-
-```text
-Service
-→ 检查 ModelDeployment 是否存在
-→ 不存在返回 MODEL_DEPLOYMENT_NOT_FOUND
-
-Database FK
-→ 最终保证不能保存非法 deployment id
-```
-
-删除被 Application 引用的 Deployment：
+完整 Key：
 
 ```text
-MySQL FK RESTRICT
-→ DataIntegrityViolationException
-→ 409 RESOURCE_CONFLICT
+aig_live_<keyId>.<secret>
 ```
+
+数据库不保存完整 Key，也不保存 secret 明文。
+
+存储流程：
+
+```text
+secret
+↓
+SHA-256
+↓
+64-char lowercase hex
+↓
+key_hash CHAR(64)
+```
+
+`key_id` 是非秘密定位符，为 P2-T05 运行时认证的快速查询预留。
+
+`key_prefix` 只用于管理展示，不具备认证能力。
 
 ---
 
-## 6. NULL 更新语义
+## 7. API Key Lifecycle Data
 
-当前 Application PUT 是完整更新。
-
-因此：
+当前 status：
 
 ```text
-defaultDeploymentId = null
-→ application.default_deployment_id = NULL
+ACTIVE
+REVOKED
 ```
 
-Java Entity 对该字段使用 MyBatis-Plus `FieldStrategy.ALWAYS`，确保 null 不被更新策略跳过。
+创建：
+
+```text
+status = ACTIVE
+revoked_at = NULL
+```
+
+撤销：
+
+```text
+status = REVOKED
+revoked_at = current time
+```
+
+撤销不删除 row。
 
 ---
 
-## 7. UNIQUE / FK Strategy
+## 8. 为什么 ApplicationApiKey 使用 CASCADE
+
+项目多数业务引用使用 RESTRICT，例如：
+
+```text
+Application.defaultDeploymentId -> ModelDeployment
+ModelDeployment.providerId -> Provider
+ModelDeployment.modelId -> Model
+```
+
+但 API Key 是 Application 的强生命周期从属凭证：
+
+```text
+Application 删除
+→ Key 已无业务主体
+→ 所有 Key 必须失效
+```
+
+因此这里使用：
+
+```text
+ON DELETE CASCADE
+```
+
+这是局部例外，不是全局删除策略变化。
+
+---
+
+## 9. 当前 UNIQUE / FK
 
 主要 UNIQUE：
 
@@ -153,44 +210,32 @@ application.name
 provider.name
 model.name
 model_deployment.name
+application_api_key.key_id
 ```
 
-真实 FK：
+主要 FK：
 
 ```text
-employee.team_id → team.id
-application.team_id → team.id
-application.default_deployment_id → model_deployment.id
-model_deployment.provider_id → provider.id
-model_deployment.model_id → model.id
+employee.team_id → team.id RESTRICT
+application.team_id → team.id RESTRICT
+application.default_deployment_id → model_deployment.id RESTRICT
+model_deployment.provider_id → provider.id RESTRICT
+model_deployment.model_id → model.id RESTRICT
+application_api_key.application_id → application.id CASCADE
 ```
-
-数据库继续作为最终完整性边界。
 
 ---
 
-## 8. 当前不做
+## 10. 当前不做
 
 ```text
-Application ↔ Route 关系表
-ModelAlias
-Weighted target
-多默认 Deployment
-Soft Delete Framework
+API Key expiration column
+automatic rotation metadata
+last_used_at
+Redis API Key cache
 Multi-Tenant
-Redis Runtime Snapshot
+Soft Delete Framework
+分库分表
 ```
 
-这些等后续真实 Routing / 多节点问题出现后再设计。
-
----
-
-## 9. 下一计划 Migration
-
-P2-T04 计划新增：
-
-```text
-V6__create_application_api_key.sql
-```
-
-当前尚未启动，不把计划结构写成已实现事实。
+这些等真实需求出现后再设计。
