@@ -70,6 +70,8 @@ public class ApplicationApiKeyService {
 
     public ApplicationApiKey revokeApiKey(Long applicationId, Long apiKeyId) {
 
+        ensureApplicationExists(applicationId);
+
         ApplicationApiKey apiKey = findApiKey(applicationId, apiKeyId);
 
         // 已 REVOKED：直接返回当前记录，不重写 revokedAt，保证幂等。
