@@ -10,3 +10,9 @@ spring:
     user:
       name: ${AIGATE_SECURITY_USERNAME}
       password: ${AIGATE_SECURITY_PASSWORD}
+
+aigate:
+  provider:
+    # Provider 出站 HTTP 有界超时（秒）；Happy Path 兜底默认值，可按环境覆盖。
+    connect-timeout-seconds: ${AIGATE_PROVIDER_CONNECT_TIMEOUT_SECONDS:3}
+    read-timeout-seconds: ${AIGATE_PROVIDER_READ_TIMEOUT_SECONDS:60}
