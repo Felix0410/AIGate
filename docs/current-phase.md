@@ -8,11 +8,11 @@
 
 Status: **ACTIVE**
 
-Current Task: **P2-T10 — End-to-End Integration Test（ACTIVE / PENDING EXECUTION EVIDENCE）**
+Current Task: **P2-T11 — Phase Closeout（ACTIVE）**
 
-Next Planned Task: **P2-T11 — Phase Closeout（NOT STARTED）**
+Next Planned Task: **Phase 3 — only after P2-T11 closeout acceptance**
 
-> P2-T09 已于 2026-10-17 通过代码及测试覆盖验收，按自动推进规则直接启动 P2-T10。当前聚焦整条 Runtime 链路的可重复 E2E 测试，不新增新的业务功能。
+> P2-T10 已补齐真实测试执行证据（用户提供 Maven 汇总：138 tests，0 failures，0 errors，0 skipped），完成验收并按自动推进规则启动 P2-T11。Phase 2 尚未关闭，Phase 3 尚未启动。
 
 ## 2. Task Status
 
@@ -27,8 +27,8 @@ Next Planned Task: **P2-T11 — Phase Closeout（NOT STARTED）**
 | P2-T07 | Provider Adapter | DONE |
 | P2-T08 | RestClient + Single Model Proxy | **DONE / ACCEPTED** |
 | P2-T09 | Provider Error Mapping | **DONE / ACCEPTED** |
-| P2-T10 | End-to-End Integration Test | **ACTIVE** |
-| P2-T11 | Phase Closeout | NOT STARTED |
+| P2-T10 | End-to-End Integration Test | **DONE / ACCEPTED** |
+| P2-T11 | Phase Closeout | **ACTIVE** |
 
 ---
 
@@ -415,3 +415,115 @@ Redis / MQ / Microservices
 在有 Docker 可用的 Java 21 开发环境执行。提交 Maven 命令退出码、`Tests run / Failures / Errors / Skipped` 统计、必要时测试报告或失败日志（务必脱敏），并处理实际失败项。建议一并验证独立 timeout Spring Context 能启动、资源清理无挂起线程。若出现偶发失败，应连续复跑关键 E2E 测试确认可靠性。
 
 **阶段状态：P2-T10 继续 ACTIVE，P2-T11 NOT STARTED。** 收到可核验的真实测试执行结果且无阻塞问题后，可正式验收 T10 并按自动推进规则启动 T11。
+
+---
+
+## 15. P2-T10 Final Acceptance — 2026-10-17
+
+前次验收状态为 PENDING，唯一阻塞条件是缺乏真实 Maven 全量测试运行证据。
+
+用户现已提供终端测试汇总：
+
+```text
+[INFO] Tests run: 138, Failures: 0, Errors: 0, Skipped: 0
+```
+
+这是**用户报告的本地 Maven 执行结果**，不是由 GitHub Actions/本总控运行；因此不写成 CI green。用户依据此前指引执行测试；测试汇总表明全部 138 项无失败、无错误、无跳过。没有提供独立的退出码或 Surefire XML 明细，后续如建设 CI Test Gate 时需要机器可校验的执行报告。
+
+结合已完成代码审查：Testcontainers MySQL、Spring Security / MockMvc、实际 JDK HttpServer、Provider Adapter、RestClient、API Key 撤销及默认部署动态变更等测试实现均满足本任务要求。
+
+**最终结论：P2-T10 — COMPLETED / ACCEPTED。**
+
+技术债继续保留 TD-009（缺少自动 CI 测试门禁）和 TD-011（生产级 Provider Endpoint SSRF 保护）；本任务测试成功不等于二者已解决。
+
+---
+
+## 16. P2-T11 — Phase 2 Closeout（ACTIVE）
+
+### Business Goal
+
+> 对 Phase 2 已完成的 Model Registry、Credential、Application API Key、Runtime Authentication、Unified Contract、Provider Adapter、Single Model Proxy、Error Mapping 和 E2E Test 进行正式交付审查，并将业务闭环、架构、测试证据、技术债与面试表达全部沉淀为项目文档。
+
+本任务以**审核、复盘、文档整理、修正真实问题**为主，不另起一套业务架构，也不抢跑 Phase 3。
+
+### Scope
+
+- P2-T01 ~ P2-T10 的实际功能与业务闭环审查
+- 代码审查：模块职责、依赖方向、敏感凭证隔离、错误响应、无意复杂度
+- 测试审查：本地 Maven 138/0/0/0、E2E 测试矩阵、CI 与测试可靠性
+- 架构核对：模块化单体、控制面和运行面、Application → Deployment → Provider、Adapter / HTTP 边界
+- 技术债登记/优先级：TD-001~TD-011，区分“下一阶段阻塞”、“生产部署前必要”和“可延后”
+- 文档核对与更新：project-overview、requirements、roadmap、progress、architecture、domain-model、module-design、api-design、database-design、knowledge-map、interview-notes、ADR（有新增重大决策时）
+- Phase 2 知识点梳理与能够讲清楚的面试故事
+- 生成明确的 Phase 2 关闭结论及下一 Phase 开始前的准备事项
+
+### Main Flow
+
+```text
+P2-T01~T10 代码 / 文档 / 测试清单
+↓
+逐项功能与 API / 表结构核对
+↓
+安全边界和架构检查
+↓
+138 tests passed（用户提供本地结果）
+↓
+技术债及风险优先级
+↓
+必要文档 / ADR / 知识地图 / 面试表达
+↓
+Phase 2 Closeout Review
+↓
+PASS -> Phase 2 CLOSED
+FAIL -> 留在 Phase 2 处理
+```
+
+### Architecture
+
+基于现有事实核验：
+
+```text
+Management /api/** (HTTP Basic)
+→ Team / Application / Provider / Model / Deployment / API Key management
+
+Runtime /v1/** (Application API Key)
+→ ApplicationIdentity
+→ ModelProxyService
+→ ModelDeployment
+→ ProviderAdapter
+→ RestClient
+→ OpenAI-compatible Provider
+```
+
+单体 + MySQL V1–V6 + Spring MVC + MyBatis-Plus + Flyway，未引入微服务、Redis、MQ、路由或流式调用。
+
+### Tasks
+
+1. 检查 Phase 2 Business Goal 和全部任务清单是否真实完成。
+2. 以 GitHub main 为准做 Phase-level Code Review，不仅检查本次新代码。
+3. 核实测试类别与关键 E2E 覆盖，记录本地测试汇总的来源和限制。
+4. 检查模块边界、Controller/Service/Adapter/HTTP 责任分离和安全风险。
+5. 整理技术债 TD-001~TD-011：标记生产前风险及后续优先级，避免为还不存在的规模问题提前改造。
+6. 更新 progress、architecture、roadmap 及其他与事实不符的核心文档。
+7. 若有真正新的重大架构决策，增补 ADR；没有则记录无需新增。
+8. 按真实开发时间线完善 Phase 2 knowledge-map，不做脱离项目的泛教程。
+9. 整理面试表达：需求 → 最简设计 → 实际执行链 → 取舍 → 测试 → 下一步演进。
+10. 输出完整的 Phase 2 关闭检查清单和阶段结论。
+
+### Acceptance Criteria
+
+- Phase 2 业务闭环：配置模型 → Application 绑定 → API Key → 认证 → 模型 HTTP 调用 → 统一成功/失败响应
+- P2-T01 ~ P2-T10 全部已验收，P2-T10 本地测试汇总 138 / 0 / 0 / 0 明确记录
+- 业务、安全、架构、数据库、API 文档与 main 当前代码一致，无“计划”冒充“已实现”
+- 主要技术债有明确风险和处置时机，尤其 TD-009 和 TD-011
+- knowledge-map / interview-notes 补齐 Phase 2 的真实工程知识点及可解释的架构取舍
+- 没有跨阶段的功能堆叠，没有为了面试丰富技术栈而引入基础设施
+- 完整 Phase Closeout Review 无阻塞才能标记 Phase 2 CLOSED
+
+### Knowledge Points / Interview
+
+重点复盘：Application vs Provider 两类凭证为什么不同、Spring Security 双 FilterChain、Provider Adapter 设计、RestClient 同步调用、HTTP 错误分类、E2E 与 Mock Provider、为什么不采用 Redis/MQ/微服务等。
+
+### Execution Gate
+
+**P2-T11 ACTIVE。Phase 2 尚未关闭，Phase 3 NOT STARTED。** 用户已授权“验收通过则自动推进”，但 Phase 3 只会在 P2-T11 自身完成正式 Phase Closeout 审核、无阻塞且文档同步后启动。
