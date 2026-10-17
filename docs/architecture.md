@@ -22,6 +22,8 @@ P2-T06 Unified Model Contract
 P2-T07 Provider Adapter
 → COMPLETED / ACCEPTED
 P2-T08 RestClient + Single Model Proxy
+→ COMPLETED / ACCEPTED
+P2-T09 Provider Error Mapping
 → ACTIVE
 ```
 
@@ -245,7 +247,7 @@ Production /v1/invoke execution
 → NOT WIRED
 ```
 
-P2-T08 已启动，正在建设真实同步非流式调用主链。
+P2-T08 已完成真实同步非流式调用主链，并经静态代码、测试覆盖验收通过；当前 P2-T09 处理统一失败语义。
 
 ---
 
@@ -398,4 +400,80 @@ Client POST /v1/invoke
 
 本阶段只需正常 HTTP 200 Happy Path、运行配置基本拒绝与最小测试。Provider 4xx/429/5xx/timeout 统一错误映射留 P2-T09；完整 E2E 测试矩阵留 P2-T10。无 Retry、Fallback、Circuit Breaker、Routing、Redis、MQ、SSE。
 
-P2-T08 预计不改变数据库 schema / Flyway V1–V6。后续完成验收并无阻塞时按新规则自动启动 P2-T09。
+P2-T08 未改变数据库 schema，Flyway 仍为 V1–V6。已验收完成并根据自动推进规则启动 P2-T09。
+
+
+---
+
+## 18. P2-T08 Runtime Proxy — 已实现并验收
+
+实际新增组件：
+
+```text
+RuntimeInvokeController
+ModelProxyService
+ProviderHttpClient
+RestClientConfig
+ModelInvocationException
+```
+
+主流程：
+
+```text
+POST /v1/invoke + Application API Key
+→ Spring Security Authentication
+→ ApplicationIdentity
+→ InvokeRequest @Valid
+→ ModelProxyService
+→ Application.defaultDeploymentId
+→ ModelDeployment (enabled)
+→ Provider.type
+→ ProviderAdapterRegistry
+→ ProviderAdapter.buildRequest
+→ CredentialService.decrypt(encryptedCredential), if present
+→ RestClient POST {endpointUrl}/chat/completions
+→ Provider HTTP 200 body
+→ ProviderAdapter.parseResponse
+→ InvokeResponse
+```
+
+设计判断：
+
+- Runtime Controller 只读取认证后的 ApplicationIdentity，不解析客户端 Secret
+- ModelProxyService 负责业务编排；Adapter 负责 Provider 协议 JSON；ProviderHttpClient 负责 HTTP
+- Provider Credential 是独立上游 Bearer；不会把客户端 Application API Key 转发上游
+- Endpoint 作为 API base URL，追加 /chat/completions，不重复引入 /v1
+- RestClient 同步非流式，连接超时默认 3 秒、读取超时默认 60 秒，均可配置
+- 未引入异步执行、流式代理、自动重试、熔断、负载均衡等
+
+测试：RuntimeInvokeIntegrationTest（MockMvc + MySQL Testcontainers + local HttpServer），ProviderHttpClientHttpTest（真实本地 HTTP），ModelProxyServiceTest（Mocked mappers/transport）。覆盖成功代理、鉴权、验证、Credential 有/无、disabled/缺省 Deployment 不出站及 URL 拼接。
+
+P2-T08 **COMPLETED / ACCEPTED**。GitHub 未提供相关 commit 的 CI status/workflow run，所以只声明代码与测试覆盖验收，不声明 CI green。
+
+### Remaining shortcomings entering P2-T09
+
+`ModelInvocationException` 在当前版本通过通用 Exception Handler 返回 500；需要把本地配置错误与上游 HTTP 错误分开分类，同时保证安全错误响应。
+
+安全技术债：**TD-011 Provider Endpoint URL / SSRF Hardening**。数据库中配置的 endpointUrl 会触发服务端出站 HTTP；正式公网/多租户部署前必须按信任边界限制 URL scheme、内网/metadata 地址、重定向和 DNS 解析行为。暂不在 P2-T09 引入通用网络安全框架，保留本地 Mock Provider 测试能力。
+
+## 19. P2-T09 Provider Error Mapping — ACTIVE
+
+目标：在成功主流程之外，建立可信、准确、可预测的失败契约。
+
+```text
+ProviderHttpClient: HTTP statuses + timeout + network
+ProviderAdapter: invalid success body
+ModelProxyService: missing/disabled/invalid deployment
+↓
+Typed safe proxy exceptions
+↓
+GlobalExceptionHandler
+↓
+ApiErrorResponse(code, message, timestamp, errors)
+```
+
+上游失败可分类但不可泄露 raw body、credential、URL 或堆栈；Provider HTTP 401/403 不能错误映射为客户端 API Key 401，上游 429 也不能冒充平台自身 Quota 限流。
+
+优先小型错误分类，不引入统一大异常框架；不重试、不 fallback、不路由。真实错误 Mock Provider 测试与既有成功路径回归是必要验收项。
+
+P2-T10 仍未启动。
