@@ -182,4 +182,6 @@ Application API Key at rest → SHA-256(secret)
 
 完成实现、测试、开发导师 Code Review 后回总控验收。
 
-**不得自动进入 P2-T08。**
+**新的推进规则（2026-10-17 起）**：验收通过且无阻塞问题，直接完成收尾文档与必要 ADR，并自动启动下一任务；不再单独等待“启动”。未通过先修复复验。跨 Phase 仍需完成完整 Phase 关闭检查，全部通过后也可自动启动下一 Phase。
+
+当前 P2-T07 仍为 ACTIVE，P2-T08 仍为 NOT STARTED。
