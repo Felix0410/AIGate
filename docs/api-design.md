@@ -2,7 +2,7 @@
 
 ## 1. 当前基线
 
-当前内容以 **Phase 2 / P2-T07 验收完成、P2-T08 启动后的实现与冻结计划** 为准。
+当前内容以 **Phase 2 / P2-T08 已验收、P2-T09 已启动的真实代码与规划边界** 为准。
 
 认证边界：
 
@@ -14,7 +14,7 @@
 → Application API Key
 ```
 
-P2-T06 已定义统一 Runtime 模型契约，P2-T07 已实现 Provider Adapter 纯协议转换；生产 `POST /v1/invoke` handler 尚未接通，P2-T08 正在建设。
+P2-T06 定义统一 Runtime 模型契约，P2-T07 实现 Provider Adapter；P2-T08 已实际接通生产 `POST /v1/invoke` 同步非流式模型代理主链并完成验收。
 
 ---
 
@@ -52,10 +52,10 @@ Request / Response Contract
 → IMPLEMENTED
 
 Production Controller / execution
-→ NOT WIRED YET
+→ IMPLEMENTED / ACCEPTED (P2-T08)
 ```
 
-这是有意的阶段边界：P2-T06 不制造 fake model success。
+P2-T06 当时未制造 fake model success；P2-T08 已通过真实本地 HTTP Mock Provider 响应验证真实模型代理 Happy Path。
 
 ---
 
@@ -214,7 +214,7 @@ Bean Validation
 → 400 INVALID_REQUEST
 ```
 
-P2-T06 当前通过 Contract Test 验证 DTO 层语义；HTTP handler 尚未落地，因此暂不声称 Invoke 错误路径已经通过 MockMvc 验证。P2-T08 需要接入 Controller 并验证实际 HTTP 校验行为。
+P2-T08 已通过 MockMvc 集成测试验证 Invoke 的 Validation 400 及无 API Key 的 401；正常请求可通过真实 HTTP Mock Provider 返回 InvokeResponse。
 
 ---
 
@@ -245,7 +245,7 @@ OpenAiCompatibleProviderAdapter
 OpenAI-Compatible provider protocol conversion
 ```
 
-P2-T08 **ACTIVE**：
+P2-T08 **DONE / ACCEPTED**：
 
 ```text
 ApplicationIdentity
@@ -258,7 +258,7 @@ ApplicationIdentity
 → InvokeResponse
 ```
 
-P2-T08 需要真正接通生产 `POST /v1/invoke`。
+P2-T08 已接通生产 `POST /v1/invoke`；P2-T09 正在补齐 Provider 失败映射。
 
 ---
 
@@ -308,7 +308,7 @@ choices[0].finish_reason
 
 已支持忽略上游额外字段，且会拒绝无效 JSON / 空 choices / 缺失关键内容。P2-T07 不发送实际 HTTP 请求。
 
-## 14. P2-T08 正式 Endpoint（正在实现，尚非已上线事实）
+## 14. P2-T08 正式 Endpoint（已实现 / 代码验收）
 
 ```http
 POST /v1/invoke
@@ -358,8 +358,77 @@ Content-Type: application/json
 
 ### Phase Scope
 
-- P2-T08：真实 HTTP 200 Happy Path、默认 Deployment 检查、Runtime Controller 接线与基本测试
-- P2-T09：Provider 4xx/429/5xx、timeout、无效响应等标准 HTTP 错误语义
+- P2-T08：真实 HTTP 200 Happy Path、默认 Deployment 检查、Runtime Controller 接线与基本测试（已实现/验收）
+- P2-T09：Provider 4xx/429/5xx、timeout、无效响应等标准 HTTP 错误语义（ACTIVE）
 - P2-T10：完整 MySQL Testcontainers + Mock Provider E2E 测试矩阵
 
-这些计划在对应任务实现并验收前不得写成“已通过”的事实。
+P2-T08 的实现与测试代码已审查；GitHub 无 CI status/workflow run，不声称 CI 绿灯。P2-T09/P2-T10 仍待实现验收。
+
+
+---
+
+## 15. P2-T08 Actual Invoke API Status
+
+Production endpoint:
+
+```http
+POST /v1/invoke
+Authorization: Bearer <AIGATE_APPLICATION_API_KEY>
+Content-Type: application/json
+```
+
+Controller uses `@Valid @RequestBody InvokeRequest` and `ApplicationIdentity` from Spring Security, **not** applicationId supplied by Client.
+
+Happy Path actual behavior:
+
+```text
+ApplicationIdentity.applicationId
+→ Application.defaultDeploymentId
+→ ModelDeployment (enabled)
+→ Provider.type → Adapter
+→ CredentialService.decrypt (if present)
+→ RestClient POST {endpointUrl}/chat/completions
+→ InvokeResponse(content, model, finishReason)
+```
+
+Configured `endpointUrl` is an API base URL. Provider Credential becomes a separate upstream Bearer token. If null, no Provider Authorization header. Client Application API Key is never forwarded upstream.
+
+RestClient connect timeout default 3 seconds; read timeout default 60 seconds, configurable. No auto retries.
+
+Actual test classes:
+
+```text
+RuntimeInvokeIntegrationTest
+ProviderHttpClientHttpTest
+ModelProxyServiceTest
+```
+
+Verified code paths: successful local HTTP mock response, credentials separation, no default Deployment / disabled Deployment rejection before outbound, API Key 401, bad request 400, JSON conversion. No GitHub CI run/status evidence for actual test execution.
+
+## 16. P2-T09 Provider Failure Contract — ACTIVE (proposed)
+
+**Current code limitation:** generic `ModelInvocationException` can produce HTTP 500 for missing/disabled deployment, and Provider outbound exceptions lack stable external classification. P2-T09 is now ACTIVE to fix this.
+
+Proposed public error mapping, pending code implementation/review:
+
+| Problem | Proposed AIGate HTTP / code |
+|---|---|
+| Missing default Deployment | 409 MODEL_DEPLOYMENT_NOT_CONFIGURED |
+| Disabled default Deployment | 409 MODEL_DEPLOYMENT_DISABLED |
+| Upstream 400 | 502 PROVIDER_BAD_REQUEST |
+| Upstream 401 or 403 | 502 PROVIDER_AUTH_FAILED |
+| Upstream 429 | 503 PROVIDER_RATE_LIMITED |
+| Upstream 5xx | 502 PROVIDER_UNAVAILABLE |
+| Upstream connection error | 502 PROVIDER_CONNECTION_ERROR |
+| Provider response timeout | 504 PROVIDER_TIMEOUT |
+| Invalid successful Provider JSON | 502 PROVIDER_INVALID_RESPONSE |
+
+These are **phase suggestions**, not yet implemented behavior. Preserve a clear distinction between upstream Provider failure and AIGate client authentication/quota.
+
+Error body continues to use `ApiErrorResponse` with a stable code, safe message and timestamp; never expose upstream raw response, credentials, internal endpoint URL, or stacktrace. No retry/fallback in this phase.
+
+## 17. Production Security Follow-up
+
+**TD-011 Provider Endpoint URL / SSRF Hardening**: admin-configured endpointUrl is used for server-side outbound calls. Before internet-facing production or untrusted management tenancy, restrict schemes / destinations and internal/metadata network access according to policy; keep localhost test fixtures usable.
+
+P2-T09 is failure mapping, not a general network-policy implementation.
