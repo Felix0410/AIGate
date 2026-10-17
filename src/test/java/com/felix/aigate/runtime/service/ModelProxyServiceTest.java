@@ -33,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -79,7 +80,7 @@ class ModelProxyServiceTest {
         stubApplication(defaultDeployment(DEPLOYMENT_ID));
         stubDeployment(deployment(true, PROVIDER_ID, "remote-model", null, "http://localhost:9000/v1"));
         stubProvider(ProviderType.OPENAI_COMPATIBLE);
-        when(providerHttpClient.postChatCompletions(anyString(), any(), any()))
+        when(providerHttpClient.postChatCompletions(anyString(), any(), nullable(String.class)))
                 .thenReturn(validProviderResponse());
 
         InvokeResponse response = service.invoke(APP_ID, invokeRequest());
@@ -109,7 +110,7 @@ class ModelProxyServiceTest {
         stubDeployment(deployment(true, PROVIDER_ID, "remote-model", "v1:encrypted", "http://localhost:9000/v1"));
         stubProvider(ProviderType.OPENAI_COMPATIBLE);
         when(credentialService.decrypt("v1:encrypted")).thenReturn("sk-provider-secret");
-        when(providerHttpClient.postChatCompletions(anyString(), any(), any()))
+        when(providerHttpClient.postChatCompletions(anyString(), any(), nullable(String.class)))
                 .thenReturn(validProviderResponse());
 
         service.invoke(APP_ID, invokeRequest());
@@ -127,13 +128,13 @@ class ModelProxyServiceTest {
         stubApplication(defaultDeployment(DEPLOYMENT_ID));
         stubDeployment(deployment(true, PROVIDER_ID, "remote-model", null, "http://localhost:9000/v1/"));
         stubProvider(ProviderType.OPENAI_COMPATIBLE);
-        when(providerHttpClient.postChatCompletions(anyString(), any(), any()))
+        when(providerHttpClient.postChatCompletions(anyString(), any(), nullable(String.class)))
                 .thenReturn(validProviderResponse());
 
         service.invoke(APP_ID, invokeRequest());
 
         verify(providerHttpClient).postChatCompletions(
-                eq("http://localhost:9000/v1/chat/completions"), any(), any());
+                eq("http://localhost:9000/v1/chat/completions"), any(), nullable(String.class));
     }
 
     @Test
