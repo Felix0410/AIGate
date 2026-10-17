@@ -4,15 +4,11 @@
 
 当前阶段：**Phase 2 — Model Registry & Single Model Proxy**
 
-状态：**ACTIVE**
+Status: **ACTIVE**
 
-当前执行门：
+Current Task: **P2-T07 — Provider Adapter（ACTIVE）**
 
-**P2-T06 COMPLETED / WAITING FOR USER CONFIRMATION**
-
-下一计划任务：
-
-**P2-T07 — Provider Adapter（NOT STARTED）**
+Next Planned Task: **P2-T08 — RestClient + Single Model Proxy（NOT STARTED）**
 
 ---
 
@@ -25,8 +21,8 @@
 | P2-T03 | Application Default Deployment | DONE |
 | P2-T04 | Application API Key Lifecycle | DONE |
 | P2-T05 | Runtime Authentication | DONE |
-| P2-T06 | Unified Model Contract | **DONE / ACCEPTED** |
-| P2-T07 | Provider Adapter | **NOT STARTED** |
+| P2-T06 | Unified Model Contract | DONE / ACCEPTED |
+| P2-T07 | Provider Adapter | **ACTIVE** |
 | P2-T08 | RestClient + Single Model Proxy | NOT STARTED |
 | P2-T09 | Provider Error Mapping | NOT STARTED |
 | P2-T10 | End-to-End Integration Test | NOT STARTED |
@@ -34,156 +30,136 @@
 
 ---
 
-## 3. 当前已完成 Runtime 基础
+## 3. 已完成的 Runtime 基础
 
 ```text
 Application API Key
 ↓
-Runtime Authentication
+/v1/** Runtime Authentication
 ↓
 ApplicationIdentity
-↓
-SecurityContext
 ```
-
-同时已经建立：
 
 ```text
 Application.defaultDeploymentId
+↓
+ModelDeployment
+↓
+Provider(type=OPENAI_COMPATIBLE)
 ```
 
-以及统一模型 DTO：
+P2-T06 已完成：
 
 ```text
-InvokeRequest
-InvokeMessage
-MessageRole
-InvokeResponse
+InvokeRequest(messages, temperature?, maxTokens?)
+InvokeMessage(role, content)
+MessageRole(system/user/assistant)
+InvokeResponse(content, model, finishReason)
+```
+
+上述内容为已实现的项目事实。生产 `POST /v1/invoke` 尚未接通。
+
+---
+
+## 4. 当前任务 P2-T07
+
+目标：
+
+> 引入最小 Provider Adapter 边界，把 AIGate Invoke Contract 转换为 OpenAI-Compatible Chat Completions 协议，并把其成功响应转换为 InvokeResponse。
+
+计划组件：
+
+```text
+ProviderAdapter
+ProviderAdapterRegistry
+OpenAiCompatibleProviderAdapter
+必要的 Provider-specific DTO / mapping
+```
+
+数据方向：
+
+```text
+InvokeRequest + remoteModelName
+→ ProviderAdapter
+→ OpenAI-Compatible request JSON
+
+OpenAI-Compatible successful response JSON
+→ ProviderAdapter
+→ InvokeResponse
+```
+
+请求字段约定：
+
+```text
+model ← ModelDeployment.remoteModelName
+messages ← roles/content/order
+temperature ← temperature? (omit if null)
+max_tokens ← maxTokens? (omit if null)
+```
+
+成功响应约定：
+
+```text
+content ← choices[0].message.content
+model ← provider response.model
+finishReason ← choices[0].finish_reason
+```
+
+异常结构必须拒绝，不能伪造模型成功结果；完整 Provider 错误码映射留给 P2-T09。
+
+---
+
+## 5. 当前任务验收重点
+
+- `ProviderType.OPENAI_COMPATIBLE` 能正确选择 Adapter
+- 请求 `model/messages/temperature/max_tokens` 转换准确
+- role 小写且消息顺序不丢失
+- 可选参数 null 不意外变成默认值
+- 成功响应准确转换成 InvokeResponse
+- 无效/缺失必要 Provider 响应结构不被当成成功
+- AIGate 公共 DTO 不依赖 Provider-specific DTO
+- 独立单元测试覆盖请求和响应转换
+- 不引入 HTTP 客户端、Provider 凭证操作、数据库 migration
+- 不提前实现完整 Runtime ModelProxyService
+
+---
+
+## 6. 后续阶段边界
+
+P2-T08 才打通：
+
+```text
+POST /v1/invoke
+→ ApplicationIdentity
+→ Application.defaultDeploymentId
+→ ModelDeployment + Provider
+→ CredentialService.decrypt
+→ ProviderAdapter
+→ RestClient
+→ Provider
+→ InvokeResponse
+```
+
+P2-T09 才统一映射 Provider 400、401/403、429、timeout、5xx 和无效响应。
+
+P2-T10 负责 Testcontainers MySQL + Mock Provider 的端到端验证。
+
+---
+
+## 7. 当前数据库及安全
+
+Flyway 仍为 V1–V6。P2-T07 不涉及 schema 变化。
+
+```text
+/api/** → HTTP Basic
+/v1/** → Application API Key
+Provider Credential at rest → AES-GCM
+Application API Key at rest → SHA-256(secret)
 ```
 
 ---
 
-## 4. P2-T06 Completed Contract
-
-### Request
-
-```text
-InvokeRequest
-- messages
-- temperature?
-- maxTokens?
-```
-
-### Message
-
-```text
-InvokeMessage
-- role
-- content
-```
-
-Role：
-
-```text
-system
-user
-assistant
-```
-
-### Response
-
-```text
-InvokeResponse
-- content
-- model
-- finishReason
-```
-
----
-
-## 5. Validation
-
-已实现：
-
-```text
-messages → @NotEmpty + nested @Valid
-role → @NotNull
-content → @NotBlank
-temperature → 0.0..2.0
-maxTokens → > 0
-```
-
-unknown role 由 Jackson 反序列化拒绝。
-
----
-
-## 6. Contract Boundary
-
-当前明确：
-
-```text
-Client
-→ AIGate Runtime DTO
-
-Provider
-→ 后续 Provider-specific DTO
-```
-
-AIGate public contract 不复用 Provider SDK / OpenAI SDK DTO。
-
-InvokeRequest 不包含：
-
-```text
-applicationId
-providerId
-modelId
-deploymentId
-```
-
----
-
-## 7. No Fake Success
-
-P2-T06 没有创建硬编码 / echo / fake 模型成功响应。
-
-当前真实状态：
-
-```text
-/v1/** authentication
-→ DONE
-
-Invoke contract
-→ DONE
-
-POST /v1/invoke production execution
-→ NOT WIRED YET
-```
-
-这是有意识的阶段边界，不是遗漏。
-
----
-
-## 8. Testing
-
-InvokeContractTest 覆盖：
-
-- 三种角色的 JSON 映射
-- unknown role 拒绝
-- messages 校验
-- nested message 校验
-- content 校验
-- temperature 边界
-- maxTokens 边界
-- internal resource IDs 不进入 Request DTO
-- Response 只包含最小三字段
-
-P2-T06 没有 DB schema 变化，也没有新增 Flyway migration。
-
-GitHub 最新 commit 仍无 CI status，因此 TD-009 继续保留。
-
----
-
-## 9. Current Technical Debt
+## 8. 当前技术债
 
 继续保留：
 
@@ -198,30 +174,12 @@ GitHub 最新 commit 仍无 CI status，因此 TD-009 继续保留。
 - TD-009 暂无 CI Test Gate
 - TD-010 Provider Master Key Rotation 尚未设计
 
-P2-T06 没有新增阻塞性技术债。
-
 ---
 
-## 10. P2-T06 Acceptance Result
+## 9. Execution Gate
 
-- [x] InvokeRequest
-- [x] InvokeMessage
-- [x] MessageRole
-- [x] InvokeResponse
-- [x] role 仅 system/user/assistant
-- [x] JSON 小写 role
-- [x] messages 非空
-- [x] content 非空白
-- [x] temperature 0.0..2.0
-- [x] maxTokens > 0
-- [x] Request 不暴露内部资源 selector
-- [x] Response 保持最小三字段
-- [x] 不依赖 Provider SDK DTO
-- [x] 未提前实现 ProviderAdapter / RestClient / ModelProxyService
-- [x] 未伪造模型成功结果
+**P2-T07 — Provider Adapter：ACTIVE。**
 
-结论：
+完成实现、测试、开发导师 Code Review 后回总控验收。
 
-**P2-T06 — Unified Model Contract：COMPLETED / ACCEPTED**
-
-当前停在执行门，等待用户确认是否进入 P2-T07。
+**不得自动进入 P2-T08。**
