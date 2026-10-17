@@ -4,11 +4,11 @@
 
 **Phase 2 — Model Registry & Single Model Proxy：ACTIVE**
 
-Current Task: **P2-T09 — Provider Error Mapping（ACTIVE）**
+Current Task: **P2-T10 — End-to-End Integration Test（ACTIVE）**
 
-Next Planned: **P2-T10 — End-to-End Integration Test（NOT STARTED）**
+Next Planned: **P2-T11 — Phase Closeout（NOT STARTED）**
 
-P2-T08 已于 2026-10-17 验收通过，按用户新规则自动推进 P2-T09。
+P2-T09 已于 2026-10-17 验收通过，按用户新规则自动推进 P2-T10。
 
 ## 2. Phase 2 Tasks
 
@@ -22,8 +22,8 @@ P2-T08 已于 2026-10-17 验收通过，按用户新规则自动推进 P2-T09。
 | P2-T06 | Unified Model Contract | DONE |
 | P2-T07 | Provider Adapter | **DONE / ACCEPTED** |
 | P2-T08 | RestClient + Single Model Proxy | **DONE / ACCEPTED** |
-| P2-T09 | Provider Error Mapping | **ACTIVE** |
-| P2-T10 | End-to-End Integration Test | NOT STARTED |
+| P2-T09 | Provider Error Mapping | **DONE / ACCEPTED** |
+| P2-T10 | End-to-End Integration Test | **ACTIVE** |
 | P2-T11 | Phase Closeout | NOT STARTED |
 
 ---
@@ -204,7 +204,7 @@ P2-T08 已增加 RestClient 同步出站能力，3 秒连接超时、60 秒读�
 
 用户于 2026-10-17 调整：验收通过、无阻塞问题，完成收尾与必要文档后**自动启动下一任务**；未通过先修复复验；跨 Phase 必须先完成完整 Phase Closeout。
 
-**当前 P2-T08 DONE / ACCEPTED；P2-T09 ACTIVE；P2-T10 NOT STARTED。**
+**当前 P2-T08/P2-T09 DONE / ACCEPTED；P2-T10 ACTIVE；P2-T11 NOT STARTED。**
 
 
 ---
@@ -252,4 +252,81 @@ Rules:
 - No retry/fallback
 - Maintain success behavior and request validation
 
-Acceptance: focused mapping unit tests plus real Mock Provider failure tests; current `P2-T09 ACTIVE`. Next `P2-T10 NOT STARTED`.
+Acceptance: mapping code and unit / local HTTP / MockMvc tests reviewed. P2-T09 DONE / ACCEPTED；P2-T10 ACTIVE。
+
+
+---
+
+## 10. P2-T09 Acceptance Record — 2026-10-17
+
+实现提交：`0ea97870ffab56d19d31b6675605d363a1cd4224`
+
+代码变动：
+
+```text
+ProxyErrorType (new enum, stable HTTP/code/message mapping)
+ModelInvocationException(errorType)
+ProviderHttpClient status/timeout/network classification
+ModelProxyService local configuration error classification
+GlobalExceptionHandler proxy + invalid provider response handlers
+```
+
+Actual mappings:
+
+| 场景 | Status | Code |
+|---|---:|---|
+| 无默认 Deployment | 409 | MODEL_DEPLOYMENT_NOT_CONFIGURED |
+| 默认 Deployment disabled | 409 | MODEL_DEPLOYMENT_DISABLED |
+| Provider 400 | 502 | PROVIDER_BAD_REQUEST |
+| Provider 401/403 | 502 | PROVIDER_AUTH_FAILED |
+| Provider 429 | 503 | PROVIDER_RATE_LIMITED |
+| Provider 5xx / unknown error status | 502 | PROVIDER_UNAVAILABLE |
+| Connection refused | 502 | PROVIDER_CONNECTION_ERROR |
+| Read / connect timeout | 504 | PROVIDER_TIMEOUT |
+| Invalid Provider success response | 502 | PROVIDER_INVALID_RESPONSE |
+
+Code Review facts:
+
+- Safe fixed messages and error codes; upstream body, URL and credentials not embedded in typed exception causes.
+- Local configuration failures do not invoke Provider.
+- Upstream HTTP 401/403 is not AIGate Runtime Authentication 401.
+- Upstream 429 does not claim AIGate application quota exceeded.
+- No retry/fallback.
+- Existing real HTTP Happy Path preserved by tests.
+
+Updated tests:
+
+```text
+RuntimeInvokeIntegrationTest
+ProviderHttpClientHttpTest
+ModelProxyServiceTest
+```
+
+Includes local HttpServer statuses, timeout, connection failure, API Key auth/validation, zero outbound on missing/disabled default Deployment and invalid success response.
+
+**P2-T09 DONE / ACCEPTED; no blocking issue.** GitHub did not expose CI status / workflow run; actual full Maven suite was not executed by this review, so TD-009 remains.
+
+Nonblocking improvements for P2-T10: better test resource cleanup and log-capture assertions; do not infer that a safe HTTP error response alone proves all logs are clean.
+
+Current tech debt: TD-001~TD-011, including TD-011 endpoint URL/SSRF hardening for public production exposure.
+
+## 11. P2-T10 End-to-End Test — ACTIVE
+
+Business Goal:
+
+> Systematically verify real Phase 2 Runtime chain across management configuration, API Key lifecycle, Security, MySQL, HTTP Provider and public success/error behavior.
+
+Actions:
+
+- Review existing test matrix and fill genuine gaps; don't duplicate tests already present.
+- Verify ACTIVE/REVOKED/replacement Key behavior through /v1/invoke.
+- Verify default Deployment switching/disabled/cleared binding affects next request.
+- Preserve Provider secret and client API Key separation.
+- Verify real HTTP status failures (400/401/403/429/5xx), invalid body, timeout, network failure, and no retry.
+- Check management Basic vs runtime API Key separation and request validation 400.
+- Tighten HttpServer/Executor lifecycle; prevent cross-test state leakage.
+- Run actual Maven tests using MySQL Testcontainers and save reproducible run command/results.
+
+No DB migrations, no new external Provider dependency, no Redis/MQ/Streaming/Retry.
+
+Execution gate: **P2-T10 ACTIVE; P2-T11 NOT STARTED**. After passing acceptance, auto-start P2-T11 Phase Closeout; completion of P2-T11 still requires full Phase audit and documentation.
