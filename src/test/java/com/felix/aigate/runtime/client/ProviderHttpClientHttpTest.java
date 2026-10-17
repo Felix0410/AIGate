@@ -26,7 +26,9 @@ import java.net.SocketTimeoutException;
 import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -51,6 +53,7 @@ class ProviderHttpClientHttpTest {
             """;
 
     private static HttpServer server;
+    private static ExecutorService serverExecutor;
     private static String baseUrl;
 
     private static final AtomicInteger requestCount = new AtomicInteger();
@@ -74,8 +77,9 @@ class ProviderHttpClientHttpTest {
     static void startServer() throws IOException {
         server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
         server.createContext("/", ProviderHttpClientHttpTest::handle);
-        // 独立线程池：避免读超时场景下睡眠中的 handler 阻塞后续请求。
-        server.setExecutor(Executors.newCachedThreadPool());
+        // 独立线程池：避免读超时场景下睡眠中的 handler 阻塞后续请求；保存引用以便 @AfterAll 显式回收。
+        serverExecutor = Executors.newCachedThreadPool();
+        server.setExecutor(serverExecutor);
         server.start();
         baseUrl = "http://localhost:" + server.getAddress().getPort();
     }
@@ -83,6 +87,13 @@ class ProviderHttpClientHttpTest {
     @AfterAll
     static void stopServer() {
         server.stop(0);
+        // 读超时场景下 handler 线程可能仍在 sleep：中断并等待退出，避免后台线程泄漏影响其它测试。
+        serverExecutor.shutdownNow();
+        try {
+            serverExecutor.awaitTermination(5, TimeUnit.SECONDS);
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     @BeforeEach
@@ -110,16 +121,23 @@ class ProviderHttpClientHttpTest {
         if (delay > 0) {
             try {
                 Thread.sleep(delay);
-            } catch (InterruptedException ignored) {
+            } catch (InterruptedException interrupted) {
                 Thread.currentThread().interrupt();
+                exchange.close();
+                return;
             }
         }
 
-        byte[] response = responseBody.get().getBytes(StandardCharsets.UTF_8);
-        exchange.getResponseHeaders().set("Content-Type", "application/json");
-        exchange.sendResponseHeaders(Integer.parseInt(responseStatus.get()), response.length);
-        exchange.getResponseBody().write(response);
-        exchange.getResponseBody().close();
+        try {
+            byte[] response = responseBody.get().getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(Integer.parseInt(responseStatus.get()), response.length);
+            exchange.getResponseBody().write(response);
+        } catch (IOException clientGone) {
+            // 延迟场景下客户端可能已超时断开：此时写回失败是预期内的，吞掉异常、不打印堆栈污染测试日志。
+        } finally {
+            exchange.close();
+        }
     }
 
     // ---- 已有契约测试 ----
