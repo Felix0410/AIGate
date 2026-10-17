@@ -2,7 +2,7 @@
 
 ## 1. 当前基线
 
-当前内容以 **Phase 2 / P2-T08 已验收、P2-T09 已启动的真实代码与规划边界** 为准。
+当前内容以 **Phase 2 / P2-T09 已验收、P2-T10 已启动的真实代码与规划边界** 为准。
 
 认证边界：
 
@@ -405,13 +405,13 @@ ModelProxyServiceTest
 
 Verified code paths: successful local HTTP mock response, credentials separation, no default Deployment / disabled Deployment rejection before outbound, API Key 401, bad request 400, JSON conversion. No GitHub CI run/status evidence for actual test execution.
 
-## 16. P2-T09 Provider Failure Contract — ACTIVE (proposed)
+## 16. P2-T09 Provider Failure Contract — DONE / ACCEPTED
 
-**Current code limitation:** generic `ModelInvocationException` can produce HTTP 500 for missing/disabled deployment, and Provider outbound exceptions lack stable external classification. P2-T09 is now ACTIVE to fix this.
+**已解决**：P2-T09 使用 `ProxyErrorType`、`ModelInvocationException`、`GlobalExceptionHandler` 将本地配置和上游失败转换为安全且固定的错误响应。
 
-Proposed public error mapping, pending code implementation/review:
+已实现并验收的 public error mapping：
 
-| Problem | Proposed AIGate HTTP / code |
+| Problem | Actual AIGate HTTP / code |
 |---|---|
 | Missing default Deployment | 409 MODEL_DEPLOYMENT_NOT_CONFIGURED |
 | Disabled default Deployment | 409 MODEL_DEPLOYMENT_DISABLED |
@@ -423,7 +423,7 @@ Proposed public error mapping, pending code implementation/review:
 | Provider response timeout | 504 PROVIDER_TIMEOUT |
 | Invalid successful Provider JSON | 502 PROVIDER_INVALID_RESPONSE |
 
-These are **phase suggestions**, not yet implemented behavior. Preserve a clear distinction between upstream Provider failure and AIGate client authentication/quota.
+这些是 **P2-T09 已实现的行为**。Provider HTTP 401/403 不等于 AIGate API Key 401；Provider 429 不等于 AIGate 自身限额。额外实现：无匹配 ProviderAdapter → 501 PROVIDER_TYPE_UNSUPPORTED，引用资源缺失 → 404 对应错误码；其他未明确分类的上游 HTTP 错误 → 502 PROVIDER_UNAVAILABLE。
 
 Error body continues to use `ApiErrorResponse` with a stable code, safe message and timestamp; never expose upstream raw response, credentials, internal endpoint URL, or stacktrace. No retry/fallback in this phase.
 
@@ -431,4 +431,54 @@ Error body continues to use `ApiErrorResponse` with a stable code, safe message 
 
 **TD-011 Provider Endpoint URL / SSRF Hardening**: admin-configured endpointUrl is used for server-side outbound calls. Before internet-facing production or untrusted management tenancy, restrict schemes / destinations and internal/metadata network access according to policy; keep localhost test fixtures usable.
 
-P2-T09 is failure mapping, not a general network-policy implementation.
+P2-T09 已完成 failure mapping，不是完整网络访问策略。P2-T10 正在开展系统级回归与完整 E2E 测试。
+
+
+---
+
+## 18. P2-T09 Error Contract Acceptance
+
+Source commit: `0ea97870ffab56d19d31b6675605d363a1cd4224`.
+
+`POST /v1/invoke` 的错误响应统一沿用：
+
+```json
+{
+  "code": "PROVIDER_AUTH_FAILED",
+  "message": "Upstream provider authentication failed",
+  "timestamp": "...",
+  "errors": null
+}
+```
+
+Status 为 502。上游返回 401 时，AIGate 不会返回客户端 Authentication 401；该认证语义属于 Provider 与 AIGate 之间，而不是 Client 与 AIGate 之间。
+
+成功响应仍为：
+
+```json
+{
+  "content": "HashMap is...",
+  "model": "remote-model",
+  "finishReason": "stop"
+}
+```
+
+`ProxyErrorType` 是对外错误码/状态/固定安全文案的单一映射点。错误处理不将 Provider 原始错误体、Authorization、Provider Credential、内部 endpointUrl 或异常堆栈写入 Runtime HTTP 响应；已分类的异常日志只记录 code，不记录原始异常链。
+
+实际代码与测试覆盖验收通过；最新 GitHub 提交无 CI statuses/workflow runs，本次不宣称自动测试已运行成功。TD-009 保留。
+
+## 19. P2-T10 Active Testing Contract
+
+现在对 P2-T10 冻结以下跨模块测试语义：
+
+- 先通过 Management HTTP Basic 创建 Team / Provider / Model / Deployment / Application，并签发 API Key
+- 使用真正 API Key 调用 Runtime `POST /v1/invoke`；验证 SecurityContext 中 Application 身份与默认 Deployment 的解析
+- ACTIVE Key 成功，REVOKED Key 401，手动替换 Key 后正常
+- Application 切换默认 Deployment 后，后续请求应命中新 Deployment
+- Credential 为 null 时上游无 Authorization，提供密文时使用独立 Provider Bearer，永不转发 Application API Key
+- Provider HTTP 400/401/403/429/5xx、网络/超时、无效响应保持第 16 节已实现的 HTTP/code 契约
+- 无默认 Deployment/disabled 时 409 且零出站，Request 错误 400
+- Mock HTTP Server 随测试可靠清理，没有错误重试，没有硬编码成功
+- 真正执行 Maven 测试并保留命令、测试数、失败与跳过信息
+
+P2-T10 不改变公开 API Contract、不新增 Migration。P2-T11 才进行完整 Phase 2 Closeout。
