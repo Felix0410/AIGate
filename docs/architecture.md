@@ -26,6 +26,8 @@ P2-T08 RestClient + Single Model Proxy
 P2-T09 Provider Error Mapping
 → COMPLETED / ACCEPTED
 P2-T10 End-to-End Integration Test
+→ COMPLETED / ACCEPTED
+P2-T11 Phase Closeout
 → ACTIVE
 ```
 
@@ -532,7 +534,7 @@ ApiErrorResponse(safe code/message/timestamp)
 
 测试代码有真实本地 HTTP 401/429/500、connection refused、read timeout、HTTP 200 无效结构，单元检查状态分类和零出站前置失败。审查未见阻塞，**P2-T09 DONE / ACCEPTED**。GitHub 没有 CI status/workflow 证据，因此不宣称 Maven 完整测试已运行。
 
-## 21. P2-T10 System-level E2E Testing — ACTIVE
+## 21. P2-T10 System-level E2E Testing — COMPLETED / ACCEPTED
 
 Business Goal: 将已有的局部 HTTP/MockMvc 测试整合为可复现的跨模块验证，覆盖管理配置 → 机器凭证签发/撤销 → Application 默认部署 → Spring Security → 出站 RestClient → Provider 正常/异常 → AIGate 返回。
 
@@ -550,8 +552,37 @@ RestClient / ProviderAdapter
 
 不要用 Mockito 替换 E2E 中的核心业务 Service、HTTP client 或数据库；单元测试可继续使用 Mockito。
 
-本任务优先补全 **Key revoked/rotation、默认 Deployment 切换、无 Credential、异常状态、超时、敏感数据、重复执行的测试资源清理**，尽量复用已经覆盖的场景。执行 Maven 全量测试并记录真实结果，避免只因为新增了测试文件就宣称系统已可靠。
+P2-T10 已补齐 **Key revoked/多 ACTIVE Key、默认 Deployment 切换、无 Credential、异常状态、真实超时、敏感数据/日志检查和测试资源清理** 等关键场景。用户提供本地 Maven 汇总：138 个测试，0 失败、0 错误、0 跳过；不是 GitHub CI 结果。
 
-P2-T10 不新增 Redis、MQ、Circuit Breaker、Retry、Routing、微服务，也不改变既有数据库 Schema。P2-T11 为正式 Phase Closeout，必须完成测试/架构/技术债/文档/知识地图/面试表达的总检查。
+P2-T10 已完成且未新增 Redis、MQ、Circuit Breaker、Retry、Routing、微服务，也没有改变数据库 Schema。P2-T11 现已启动正式 Phase Closeout，必须完成测试/架构/技术债/文档/知识地图/面试表达的总检查后才能关闭 Phase 2。
 
 **技术债延续：TD-001~TD-011。** 其中 TD-011 Provider Endpoint URL / SSRF hardening 仍需在对外生产暴露前落实；P2-T10 只测试当前单机可信管理配置下的设计，不代表通过了公网安全审计。
+
+
+---
+
+## 22. P2-T10 Final Acceptance and P2-T11 Architecture Review
+
+P2-T10 代码范围：`2943dce28313742acc608fa11aaf962e23aae3c0`。
+
+用户提交实际 Maven 测试汇总：
+
+```text
+Tests run: 138, Failures: 0, Errors: 0, Skipped: 0
+```
+
+基于已完成代码审查和用户本地测试记录，P2-T10 **DONE / ACCEPTED**。GitHub 没有 CI 流水线运行记录，因此 TD-009 未关闭。
+
+P2-T11 Phase Closeout **ACTIVE**。需从整个 Phase 2 审视：
+
+- Management / Runtime 双安全边界：HTTP Basic 和 Application API Key 不能互代
+- Credential 策略：Provider Secret 可逆 AES-GCM，Application API Key 高熵随机 Secret SHA-256 验证
+- Runtime 代理分层：Controller → ModelProxyService → Adapter → ProviderHttpClient
+- 错误边界：ProxyErrorType、HTTP 状态、脱敏内容、无重试
+- E2E：MySQL Testcontainers + MockMvc + Mock Provider 的真实性和复现性
+- 单体的适度模块化：当前不拆微服务，也不引入 Redis/MQ/复杂路由
+- 风险与演进：TD-009 缺 CI，TD-011 出站 URL/SSRF 生产前硬化
+
+本阶段 Closeout 必须同步 progress/roadmap、核心架构与数据库/API 文档、knowledge-map、interview-notes；若无重大新决策则不强行新增 ADR。
+
+**当前 Phase 2 仍 ACTIVE / Closeout in progress，Phase 3 未启动。**
