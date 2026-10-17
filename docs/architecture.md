@@ -24,6 +24,8 @@ P2-T07 Provider Adapter
 P2-T08 RestClient + Single Model Proxy
 → COMPLETED / ACCEPTED
 P2-T09 Provider Error Mapping
+→ COMPLETED / ACCEPTED
+P2-T10 End-to-End Integration Test
 → ACTIVE
 ```
 
@@ -450,13 +452,13 @@ POST /v1/invoke + Application API Key
 
 P2-T08 **COMPLETED / ACCEPTED**。GitHub 未提供相关 commit 的 CI status/workflow run，所以只声明代码与测试覆盖验收，不声明 CI green。
 
-### Remaining shortcomings entering P2-T09
+### P2-T08 原始遗留项（已在 P2-T09 完成错误分类）
 
 `ModelInvocationException` 在当前版本通过通用 Exception Handler 返回 500；需要把本地配置错误与上游 HTTP 错误分开分类，同时保证安全错误响应。
 
 安全技术债：**TD-011 Provider Endpoint URL / SSRF Hardening**。数据库中配置的 endpointUrl 会触发服务端出站 HTTP；正式公网/多租户部署前必须按信任边界限制 URL scheme、内网/metadata 地址、重定向和 DNS 解析行为。暂不在 P2-T09 引入通用网络安全框架，保留本地 Mock Provider 测试能力。
 
-## 19. P2-T09 Provider Error Mapping — ACTIVE
+## 19. P2-T09 Provider Error Mapping — COMPLETED / ACCEPTED
 
 目标：在成功主流程之外，建立可信、准确、可预测的失败契约。
 
@@ -476,4 +478,80 @@ ApiErrorResponse(code, message, timestamp, errors)
 
 优先小型错误分类，不引入统一大异常框架；不重试、不 fallback、不路由。真实错误 Mock Provider 测试与既有成功路径回归是必要验收项。
 
-P2-T10 仍未启动。
+P2-T09 已落地并验收；P2-T10 已启动，准备完整系统级测试验证。
+
+
+---
+
+## 20. P2-T09 Typed Provider Error Boundary — 已实现并验收
+
+Commit: `0ea97870ffab56d19d31b6675605d363a1cd4224`
+
+实际组件：
+
+```text
+ProxyErrorType (enum: error code / HTTP status / safe message)
+ModelInvocationException(ProxyErrorType)
+ProviderHttpClient.classifyResponseStatus(int)
+ProviderHttpClient.classifyNetworkFailure(Throwable)
+GlobalExceptionHandler typed proxy handlers
+```
+
+实际 Runtime 失败路径：
+
+```text
+Missing / disabled default Deployment
+→ ModelProxyService
+→ Typed ModelInvocationException
+
+Upstream HTTP 400/401/403/429/5xx / network / timeout
+→ ProviderHttpClient
+→ Typed ModelInvocationException
+
+Upstream HTTP 200 + malformed response
+→ OpenAiCompatibleProviderAdapter
+→ InvalidProviderResponseException
+
+↓
+GlobalExceptionHandler
+↓
+ApiErrorResponse(safe code/message/timestamp)
+```
+
+关键架构边界：
+
+- 不直接透传 Provider 原始 HTTP 401/429/error Body
+- Provider 401/403 → 502 PROVIDER_AUTH_FAILED；客户端认证仍单独使用 401 UNAUTHORIZED
+- Provider 429 → 503 PROVIDER_RATE_LIMITED，不代表 AIGate 平台 Quota
+- 超时 → 504 PROVIDER_TIMEOUT；连接故障 → 502 PROVIDER_CONNECTION_ERROR
+- 无效成功 JSON → 502 PROVIDER_INVALID_RESPONSE
+- 本地无默认部署/已禁用 → 409，对 Provider 零出站
+- ExceptionHandler 不打印已分类异常堆栈或原始上游 HTTP 异常，外部使用固定脱敏文案
+
+这一步采用小型 enum + typed exception + Handler，而不是通用错误中间件或 Resilience Framework。收益：分类集中、可测试、不暴露上游错误。代价：需要维护对外错误码表，新增 Provider 类型时检查映射语义。
+
+测试代码有真实本地 HTTP 401/429/500、connection refused、read timeout、HTTP 200 无效结构，单元检查状态分类和零出站前置失败。审查未见阻塞，**P2-T09 DONE / ACCEPTED**。GitHub 没有 CI status/workflow 证据，因此不宣称 Maven 完整测试已运行。
+
+## 21. P2-T10 System-level E2E Testing — ACTIVE
+
+Business Goal: 将已有的局部 HTTP/MockMvc 测试整合为可复现的跨模块验证，覆盖管理配置 → 机器凭证签发/撤销 → Application 默认部署 → Spring Security → 出站 RestClient → Provider 正常/异常 → AIGate 返回。
+
+测试架构保持：
+
+```text
+SpringBootTest + MockMvc + real SecurityFilterChain
+↓
+real Service / MyBatis-Plus / MySQL Testcontainers + Flyway
+↓
+JDK HttpServer (loopback random port, response programmable)
+↓
+RestClient / ProviderAdapter
+```
+
+不要用 Mockito 替换 E2E 中的核心业务 Service、HTTP client 或数据库；单元测试可继续使用 Mockito。
+
+本任务优先补全 **Key revoked/rotation、默认 Deployment 切换、无 Credential、异常状态、超时、敏感数据、重复执行的测试资源清理**，尽量复用已经覆盖的场景。执行 Maven 全量测试并记录真实结果，避免只因为新增了测试文件就宣称系统已可靠。
+
+P2-T10 不新增 Redis、MQ、Circuit Breaker、Retry、Routing、微服务，也不改变既有数据库 Schema。P2-T11 为正式 Phase Closeout，必须完成测试/架构/技术债/文档/知识地图/面试表达的总检查。
+
+**技术债延续：TD-001~TD-011。** 其中 TD-011 Provider Endpoint URL / SSRF hardening 仍需在对外生产暴露前落实；P2-T10 只测试当前单机可信管理配置下的设计，不代表通过了公网安全审计。
