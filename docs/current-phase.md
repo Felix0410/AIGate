@@ -1,6 +1,6 @@
 # AIGate Current Phase
 
-> 本文档是 AIGate 当前阶段的共享执行基线，供项目总控、开发导师、Code Review 共同读取。
+> 这是项目总控、开发导师与 Code Review 的共享执行基线；以真实代码和验收记录为准。
 
 ## 1. Current Phase
 
@@ -8,13 +8,11 @@
 
 Status: **ACTIVE**
 
-Execution Gate: **P2-T06 COMPLETED / WAITING FOR USER CONFIRMATION**
+Current Task: **P2-T07 — Provider Adapter（ACTIVE）**
 
-Next Planned Task: **P2-T07 — Provider Adapter（NOT STARTED）**
+Next Planned Task: **P2-T08 — RestClient + Single Model Proxy（NOT STARTED）**
 
-> P2-T06 已通过总控验收。在用户明确确认前，不得自动开始 P2-T07。
-
----
+> 用户已确认启动 P2-T07。仅完成 OpenAI-Compatible 的协议适配和单元测试，完成 Review 后停在执行门，不自动进入 P2-T08。
 
 ## 2. Task Status
 
@@ -25,296 +23,175 @@ Next Planned Task: **P2-T07 — Provider Adapter（NOT STARTED）**
 | P2-T03 | Application Default Deployment | DONE |
 | P2-T04 | Application API Key Lifecycle | DONE |
 | P2-T05 | Runtime Authentication | DONE |
-| P2-T06 | Unified Model Contract | **DONE / ACCEPTED** |
-| P2-T07 | Provider Adapter | **NOT STARTED** |
+| P2-T06 | Unified Model Contract | DONE / ACCEPTED |
+| P2-T07 | Provider Adapter | **ACTIVE** |
 | P2-T08 | RestClient + Single Model Proxy | NOT STARTED |
 | P2-T09 | Provider Error Mapping | NOT STARTED |
 | P2-T10 | End-to-End Integration Test | NOT STARTED |
 | P2-T11 | Phase Closeout | NOT STARTED |
 
----
+## 3. Business Goal
 
-## 3. P2-T06 — Unified Model Contract
-
-业务目标：
-
-> 定义 AIGate 自己控制的最小模型调用请求/响应契约，为后续 Provider Adapter 和 Single Model Proxy 提供稳定边界。
-
-当前已落地：
+P2-T06 已定义 AIGate 对客户端的统一契约：
 
 ```text
-runtime.dto
-├── InvokeRequest
-├── InvokeMessage
-├── MessageRole
-└── InvokeResponse
+InvokeRequest / InvokeMessage / MessageRole
+InvokeResponse(content, model, finishReason)
 ```
 
-本任务没有实现 Provider Adapter、RestClient、ModelProxyService 或真实模型调用。
+但真实 Provider 使用自己的 HTTP/JSON 协议。
 
----
+**本任务的业务目标：** 让 AIGate 能将统一请求转换为 OpenAI-Compatible Chat Completions 请求，并将其正常响应转换为统一 InvokeResponse，避免未来 Runtime Proxy 直接耦合 Provider JSON 细节。
 
-## 4. Client Contract Positioning
-
-Phase 2 当前采用：
+## 4. Minimal Main Flow
 
 ```text
-Client
-→ AIGate-native Invoke Contract
-
-AIGate
-→ Provider Adapter（P2-T07）
-→ Provider Protocol
-```
-
-Client Contract 与 Provider Contract 不共用 DTO。
-
-没有引入 OpenAI SDK DTO 作为 AIGate 对外 API。
-
----
-
-## 5. InvokeRequest
-
-当前字段：
-
-```text
-messages
-temperature?
-maxTokens?
-```
-
-Java：
-
-```text
-InvokeRequest
-├── List<InvokeMessage> messages
-├── Double temperature
-└── Integer maxTokens
-```
-
-Validation：
-
-```text
-messages
-→ @NotEmpty
-→ @Valid
-
-temperature
-→ optional
-→ 0.0 <= value <= 2.0
-
-maxTokens
-→ optional
-→ > 0
-```
-
-Request 明确不包含：
-
-```text
-applicationId
-providerId
-modelId
-deploymentId
-```
-
-Application 身份继续来自 P2-T05 的 SecurityContext。
-
----
-
-## 6. InvokeMessage / MessageRole
-
-InvokeMessage：
-
-```text
-role
-content
-```
-
-Validation：
-
-```text
-role → @NotNull
-content → @NotBlank
-```
-
-MessageRole 只包含：
-
-```text
-system
-user
-assistant
-```
-
-Java 内部使用：
-
-```text
-SYSTEM
-USER
-ASSISTANT
-```
-
-JSON 使用小写值。
-
-当前不支持：
-
-```text
-tool
-function
-developer
-image
-audio
-multimodal parts
-JSON schema
-```
-
----
-
-## 7. InvokeResponse
-
-当前最小字段：
-
-```text
-content
-model
-finishReason
-```
-
-明确不包含：
-
-```text
-usage
-cost
-requestId
-providerResponse
-deploymentId
-routingMetadata
-```
-
-Usage / Cost / Ledger 属于后续阶段。
-
----
-
-## 8. Runtime Endpoint Status
-
-统一 Runtime 路径设计仍是：
-
-```text
-POST /v1/invoke
-```
-
-但 P2-T06 **没有创建生产 Controller**。
-
-原因：
-
-> 当前还没有 ModelProxyService / ProviderAdapter / outbound HTTP。为了避免硬编码或 echo 一个假模型结果，P2-T06 只落地正式 DTO 契约、序列化和 Validation。
-
-因此当前真实状态：
-
-```text
-/v1/** Runtime Authentication
-→ 已实现
-
-Invoke DTO Contract
-→ 已实现
-
-POST /v1/invoke production handler
-→ 尚未接通
-```
-
-真实成功链将在 P2-T08 代理能力具备后接通。
-
----
-
-## 9. P2-T06 Test Coverage
-
-InvokeContractTest 已覆盖：
-
-- 合法 Request 反序列化
-- system / user / assistant 三种 role
-- role 序列化为小写
-- unknown role 被 Jackson 拒绝
-- messages 缺失 / 空列表校验失败
-- role 缺失嵌套校验失败
-- content null / 空串 / 空白校验失败
-- temperature null / 0.0 / 0.7 / 2.0 合法
-- temperature -0.1 / 2.1 非法
-- maxTokens null / 1 / 500 合法
-- maxTokens 0 / -1 非法
-- InvokeRequest 不包含内部资源 ID 字段
-- InvokeResponse 只包含 content / model / finishReason
-
-测试只使用 Jackson 3 + Jakarta Validation，不依赖 HTTP / MySQL / Provider。
-
-GitHub 最新 commit 仍无 CI status / workflow run；TD-009 继续保留。
-
----
-
-## 10. Existing Runtime Identity
-
-P2-T05 已完成：
-
-```text
-/v1/**
-→ Application API Key
-→ ApplicationIdentity
-→ SecurityContext
-```
-
-ApplicationIdentity：
-
-```text
-applicationId
-applicationName
-teamId
-```
-
-P2-T06 没有重复实现认证逻辑。
-
----
-
-## 11. Next Planned Task
-
-**P2-T07 — Provider Adapter**
-
-下一步才开始解决：
-
-```text
-AIGate InvokeRequest
+InvokeRequest + ModelDeployment.remoteModelName
 ↓
+ProviderAdapterRegistry.select(Provider.type)
+↓
+OpenAiCompatibleProviderAdapter
+↓
+OpenAI-Compatible Request Body（仅构造，不发送）
+
+OpenAI-Compatible Successful Response Body（测试输入）
+↓
+OpenAiCompatibleProviderAdapter
+↓
+InvokeResponse
+```
+
+**本任务只做协议转换，不发送 HTTP 请求。**
+
+## 5. Frozen Architecture
+
+建议最小结构：
+
+```text
 ProviderAdapter
-↓
-Provider-specific Request
-
-Provider-specific Response
-↓
-ProviderAdapter
-↓
-AIGate InvokeResponse
+ProviderAdapterRegistry
+OpenAiCompatibleProviderAdapter
+（仅必要的 Provider-specific JSON DTO / mapping）
 ```
 
-P2-T07 仍不负责完整 outbound proxy orchestration；真正 HTTP 调用主链属于 P2-T08。
+职责：
 
----
+- `ProviderAdapter`：提供构造上游请求及解析上游成功响应的边界
+- `ProviderAdapterRegistry`：根据 `ProviderType` 找到适配器
+- `OpenAiCompatibleProviderAdapter`：只理解 OpenAI-Compatible Chat Completions JSON
+- P2-T08 的 `ModelProxyService`：负责 Application → Deployment → Provider → Credential → Adapter → HTTP 的整体编排
 
-## 12. Explicitly Deferred
+当前 `ProviderType` 只有 `OPENAI_COMPATIBLE`。通过一个简单 Spring Bean registry/select 逻辑即可，不实现 SPI、类加载器、动态插件或反射框架。
 
-```text
-RestClient Provider 调用
-ModelProxyService
-真实 outbound HTTP
-Provider Error Mapping
-Retry / Fallback / Circuit Breaker
-Streaming / SSE
-Usage / Cost
-Routing
-Redis
-MQ
+保持统一 DTO 与 Provider DTO **分离**，不使用第三方 OpenAI SDK DTO 充当 AIGate 的业务契约。
+
+## 6. Request Conversion
+
+上游 Chat Completions 最小 Body 形态：
+
+```json
+{
+  "model": "remote-model-name",
+  "messages": [
+    {"role": "system", "content": "You are helpful."},
+    {"role": "user", "content": "Explain Java HashMap."}
+  ],
+  "temperature": 0.7,
+  "max_tokens": 500
+}
 ```
 
----
+规则：
 
-## 13. Acceptance Gate
+- `model` 来自 `ModelDeployment.remoteModelName`，**不是**客户端输入
+- `messages` 保持顺序，role 为小写 `system/user/assistant`
+- AIGate `maxTokens` 转为上游 `max_tokens`
+- `temperature` 原样映射
+- 两个可选参数为 null 时省略，不自行设置默认值
+- 不添加 `stream`、tools、多模态、模型选择、路由等字段
+- Provider Credential / Authorization Header 不属于请求体转换，留给 P2-T08 HTTP 层
 
-P2-T06 已完成并验收。
+实际 Java 方法签名保持简单，由开发导师根据项目 Jackson 3 风格选定；优先可读、易测的 Provider-specific DTO 或 JSON 映射，不引入过度泛型。
 
-**当前等待用户确认是否开始 P2-T07。**
+## 7. Response Conversion
+
+上游成功响应最小结构：
+
+```json
+{
+  "model": "remote-model-name",
+  "choices": [
+    {
+      "message": {"role": "assistant", "content": "HashMap is..."},
+      "finish_reason": "stop"
+    }
+  ]
+}
+```
+
+统一为：
+
+```json
+{
+  "content": "HashMap is...",
+  "model": "remote-model-name",
+  "finishReason": "stop"
+}
+```
+
+当前单次非流式调用只选择 `choices[0]`。不保留原始 Provider Response，也不存 Prompt / Response。
+
+上游返回无效 JSON、空 `choices`、缺失 `message.content` 等无效结构时，不得静默返回假成功。P2-T07 需让结构异常可辨识；统一对外 `PROVIDER_INVALID_RESPONSE` 错误码及 HTTP 映射留给 P2-T09。
+
+## 8. Scope Boundary
+
+**P2-T07 要做：**
+
+- ProviderAdapter 接口
+- ProviderAdapterRegistry 基于 Provider.type 选择实现
+- OpenAiCompatibleProviderAdapter 双向转换
+- 最小 Provider-specific 映射结构
+- 请求、响应及结构异常的单元测试
+
+**P2-T07 不做：**
+
+- RestClient / WebClient / Feign
+- endpointUrl 拼接、连接/读取超时
+- Provider Credential 解密、Bearer 请求头
+- ModelProxyService / Runtime Controller / `POST /v1/invoke` 接线
+- HTTP 400/401/403/429/5xx、超时统一映射（P2-T09）
+- Retry、Fallback、Circuit Breaker、Routing、SSE、Redis、MQ
+
+此任务不新增数据库表、Flyway migration、外部服务或依赖，除非存在真实阻塞问题。
+
+## 9. Acceptance Criteria / Tests
+
+至少通过以下测试：
+
+1. `OPENAI_COMPATIBLE` 被 Registry 选择到正确 Adapter
+2. `InvokeRequest` 被转换成上游合法的 `model/messages`
+3. 三种 message role 与内容、顺序被保留
+4. `maxTokens → max_tokens`，`temperature` 正确映射
+5. 可选参数为 null 时不产生错误默认值
+6. Provider 200 成功 JSON → `InvokeResponse(content,model,finishReason)`
+7. 上游返回无效 JSON / 空 choices / 缺失必要结构时不会伪造成功
+8. 不将 Provider-specific DTO 泄露成 AIGate Runtime 公共 DTO
+9. 不依赖外部 HTTP、真实 Provider、MySQL 或 MockLLM
+10. 未提前创建 Production `POST /v1/invoke` Handler 或 ModelProxyService
+
+P2-T07 优先用快速、确定性的纯协议单元测试。真正的 HTTP/Mock Provider 与 Testcontainers 端到端链路属于 P2-T08/P2-T10。
+
+## 10. Existing Facts
+
+- P2-T01: `Provider.type=OPENAI_COMPATIBLE`、Model、ModelDeployment 已建立
+- P2-T02: Provider Credential AES-GCM
+- P2-T03: Application.defaultDeploymentId
+- P2-T04: Application API Key Lifecycle
+- P2-T05: `/v1/**` API Key Runtime Authentication + ApplicationIdentity
+- P2-T06: Invoke DTO/Validation 已完成，生产 `POST /v1/invoke` 尚未接通
+
+## 11. Execution Gate
+
+**当前只执行 P2-T07。** 实现、测试和 Code Review 完成后回总控验收；不得自动进入 P2-T08。
+
+总原则：业务问题 → 最简单可运行方案 → 验证 → 暴露真实问题 → 再优化架构。
