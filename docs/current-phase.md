@@ -8,7 +8,7 @@
 
 Status: **ACTIVE**
 
-Current Task: **P2-T10 — End-to-End Integration Test（ACTIVE）**
+Current Task: **P2-T10 — End-to-End Integration Test（ACTIVE / PENDING EXECUTION EVIDENCE）**
 
 Next Planned Task: **P2-T11 — Phase Closeout（NOT STARTED）**
 
@@ -388,3 +388,30 @@ Redis / MQ / Microservices
 ### Execution Gate
 
 **P2-T10 ACTIVE，P2-T11 NOT STARTED。** 本任务验收通过且无阻塞问题后，自动启动 P2-T11 Phase Closeout；P2-T11 必须完成 Phase-level 代码、测试、架构、技术债、文档、知识点与面试表达检查，不能跳过。
+
+---
+
+## 14. P2-T10 Acceptance Review — 2026-10-17（未通过最终执行门）
+
+已审查实现提交：`2943dce28313742acc608fa11aaf962e23aae3c0`。
+
+代码覆盖检查结果：
+
+- `RuntimeInvokeIntegrationTest` 新增 API Key revoked → Runtime 401、多个 ACTIVE Key 正常调用、切换默认 Deployment 后选择新 endpoint/model、解绑/禁用后不出站，以及 Provider 400 与安全日志捕获断言
+- `RuntimeInvokeTimeoutIntegrationTest` 用单独测试属性 connect/read timeout=1s、独立本地 Mock Provider 延迟 3s，验证 Runtime HTTP 504 PROVIDER_TIMEOUT 及一次出站
+- `ProviderHttpClientHttpTest` 补充 ExecutorService shutdownNow/awaitTermination 与 Mock Server handler 安全结束
+- 既有管理配置、真实 Testcontainers MySQL、RestClient、Security、异常映射主链测试继续保留
+
+目前没有发现需要在这轮立即修改的阻塞性测试代码问题。
+
+**未通过最终验收的原因：** 本任务 Acceptance Criteria 明确要求实际运行 Maven 全量测试并记录统计。最新提交无 GitHub CI statuses/workflow runs，也未提供 Maven Surefire 报告/控制台结果；验收环境无 Maven/Docker，无法独立启动 MySQL Testcontainers。不能凭测试源码推断测试全部运行成功。
+
+复验要求：
+
+```bash
+./mvnw test
+```
+
+在有 Docker 可用的 Java 21 开发环境执行。提交 Maven 命令退出码、`Tests run / Failures / Errors / Skipped` 统计、必要时测试报告或失败日志（务必脱敏），并处理实际失败项。建议一并验证独立 timeout Spring Context 能启动、资源清理无挂起线程。若出现偶发失败，应连续复跑关键 E2E 测试确认可靠性。
+
+**阶段状态：P2-T10 继续 ACTIVE，P2-T11 NOT STARTED。** 收到可核验的真实测试执行结果且无阻塞问题后，可正式验收 T10 并按自动推进规则启动 T11。
