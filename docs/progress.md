@@ -1,18 +1,16 @@
 # AIGate Progress
 
-## 1. 当前项目状态
+## 1. Current Status
 
-当前阶段：**Phase 2 — Model Registry & Single Model Proxy**
+**Phase 2 — Model Registry & Single Model Proxy：ACTIVE**
 
-Status: **ACTIVE**
+Current Task: **P2-T08 — RestClient + Single Model Proxy（ACTIVE）**
 
-Current Task: **P2-T07 — Provider Adapter（ACTIVE）**
+Next Planned: **P2-T09 — Provider Error Mapping（NOT STARTED）**
 
-Next Planned Task: **P2-T08 — RestClient + Single Model Proxy（NOT STARTED）**
+P2-T07 已于 2026-10-17 验收通过，按用户新规则自动推进 P2-T08。
 
----
-
-## 2. Phase 2 Task Status
+## 2. Phase 2 Tasks
 
 | Task | 内容 | 状态 |
 |---|---|---|
@@ -21,34 +19,32 @@ Next Planned Task: **P2-T08 — RestClient + Single Model Proxy（NOT STARTED）
 | P2-T03 | Application Default Deployment | DONE |
 | P2-T04 | Application API Key Lifecycle | DONE |
 | P2-T05 | Runtime Authentication | DONE |
-| P2-T06 | Unified Model Contract | DONE / ACCEPTED |
-| P2-T07 | Provider Adapter | **ACTIVE** |
-| P2-T08 | RestClient + Single Model Proxy | NOT STARTED |
+| P2-T06 | Unified Model Contract | DONE |
+| P2-T07 | Provider Adapter | **DONE / ACCEPTED** |
+| P2-T08 | RestClient + Single Model Proxy | **ACTIVE** |
 | P2-T09 | Provider Error Mapping | NOT STARTED |
 | P2-T10 | End-to-End Integration Test | NOT STARTED |
 | P2-T11 | Phase Closeout | NOT STARTED |
 
 ---
 
-## 3. 已完成的 Runtime 基础
+## 3. 已完成阶段记录
 
-```text
-Application API Key
-↓
-/v1/** Runtime Authentication
-↓
-ApplicationIdentity
-```
+### P2-T01 / P2-T02 / P2-T03
 
-```text
-Application.defaultDeploymentId
-↓
-ModelDeployment
-↓
-Provider(type=OPENAI_COMPATIBLE)
-```
+- Provider / Model / ModelDeployment Registry CRUD
+- Provider Credential AES-GCM at rest
+- Application.defaultDeploymentId (nullable, FK RESTRICT)
 
-P2-T06 已完成：
+### P2-T04 / P2-T05
+
+- Application API Key CREATE / LIST / REVOKE
+- `aig_live_<keyId>.<secret>`，数据库 SHA-256 hash
+- Runtime `/v1/**` API Key Authentication
+- `ApplicationIdentity(applicationId, applicationName, teamId)`
+- `/api/**` HTTP Basic 与 `/v1/**` API Key 使用双 SecurityFilterChain
+
+### P2-T06
 
 ```text
 InvokeRequest(messages, temperature?, maxTokens?)
@@ -57,109 +53,135 @@ MessageRole(system/user/assistant)
 InvokeResponse(content, model, finishReason)
 ```
 
-上述内容为已实现的项目事实。生产 `POST /v1/invoke` 尚未接通。
+完成 DTO、JSON 序列化、Validation 单元测试。
 
----
+### P2-T07 — Provider Adapter（本次验收）
 
-## 4. 当前任务 P2-T07
+实现提交：`14f0203d91dac394bc90c71bb8cf8bc1bccedbc7`
 
-目标：
-
-> 引入最小 Provider Adapter 边界，把 AIGate Invoke Contract 转换为 OpenAI-Compatible Chat Completions 协议，并把其成功响应转换为 InvokeResponse。
-
-计划组件：
+生产类：
 
 ```text
-ProviderAdapter
-ProviderAdapterRegistry
-OpenAiCompatibleProviderAdapter
-必要的 Provider-specific DTO / mapping
+provider.adapter.ProviderAdapter
+provider.adapter.ProviderAdapterRegistry
+provider.adapter.OpenAiCompatibleProviderAdapter
+provider.adapter.InvalidProviderResponseException
+provider.adapter.dto.OpenAiChatRequest
+provider.adapter.dto.OpenAiChatMessage
 ```
 
-数据方向：
+已实现：
 
 ```text
 InvokeRequest + remoteModelName
-→ ProviderAdapter
-→ OpenAI-Compatible request JSON
+→ ProviderAdapterRegistry
+→ OpenAI-Compatible model/messages/temperature/max_tokens JSON
 
-OpenAI-Compatible successful response JSON
-→ ProviderAdapter
+OpenAI-Compatible response JSON
+→ choices[0].message.content / model / finish_reason
 → InvokeResponse
 ```
 
-请求字段约定：
+Registry 对无匹配类型、重复注册明确失败；无效 JSON、空 choices、缺失必要响应字段不伪造成功。
+
+新增测试：
 
 ```text
-model ← ModelDeployment.remoteModelName
-messages ← roles/content/order
-temperature ← temperature? (omit if null)
-max_tokens ← maxTokens? (omit if null)
+OpenAiCompatibleProviderAdapterTest
+ProviderAdapterRegistryTest
 ```
 
-成功响应约定：
+覆盖消息顺序、role、小写 JSON、null 参数省略、remoteModelName、成功响应、额外字段忽略、无效结构和 Registry 行为。
 
-```text
-content ← choices[0].message.content
-model ← provider response.model
-finishReason ← choices[0].finish_reason
-```
+**验收结果：P2-T07 COMPLETED / ACCEPTED。**
 
-异常结构必须拒绝，不能伪造模型成功结果；完整 Provider 错误码映射留给 P2-T09。
+当前无阻塞性问题；没有必要追加 ADR（延续已冻结的轻量 Adapter 设计）。未发现新技术债。最新实现 commit 无 CI status / workflow run，TD-009 继续保留。
 
 ---
 
-## 5. 当前任务验收重点
+## 4. 当前任务 P2-T08
 
-- `ProviderType.OPENAI_COMPATIBLE` 能正确选择 Adapter
-- 请求 `model/messages/temperature/max_tokens` 转换准确
-- role 小写且消息顺序不丢失
-- 可选参数 null 不意外变成默认值
-- 成功响应准确转换成 InvokeResponse
-- 无效/缺失必要 Provider 响应结构不被当成成功
-- AIGate 公共 DTO 不依赖 Provider-specific DTO
-- 独立单元测试覆盖请求和响应转换
-- 不引入 HTTP 客户端、Provider 凭证操作、数据库 migration
-- 不提前实现完整 Runtime ModelProxyService
+### Business Goal
 
----
-
-## 6. 后续阶段边界
-
-P2-T08 才打通：
+> 第一次打通真实单部署、同步非流式模型调用闭环。
 
 ```text
-POST /v1/invoke
-→ ApplicationIdentity
-→ Application.defaultDeploymentId
-→ ModelDeployment + Provider
-→ CredentialService.decrypt
-→ ProviderAdapter
-→ RestClient
-→ Provider
-→ InvokeResponse
+POST /v1/invoke + Application API Key
+↓
+ApplicationIdentity
+↓
+Application.defaultDeploymentId
+↓
+ModelDeployment(enabled) + Provider
+↓
+ProviderAdapter
+↓
+CredentialService.decrypt (if needed)
+↓
+RestClient POST {endpointUrl}/chat/completions
+↓
+Provider HTTP 200 JSON
+↓
+Adapter.parseResponse
+↓
+InvokeResponse
 ```
 
-P2-T09 才统一映射 Provider 400、401/403、429、timeout、5xx 和无效响应。
+### Implementation Scope
 
-P2-T10 负责 Testcontainers MySQL + Mock Provider 的端到端验证。
+最小组件：
+
+- RuntimeInvokeController
+- ModelProxyService
+- Spring RestClient configuration / small HTTP boundary
+
+需求：
+
+- Controller `@Valid InvokeRequest`，只从 SecurityContext 读取 ApplicationIdentity
+- App 默认 Deployment 必须配置且 enabled，拒绝无配置/禁用的调用
+- Provider Type 选择 Adapter
+- endpointUrl 统一解释为 API base URL，拼接 `/chat/completions`
+- 上游 Credential 仅在有密文时解密并注入 Bearer Header
+- 客户端 API Key 绝不转发 Provider
+- RestClient 连接与读取超时有界；不自动重试
+- HTTP 200 成功经过 Adapter 真正返回 InvokeResponse
+
+### Tests
+
+至少包含：
+
+- ACTIVE Key 通过 `POST /v1/invoke` 并触发真实 Mock HTTP Provider
+- 无 Key 401；请求校验失败 400
+- 正确 `remoteModelName` 和上游路径/JSON
+- 有/无 Provider Credential 的 Authorization Header 行为
+- 无默认 Deployment / disabled Deployment 不出站
+- 上游成功响应原样走 Adapter，非硬编码结果
+
+P2-T09 再完整处理 Provider 4xx/429/5xx/timeout/invalid response → 对外业务错误映射；P2-T10 做完整 Testcontainers + Mock Provider E2E 矩阵。
+
+当前预计不新增 Flyway，仍为 V1–V6。
 
 ---
 
-## 7. 当前数据库及安全
+## 5. Architecture / Security
 
-Flyway 仍为 V1–V6。P2-T07 不涉及 schema 变化。
+仍保持：
 
 ```text
-/api/** → HTTP Basic
-/v1/** → Application API Key
-Provider Credential at rest → AES-GCM
-Application API Key at rest → SHA-256(secret)
+模块化单体
+MySQL 8.4
+Spring MVC
+Spring Security 双链
+MyBatis-Plus
+AES-GCM + SHA-256
+Provider Adapter
 ```
+
+本阶段只增加 RestClient 同步出站能力。暂不引入 WebFlux / SSE / MQ / Redis / Routing / Microservices / Retry / Fallback / Circuit Breaker。
 
 ---
 
-## 8. 当前技术债
+## 6. 技术债
 
 继续保留：
 
@@ -176,12 +198,8 @@ Application API Key at rest → SHA-256(secret)
 
 ---
 
-## 9. Execution Gate
+## 7. Execution Rule
 
-**P2-T07 — Provider Adapter：ACTIVE。**
+用户于 2026-10-17 调整：验收通过、无阻塞问题，完成收尾与必要文档后**自动启动下一任务**；未通过先修复复验；跨 Phase 必须先完成完整 Phase Closeout。
 
-完成实现、测试、开发导师 Code Review 后回总控验收。
-
-**新的推进规则（2026-10-17 起）**：验收通过且无阻塞问题，直接完成收尾文档与必要 ADR，并自动启动下一任务；不再单独等待“启动”。未通过先修复复验。跨 Phase 仍需完成完整 Phase 关闭检查，全部通过后也可自动启动下一 Phase。
-
-当前 P2-T07 仍为 ACTIVE，P2-T08 仍为 NOT STARTED。
+**当前 P2-T08 ACTIVE；P2-T09 NOT STARTED。**
