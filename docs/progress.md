@@ -6,9 +6,9 @@
 
 状态：**ACTIVE**
 
-当前任务：
+当前执行门：
 
-**P2-T06 — Unified Model Contract（ACTIVE）**
+**P2-T06 COMPLETED / WAITING FOR USER CONFIRMATION**
 
 下一计划任务：
 
@@ -25,8 +25,8 @@
 | P2-T03 | Application Default Deployment | DONE |
 | P2-T04 | Application API Key Lifecycle | DONE |
 | P2-T05 | Runtime Authentication | DONE |
-| P2-T06 | Unified Model Contract | **ACTIVE** |
-| P2-T07 | Provider Adapter | NOT STARTED |
+| P2-T06 | Unified Model Contract | **DONE / ACCEPTED** |
+| P2-T07 | Provider Adapter | **NOT STARTED** |
 | P2-T08 | RestClient + Single Model Proxy | NOT STARTED |
 | P2-T09 | Provider Error Mapping | NOT STARTED |
 | P2-T10 | End-to-End Integration Test | NOT STARTED |
@@ -34,45 +34,36 @@
 
 ---
 
-## 3. 当前已有 Runtime 基础
+## 3. 当前已完成 Runtime 基础
 
 ```text
 Application API Key
 ↓
-/v1/** Runtime Authentication
+Runtime Authentication
 ↓
 ApplicationIdentity
 ↓
 SecurityContext
 ```
 
-Application 当前也已经拥有：
+同时已经建立：
 
 ```text
-defaultDeploymentId
+Application.defaultDeploymentId
 ```
 
-但还没有统一模型请求协议和真实 Provider 调用。
+以及统一模型 DTO：
+
+```text
+InvokeRequest
+InvokeMessage
+MessageRole
+InvokeResponse
+```
 
 ---
 
-## 4. P2-T06 Goal
-
-目标：
-
-> 定义 AIGate 自己控制的最小模型调用请求/响应契约，为后续 Provider Adapter 和 Single Model Proxy 提供稳定边界。
-
-正式 Runtime 路径冻结：
-
-```text
-POST /v1/invoke
-```
-
-Client 不传 applicationId/providerId/modelId/deploymentId。
-
----
-
-## 5. Planned Contract
+## 4. P2-T06 Completed Contract
 
 ### Request
 
@@ -110,100 +101,127 @@ InvokeResponse
 
 ---
 
-## 6. Validation
+## 5. Validation
 
-计划最小校验：
+已实现：
 
 ```text
-messages → non-null / non-empty
-message.content → non-blank
-role → closed enum
-temperature → optional, 0.0..2.0
-maxTokens → optional, > 0
+messages → @NotEmpty + nested @Valid
+role → @NotNull
+content → @NotBlank
+temperature → 0.0..2.0
+maxTokens → > 0
 ```
 
-不加入 provider-specific validation。
+unknown role 由 Jackson 反序列化拒绝。
 
 ---
 
-## 7. Contract Boundary
+## 6. Contract Boundary
 
-Client contract：
+当前明确：
 
 ```text
-AIGate InvokeRequest / InvokeResponse
+Client
+→ AIGate Runtime DTO
+
+Provider
+→ 后续 Provider-specific DTO
 ```
 
-Provider protocol：
+AIGate public contract 不复用 Provider SDK / OpenAI SDK DTO。
+
+InvokeRequest 不包含：
 
 ```text
-P2-T07 ProviderAdapter
-```
-
-两者不直接共用 DTO。
-
-不要引入：
-
-```text
-OpenAI SDK DTO as public API
-provider raw JSON as runtime API
-model/deployment selector in client request
+applicationId
+providerId
+modelId
+deploymentId
 ```
 
 ---
 
-## 8. No Fake Success
+## 7. No Fake Success
 
-P2-T06 不为凑 200 响应伪造模型结果。
+P2-T06 没有创建硬编码 / echo / fake 模型成功响应。
 
-真实成功链：
+当前真实状态：
 
 ```text
-POST /v1/invoke
-→ ModelProxyService
-→ ProviderAdapter
-→ RestClient
-→ Provider
+/v1/** authentication
+→ DONE
+
+Invoke contract
+→ DONE
+
+POST /v1/invoke production execution
+→ NOT WIRED YET
 ```
 
-要到 P2-T08 才打通。
-
-当前先把契约、序列化和校验做正确。
+这是有意识的阶段边界，不是遗漏。
 
 ---
 
-## 9. Acceptance Focus
+## 8. Testing
 
-至少验证：
+InvokeContractTest 覆盖：
 
-- InvokeRequest / InvokeMessage / InvokeResponse 契约
-- role 只有 system/user/assistant
-- messages 必填且非空
-- content 非空白
+- 三种角色的 JSON 映射
+- unknown role 拒绝
+- messages 校验
+- nested message 校验
+- content 校验
 - temperature 边界
-- maxTokens 正数
-- JSON 非法 role 有明确 400
-- Runtime request 不包含内部 application/provider/model/deployment selector
-- DTO 不依赖 Provider SDK
-- 不提前实现 ProviderAdapter / RestClient / ModelProxyService
-- 不伪造模型成功结果
+- maxTokens 边界
+- internal resource IDs 不进入 Request DTO
+- Response 只包含最小三字段
+
+P2-T06 没有 DB schema 变化，也没有新增 Flyway migration。
+
+GitHub 最新 commit 仍无 CI status，因此 TD-009 继续保留。
 
 ---
 
-## 10. Current Technical Debt
+## 9. Current Technical Debt
 
-继续保留 TD-001 ~ TD-010。
+继续保留：
 
-P2-T06 不新增持久化表，不新增 Flyway migration。
+- TD-001 HTTP Basic 为临时管理面认证
+- TD-002 暂无 Role / Permission
+- TD-003 暂无统一事务设计
+- TD-004 跨模块存在少量 Mapper 直接依赖
+- TD-005 Error Code 使用字符串
+- TD-006 ApiErrorResponse 缺少 traceId / requestId / path
+- TD-007 单 Organization 假设下的唯一约束
+- TD-008 测试聚焦关键链路
+- TD-009 暂无 CI Test Gate
+- TD-010 Provider Master Key Rotation 尚未设计
+
+P2-T06 没有新增阻塞性技术债。
 
 ---
 
-## 11. Execution Gate
+## 10. P2-T06 Acceptance Result
 
-当前只执行：
+- [x] InvokeRequest
+- [x] InvokeMessage
+- [x] MessageRole
+- [x] InvokeResponse
+- [x] role 仅 system/user/assistant
+- [x] JSON 小写 role
+- [x] messages 非空
+- [x] content 非空白
+- [x] temperature 0.0..2.0
+- [x] maxTokens > 0
+- [x] Request 不暴露内部资源 selector
+- [x] Response 保持最小三字段
+- [x] 不依赖 Provider SDK DTO
+- [x] 未提前实现 ProviderAdapter / RestClient / ModelProxyService
+- [x] 未伪造模型成功结果
 
-**P2-T06 — Unified Model Contract**
+结论：
 
-完成实现、测试、开发导师 Code Review 后回总控验收。
+**P2-T06 — Unified Model Contract：COMPLETED / ACCEPTED**
 
-**不得自动进入 P2-T07。**
+当前停在执行门，等待用户确认是否进入 P2-T07。
