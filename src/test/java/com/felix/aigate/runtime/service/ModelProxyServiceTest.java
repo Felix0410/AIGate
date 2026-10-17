@@ -11,6 +11,7 @@ import com.felix.aigate.provider.entity.Provider;
 import com.felix.aigate.provider.entity.ProviderType;
 import com.felix.aigate.provider.mapper.ProviderMapper;
 import com.felix.aigate.runtime.client.ProviderHttpClient;
+import com.felix.aigate.runtime.exception.ProxyErrorType;
 import com.felix.aigate.runtime.dto.InvokeMessage;
 import com.felix.aigate.runtime.dto.InvokeRequest;
 import com.felix.aigate.runtime.dto.InvokeResponse;
@@ -143,8 +144,7 @@ class ModelProxyServiceTest {
 
         when(applicationMapper.selectById(APP_ID)).thenReturn(null);
 
-        assertThrows(ModelInvocationException.class, () -> service.invoke(APP_ID, invokeRequest()));
-        verifyNoInteractions(providerHttpClient);
+        assertInvocationFails(ProxyErrorType.APPLICATION_NOT_FOUND);
     }
 
     @Test
@@ -153,8 +153,7 @@ class ModelProxyServiceTest {
 
         stubApplication(defaultDeployment(null));
 
-        assertThrows(ModelInvocationException.class, () -> service.invoke(APP_ID, invokeRequest()));
-        verifyNoInteractions(providerHttpClient);
+        assertInvocationFails(ProxyErrorType.MODEL_DEPLOYMENT_NOT_CONFIGURED);
     }
 
     @Test
@@ -164,8 +163,7 @@ class ModelProxyServiceTest {
         stubApplication(defaultDeployment(DEPLOYMENT_ID));
         stubDeployment(deployment(false, PROVIDER_ID, "remote-model", null, "http://localhost:9000/v1"));
 
-        assertThrows(ModelInvocationException.class, () -> service.invoke(APP_ID, invokeRequest()));
-        verifyNoInteractions(providerHttpClient);
+        assertInvocationFails(ProxyErrorType.MODEL_DEPLOYMENT_DISABLED);
     }
 
     @Test
@@ -175,8 +173,7 @@ class ModelProxyServiceTest {
         stubApplication(defaultDeployment(DEPLOYMENT_ID));
         when(modelDeploymentMapper.selectById(DEPLOYMENT_ID)).thenReturn(null);
 
-        assertThrows(ModelInvocationException.class, () -> service.invoke(APP_ID, invokeRequest()));
-        verifyNoInteractions(providerHttpClient);
+        assertInvocationFails(ProxyErrorType.MODEL_DEPLOYMENT_NOT_FOUND);
     }
 
     @Test
@@ -187,8 +184,7 @@ class ModelProxyServiceTest {
         stubDeployment(deployment(true, PROVIDER_ID, "remote-model", null, "http://localhost:9000/v1"));
         when(providerMapper.selectById(PROVIDER_ID)).thenReturn(null);
 
-        assertThrows(ModelInvocationException.class, () -> service.invoke(APP_ID, invokeRequest()));
-        verifyNoInteractions(providerHttpClient);
+        assertInvocationFails(ProxyErrorType.PROVIDER_NOT_FOUND);
     }
 
     @Test
@@ -203,11 +199,18 @@ class ModelProxyServiceTest {
         provider.setType(null);
         when(providerMapper.selectById(PROVIDER_ID)).thenReturn(provider);
 
-        assertThrows(IllegalArgumentException.class, () -> service.invoke(APP_ID, invokeRequest()));
-        verifyNoInteractions(providerHttpClient);
+        assertInvocationFails(ProxyErrorType.PROVIDER_TYPE_UNSUPPORTED);
     }
 
     // ---- helpers ----
+
+    /** 断言 invoke 以指定 {@link ProxyErrorType} 失败，且绝不向 Provider 出站。 */
+    private void assertInvocationFails(ProxyErrorType expected) {
+        ModelInvocationException exception = assertThrows(
+                ModelInvocationException.class, () -> service.invoke(APP_ID, invokeRequest()));
+        assertEquals(expected, exception.getErrorType());
+        verifyNoInteractions(providerHttpClient);
+    }
 
     private void stubApplication(Application application) {
         when(applicationMapper.selectById(APP_ID)).thenReturn(application);

@@ -1,6 +1,9 @@
 package com.felix.aigate.common.exception;
 
 import com.felix.aigate.common.response.ApiErrorResponse;
+import com.felix.aigate.provider.adapter.InvalidProviderResponseException;
+import com.felix.aigate.runtime.exception.ProxyErrorType;
+import com.felix.aigate.runtime.service.ModelInvocationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
@@ -138,6 +141,50 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.BAD_REQUEST)
                 .body(response);
     }
+    /**
+     * 模型代理业务异常：按 {@link ProxyErrorType} 映射为固定错误码 + 脱敏消息 + 对应 HTTP 状态。
+     *
+     * <p>日志只输出安全错误码，不打印异常消息 / cause 链，避免泄露上游 URL、Credential、响应体。
+     * 明确不走兜底 {@link #handleUnexpectedException} 的全栈打印分支。
+     */
+    @ExceptionHandler(ModelInvocationException.class)
+    public ResponseEntity<ApiErrorResponse> handleModelInvocation(
+            ModelInvocationException exception) {
+
+        ProxyErrorType type = exception.getErrorType();
+        log.warn("Model invocation failed: code={}", type.getCode());
+
+        ApiErrorResponse response = new ApiErrorResponse(
+                type.getCode(),
+                type.getMessage(),
+                Instant.now(),
+                null
+        );
+
+        return ResponseEntity.status(type.getHttpStatus()).body(response);
+    }
+
+    /**
+     * Provider HTTP 200 但响应结构不合法：统一映射为 502 PROVIDER_INVALID_RESPONSE。
+     * 忽略异常自身携带的结构描述，只返回固定安全信息。
+     */
+    @ExceptionHandler(InvalidProviderResponseException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidProviderResponse(
+            InvalidProviderResponseException exception) {
+
+        ProxyErrorType type = ProxyErrorType.PROVIDER_INVALID_RESPONSE;
+        log.warn("Invalid provider response: mapped to code={}", type.getCode());
+
+        ApiErrorResponse response = new ApiErrorResponse(
+                type.getCode(),
+                type.getMessage(),
+                Instant.now(),
+                null
+        );
+
+        return ResponseEntity.status(type.getHttpStatus()).body(response);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleUnexpectedException(
             Exception exception) {

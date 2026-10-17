@@ -12,6 +12,7 @@ import com.felix.aigate.provider.mapper.ProviderMapper;
 import com.felix.aigate.runtime.client.ProviderHttpClient;
 import com.felix.aigate.runtime.dto.InvokeRequest;
 import com.felix.aigate.runtime.dto.InvokeResponse;
+import com.felix.aigate.runtime.exception.ProxyErrorType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -39,32 +40,37 @@ public class ModelProxyService {
         // 1. Application：以数据库当前配置为准，不凭 Authentication 推断默认 Deployment。
         Application application = applicationMapper.selectById(applicationId);
         if (application == null) {
-            throw new ModelInvocationException("Application not found");
+            throw new ModelInvocationException(ProxyErrorType.APPLICATION_NOT_FOUND);
         }
 
         // 2. 默认 Deployment：为空立即拒绝，不选择其他 Deployment、不 fallback。
         Long defaultDeploymentId = application.getDefaultDeploymentId();
         if (defaultDeploymentId == null) {
-            throw new ModelInvocationException("No default deployment configured");
+            throw new ModelInvocationException(ProxyErrorType.MODEL_DEPLOYMENT_NOT_CONFIGURED);
         }
 
         // 3. ModelDeployment：必须存在且运行时 enabled（不依赖外键代替 enabled 检查）。
         ModelDeployment deployment = modelDeploymentMapper.selectById(defaultDeploymentId);
         if (deployment == null) {
-            throw new ModelInvocationException("Default deployment not found");
+            throw new ModelInvocationException(ProxyErrorType.MODEL_DEPLOYMENT_NOT_FOUND);
         }
         if (!Boolean.TRUE.equals(deployment.getEnabled())) {
-            throw new ModelInvocationException("Default deployment is disabled");
+            throw new ModelInvocationException(ProxyErrorType.MODEL_DEPLOYMENT_DISABLED);
         }
 
         // 4. Provider 必须存在。
         Provider provider = providerMapper.selectById(deployment.getProviderId());
         if (provider == null) {
-            throw new ModelInvocationException("Provider not found");
+            throw new ModelInvocationException(ProxyErrorType.PROVIDER_NOT_FOUND);
         }
 
-        // 5. 由 Registry 按 ProviderType 选择 Adapter；不支持则在此失败，仍不出站。
-        ProviderAdapter adapter = providerAdapterRegistry.select(provider.getType());
+        // 5. 由 Registry 按 ProviderType 选择 Adapter；不支持则归类为本地能力缺口，仍不出站。
+        ProviderAdapter adapter;
+        try {
+            adapter = providerAdapterRegistry.select(provider.getType());
+        } catch (IllegalArgumentException exception) {
+            throw new ModelInvocationException(ProxyErrorType.PROVIDER_TYPE_UNSUPPORTED);
+        }
 
         // 6. remoteModelName 只能来自 Deployment。
         Object providerRequest = adapter.buildRequest(request, deployment.getRemoteModelName());
