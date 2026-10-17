@@ -4,7 +4,7 @@
 
 **Phase 2 — Model Registry & Single Model Proxy：ACTIVE**
 
-Current Task: **P2-T10 — End-to-End Integration Test（ACTIVE）**
+Current Task: **P2-T10 — End-to-End Integration Test（ACTIVE / PENDING TEST RUN）**
 
 Next Planned: **P2-T11 — Phase Closeout（NOT STARTED）**
 
@@ -330,3 +330,24 @@ Actions:
 No DB migrations, no new external Provider dependency, no Redis/MQ/Streaming/Retry.
 
 Execution gate: **P2-T10 ACTIVE; P2-T11 NOT STARTED**. After passing acceptance, auto-start P2-T11 Phase Closeout; completion of P2-T11 still requires full Phase audit and documentation.
+
+---
+
+## 12. P2-T10 Acceptance Review — 2026-10-17
+
+实现提交：`2943dce28313742acc608fa11aaf962e23aae3c0`。
+
+静态代码/测试覆盖审查通过：
+
+- API Key revoke 后 401、多个 ACTIVE Key 可用
+- 切换 Application.defaultDeploymentId 后发往新的 Mock Provider context / model
+- Application 解绑或 Deployment disabled 后 409 且零出站
+- Provider 400/401/429/500、无效响应、连接异常等测试覆盖
+- 新增完整 HTTP 504 timeout E2E（独立测试上下文/本地延迟 Provider）
+- Handler 日志安全断言；Mock HttpServer Executor 显式 shutdown/awaitTermination
+
+**最终验收 PENDING：** P2-T10 特别要求的真实 Maven 全量测试执行结果目前缺失。GitHub 当前没有 CI status/workflow run，也没有可核实的测试运行汇总；验收环境没有 Docker/Maven，不能独立运行 Testcontainers 测试。
+
+待复验：在 Java 21 + Docker 可用环境运行 `./mvnw test`，提供退出状态与 Surefire `Tests run, Failures, Errors, Skipped` 汇总。出现失败需修复并复跑。
+
+**P2-T10 仍 ACTIVE，未宣布 ACCEPTED；P2-T11 不启动。** 这不是新增技术债，而是当前 Task 的必需验收条件尚未满足。TD-009 CI Test Gate 继续保留。
