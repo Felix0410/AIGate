@@ -4,11 +4,11 @@
 
 **Phase 2 — Model Registry & Single Model Proxy：ACTIVE**
 
-Current Task: **P2-T08 — RestClient + Single Model Proxy（ACTIVE）**
+Current Task: **P2-T09 — Provider Error Mapping（ACTIVE）**
 
-Next Planned: **P2-T09 — Provider Error Mapping（NOT STARTED）**
+Next Planned: **P2-T10 — End-to-End Integration Test（NOT STARTED）**
 
-P2-T07 已于 2026-10-17 验收通过，按用户新规则自动推进 P2-T08。
+P2-T08 已于 2026-10-17 验收通过，按用户新规则自动推进 P2-T09。
 
 ## 2. Phase 2 Tasks
 
@@ -21,8 +21,8 @@ P2-T07 已于 2026-10-17 验收通过，按用户新规则自动推进 P2-T08。
 | P2-T05 | Runtime Authentication | DONE |
 | P2-T06 | Unified Model Contract | DONE |
 | P2-T07 | Provider Adapter | **DONE / ACCEPTED** |
-| P2-T08 | RestClient + Single Model Proxy | **ACTIVE** |
-| P2-T09 | Provider Error Mapping | NOT STARTED |
+| P2-T08 | RestClient + Single Model Proxy | **DONE / ACCEPTED** |
+| P2-T09 | Provider Error Mapping | **ACTIVE** |
 | P2-T10 | End-to-End Integration Test | NOT STARTED |
 | P2-T11 | Phase Closeout | NOT STARTED |
 
@@ -99,11 +99,11 @@ ProviderAdapterRegistryTest
 
 ---
 
-## 4. 当前任务 P2-T08
+## 4. P2-T08 Accepted Implementation
 
-### Business Goal
+### Business Goal Achieved
 
-> 第一次打通真实单部署、同步非流式模型调用闭环。
+> 已打通真实单部署、同步非流式模型调用 Happy Path。
 
 ```text
 POST /v1/invoke + Application API Key
@@ -127,7 +127,7 @@ Adapter.parseResponse
 InvokeResponse
 ```
 
-### Implementation Scope
+### Implemented Components / Scope
 
 最小组件：
 
@@ -146,9 +146,9 @@ InvokeResponse
 - RestClient 连接与读取超时有界；不自动重试
 - HTTP 200 成功经过 Adapter 真正返回 InvokeResponse
 
-### Tests
+### Tests — Present in Repository
 
-至少包含：
+测试类 `RuntimeInvokeIntegrationTest` / `ProviderHttpClientHttpTest` / `ModelProxyServiceTest` 包含以下验证：
 
 - ACTIVE Key 通过 `POST /v1/invoke` 并触发真实 Mock HTTP Provider
 - 无 Key 401；请求校验失败 400
@@ -157,7 +157,9 @@ InvokeResponse
 - 无默认 Deployment / disabled Deployment 不出站
 - 上游成功响应原样走 Adapter，非硬编码结果
 
-P2-T09 再完整处理 Provider 4xx/429/5xx/timeout/invalid response → 对外业务错误映射；P2-T10 做完整 Testcontainers + Mock Provider E2E 矩阵。
+P2-T08 验收通过（提交 `5edbd46`、`6b1501e`），已通过代码与测试覆盖检查；GitHub 当前没有 CI status/workflow run，不能声称 CI 实际运行成功。
+
+当前尚未解决的错误语义（例如缺少默认 Deployment 时的通用 500）已作为 P2-T09 输入。P2-T10 再完成全量失败路径的 E2E 测试矩阵。
 
 当前预计不新增 Flyway，仍为 V1–V6。
 
@@ -177,7 +179,7 @@ AES-GCM + SHA-256
 Provider Adapter
 ```
 
-本阶段只增加 RestClient 同步出站能力。暂不引入 WebFlux / SSE / MQ / Redis / Routing / Microservices / Retry / Fallback / Circuit Breaker。
+P2-T08 已增加 RestClient 同步出站能力，3 秒连接超时、60 秒读取超时（均可配置），无自动重试。暂不引入 WebFlux / SSE / MQ / Redis / Routing / Microservices / Retry / Fallback / Circuit Breaker。
 
 ---
 
@@ -202,4 +204,52 @@ Provider Adapter
 
 用户于 2026-10-17 调整：验收通过、无阻塞问题，完成收尾与必要文档后**自动启动下一任务**；未通过先修复复验；跨 Phase 必须先完成完整 Phase Closeout。
 
-**当前 P2-T08 ACTIVE；P2-T09 NOT STARTED。**
+**当前 P2-T08 DONE / ACCEPTED；P2-T09 ACTIVE；P2-T10 NOT STARTED。**
+
+
+---
+
+## 8. P2-T08 Acceptance Record — 2026-10-17
+
+Actual implementation:
+
+```text
+RuntimeInvokeController POST /v1/invoke
+ModelProxyService
+ProviderHttpClient
+RestClientConfig
+ModelInvocationException
+```
+
+Verified code behavior:
+
+- Application API Key → ApplicationIdentity → fresh Application.defaultDeploymentId
+- ModelDeployment exists and enabled, Provider resolved, correct Adapter selected
+- Credentials decrypted only when stored and only Provider Credential forwarded upstream
+- POST `{endpointUrl}/chat/completions` via RestClient, response processed by adapter
+- Explicit fail/no outbound on absent or disabled Deployment
+- Controller `@Valid` and existing 400/401 behavior
+- True HTTP Happy Path verified by tests against a JVM-local Mock Provider plus Testcontainers MySQL
+- No new Flyway migration; current baseline remains V1–V6
+
+Review result: **COMPLETED / ACCEPTED**, no blocking issues.
+
+Evidence limit: Test code reviewed but GitHub latest code commit has no CI statuses or workflow runs. TD-009 remains.
+
+New technical debt:
+
+**TD-011 — Provider endpointURL restrictions / SSRF hardening before public production deployment.** Provider Endpoint is configured by an admin yet used for arbitrary server-side outbound HTTP; validate schemes and restrict private/metadata destinations according to deployment policy. Keep localhost test fixture working during Phase 2.
+
+## 9. P2-T09 Active Scope
+
+Goal: safely translate upstream HTTP failures (400, 401/403, 429, 5xx), network failures, timeouts and malformed upstream responses into deterministic AIGate errors; map missing/disabled default Deployment to explicit local configuration errors rather than generic 500.
+
+Rules:
+
+- Provider HTTP 401/403 ≠ client API Key 401
+- Provider rate limit ≠ AIGate's own quota
+- Do not pass raw upstream body, internal URL, credentials, Authorization or Prompt to Client or logs
+- No retry/fallback
+- Maintain success behavior and request validation
+
+Acceptance: focused mapping unit tests plus real Mock Provider failure tests; current `P2-T09 ACTIVE`. Next `P2-T10 NOT STARTED`.
