@@ -4,11 +4,11 @@
 
 **Phase 2 — Model Registry & Single Model Proxy：ACTIVE**
 
-Current Task: **P2-T10 — End-to-End Integration Test（ACTIVE / PENDING TEST RUN）**
+Current Task: **P2-T11 — Phase Closeout（ACTIVE）**
 
-Next Planned: **P2-T11 — Phase Closeout（NOT STARTED）**
+Next Planned: **Phase 3 (only after completed P2-T11 closeout)**
 
-P2-T09 已于 2026-10-17 验收通过，按用户新规则自动推进 P2-T10。
+P2-T10 已于 2026-10-17 获得用户本地 Maven 测试汇总（138 / 0 / 0 / 0）并验收通过；按自动推进规则启动 P2-T11。
 
 ## 2. Phase 2 Tasks
 
@@ -23,8 +23,8 @@ P2-T09 已于 2026-10-17 验收通过，按用户新规则自动推进 P2-T10。
 | P2-T07 | Provider Adapter | **DONE / ACCEPTED** |
 | P2-T08 | RestClient + Single Model Proxy | **DONE / ACCEPTED** |
 | P2-T09 | Provider Error Mapping | **DONE / ACCEPTED** |
-| P2-T10 | End-to-End Integration Test | **ACTIVE** |
-| P2-T11 | Phase Closeout | NOT STARTED |
+| P2-T10 | End-to-End Integration Test | **DONE / ACCEPTED** |
+| P2-T11 | Phase Closeout | **ACTIVE** |
 
 ---
 
@@ -350,4 +350,50 @@ Execution gate: **P2-T10 ACTIVE; P2-T11 NOT STARTED**. After passing acceptance,
 
 待复验：在 Java 21 + Docker 可用环境运行 `./mvnw test`，提供退出状态与 Surefire `Tests run, Failures, Errors, Skipped` 汇总。出现失败需修复并复跑。
 
-**P2-T10 仍 ACTIVE，未宣布 ACCEPTED；P2-T11 不启动。** 这不是新增技术债，而是当前 Task 的必需验收条件尚未满足。TD-009 CI Test Gate 继续保留。
+**P2-T10 的上述 PENDING 状态已于用户补交真实 Maven 汇总后解除；最终验收见下文第 13 节。TD-009 CI Test Gate 继续保留。**
+
+---
+
+## 13. P2-T10 Final Acceptance — 2026-10-17
+
+当前实现基线 commit：`2943dce28313742acc608fa11aaf962e23aae3c0`。
+
+用户提供本地 Maven 全量测试汇总：
+
+```text
+[INFO] Tests run: 138, Failures: 0, Errors: 0, Skipped: 0
+```
+
+证据来源：**用户提供本地终端输出**，非 GitHub CI；未收到单独的命令退出码或 Surefire XML 文件。本次满足“真实执行有测试统计”的任务验收要求，但不应把该结果写成 CI 自动执行通过。
+
+结合此前 E2E/Code Review：
+
+- MockMvc / MySQL Testcontainers / JDK HttpServer 贯穿真实 Runtime 链路
+- ACTIVE/REVOKED API Key、多个 Key 并存
+- Application 默认部署切换、禁用及解绑
+- Provider Credential 与客户端 Key 严格隔离
+- 上游错误码/超时/坏响应、安全日志及无重试验证
+- Test HttpServer / Executor 资源生命周期清理
+
+**结论：P2-T10 — DONE / ACCEPTED；无新增阻塞缺陷。**
+
+TD-009（没有 CI Test Gate）和 TD-011（Provider Endpoint SSRF 约束）仍开放。
+
+## 14. P2-T11 Phase Closeout — ACTIVE
+
+Business Goal: 正式审查并收尾 Phase 2 的真实业务闭环、代码、测试、架构、技术债、核心文档、知识点和面试表达。
+
+主要交付：
+
+1. 功能检查：P2-T01~T10 与业务目标比对，确认 API/表/链路可运行且完整
+2. Phase 级 Code Review：职责、依赖、凭证隔离、错误映射、安全风险
+3. 测试：记录本地 138 / 0 / 0 / 0 与 CI 缺口，识别应补的测试
+4. 架构检查：坚持模块化单体，检查真实演进和未来风险
+5. 技术债：TD-001~TD-011 分类、优先级、生产发布前门槛（尤其 TD-011）
+6. 文档：更新/核对 project-overview、requirements、architecture、domain-model、module-design、roadmap、api-design、database-design、progress
+7. ADR：必要时新增，避免无真实决策而形式化增加
+8. knowledge-map：按真实 Phase 2 开发路线补齐知识地图
+9. interview-notes：形成可讲清楚的业务闭环与设计取舍
+10. Phase Closeout 结论、阻塞清单和下一阶段准备
+
+**当前 P2-T11 ACTIVE，Phase 2 仍 ACTIVE；不把“138 个测试通过”直接等同于“Phase 2 CLOSED”。** 在 P2-T11 无阻塞且文档全部同步后，再按自动推进约定进入下一 Phase。
