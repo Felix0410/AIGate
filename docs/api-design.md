@@ -2,7 +2,7 @@
 
 ## 1. 当前基线
 
-当前内容以 **Phase 2 / P2-T06 完成后的实现** 为准。
+当前内容以 **Phase 2 / P2-T07 验收完成、P2-T08 启动后的实现与冻结计划** 为准。
 
 认证边界：
 
@@ -14,7 +14,7 @@
 → Application API Key
 ```
 
-P2-T06 已定义统一 Runtime 模型契约，但生产 `POST /v1/invoke` handler 尚未接通。
+P2-T06 已定义统一 Runtime 模型契约，P2-T07 已实现 Provider Adapter 纯协议转换；生产 `POST /v1/invoke` handler 尚未接通，P2-T08 正在建设。
 
 ---
 
@@ -214,7 +214,7 @@ Bean Validation
 → 400 INVALID_REQUEST
 ```
 
-P2-T06 当前通过 Contract Test 验证 DTO 层语义；HTTP handler 尚未落地，因此暂不声称 Invoke 错误路径已经通过 MockMvc 验证。
+P2-T06 当前通过 Contract Test 验证 DTO 层语义；HTTP handler 尚未落地，因此暂不声称 Invoke 错误路径已经通过 MockMvc 验证。P2-T08 需要接入 Controller 并验证实际 HTTP 校验行为。
 
 ---
 
@@ -236,14 +236,16 @@ P2-T06 当前通过 Contract Test 验证 DTO 层语义；HTTP handler 尚未落�
 
 ## 11. Next API Work
 
-P2-T07：
+P2-T07 **已完成并验收**：
 
 ```text
 ProviderAdapter
+ProviderAdapterRegistry
+OpenAiCompatibleProviderAdapter
 OpenAI-Compatible provider protocol conversion
 ```
 
-P2-T08：
+P2-T08 **ACTIVE**：
 
 ```text
 ApplicationIdentity
@@ -256,7 +258,7 @@ ApplicationIdentity
 → InvokeResponse
 ```
 
-届时再真正接通生产 `POST /v1/invoke`。
+P2-T08 需要真正接通生产 `POST /v1/invoke`。
 
 ---
 
@@ -269,3 +271,95 @@ ApplicationIdentity
 - DTO 只包含当前主流程需要字段
 - 不为未实现的 Provider 调用伪造成功响应
 - 后续通过 Provider Adapter 承担协议转换
+
+
+---
+
+## 13. P2-T07 实际 Provider Protocol Mapping
+
+Provider Adapter 已实现：
+
+```text
+InvokeRequest.messages
+→ OpenAI-compatible messages
+
+InvokeRequest.temperature
+→ temperature（null 时省略）
+
+InvokeRequest.maxTokens
+→ max_tokens（null 时省略）
+
+ModelDeployment.remoteModelName
+→ model
+```
+
+Provider 成功响应：
+
+```text
+choices[0].message.content
+→ InvokeResponse.content
+
+response.model
+→ InvokeResponse.model
+
+choices[0].finish_reason
+→ InvokeResponse.finishReason
+```
+
+已支持忽略上游额外字段，且会拒绝无效 JSON / 空 choices / 缺失关键内容。P2-T07 不发送实际 HTTP 请求。
+
+## 14. P2-T08 正式 Endpoint（正在实现，尚非已上线事实）
+
+```http
+POST /v1/invoke
+Authorization: Bearer <APPLICATION_API_KEY>
+Content-Type: application/json
+```
+
+最小 Request：
+
+```json
+{
+  "messages": [
+    {"role": "user", "content": "Explain HashMap"}
+  ],
+  "temperature": 0.7,
+  "maxTokens": 200
+}
+```
+
+成功 Response：
+
+```json
+{
+  "content": "HashMap is...",
+  "model": "remote-model-name",
+  "finishReason": "stop"
+}
+```
+
+请求不携带 applicationId / deploymentId / providerId / modelId。身份来自 Runtime SecurityContext；模型部署来自 Application.defaultDeploymentId。
+
+### Upstream 约定
+
+`ModelDeployment.endpointUrl` 是 Provider API base URL，比如 `https://provider.example.com/v1`。
+
+上游 POST：
+
+```text
+{endpointUrl 去尾斜杠}/chat/completions
+```
+
+- 请求 Body 由 ProviderAdapter 生成
+- Provider Credential 有值时解密后使用 `Authorization: Bearer <provider-secret>`
+- Provider Credential 为 NULL 时不附加 Authorization
+- 客户端 Application API Key **绝不转发**给上游
+- 设置有界连接超时和读取超时，默认不重试
+
+### Phase Scope
+
+- P2-T08：真实 HTTP 200 Happy Path、默认 Deployment 检查、Runtime Controller 接线与基本测试
+- P2-T09：Provider 4xx/429/5xx、timeout、无效响应等标准 HTTP 错误语义
+- P2-T10：完整 MySQL Testcontainers + Mock Provider E2E 测试矩阵
+
+这些计划在对应任务实现并验收前不得写成“已通过”的事实。
