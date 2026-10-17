@@ -1,6 +1,6 @@
 # AIGate Current Phase
 
-> 共享执行基线：实际代码与验收结论为事实来源。本文件用于总控、开发导师和 Code Review。
+> 项目总控、开发导师、Code Review 的共享执行基线。实际代码和已验收记录为事实来源。
 
 ## 1. Current Phase
 
@@ -8,13 +8,13 @@
 
 Status: **ACTIVE**
 
-Current Task: **P2-T08 — RestClient + Single Model Proxy（ACTIVE）**
+Current Task: **P2-T09 — Provider Error Mapping（ACTIVE）**
 
-Next Planned Task: **P2-T09 — Provider Error Mapping（NOT STARTED）**
+Next Planned Task: **P2-T10 — End-to-End Integration Test（NOT STARTED）**
 
-> P2-T07 已验收通过并按 2026-10-17 的自动推进规则完成收尾，直接启动 P2-T08。P2-T08 完成并验收通过后继续自动推进 P2-T09；如果发现阻塞问题，先修复并复验。
+> P2-T08 已完成验收，按 2026-10-17 自动推进规则直接启动 P2-T09。当前仅处理代理错误语义，不加入重试、熔断、缓存或路由。
 
-## 2. Phase 2 Status
+## 2. Task Status
 
 | Task | 内容 | 状态 |
 |---|---|---|
@@ -24,237 +24,234 @@ Next Planned Task: **P2-T09 — Provider Error Mapping（NOT STARTED）**
 | P2-T04 | Application API Key Lifecycle | DONE |
 | P2-T05 | Runtime Authentication | DONE |
 | P2-T06 | Unified Model Contract | DONE |
-| P2-T07 | Provider Adapter | **DONE / ACCEPTED** |
-| P2-T08 | RestClient + Single Model Proxy | **ACTIVE** |
-| P2-T09 | Provider Error Mapping | NOT STARTED |
+| P2-T07 | Provider Adapter | DONE |
+| P2-T08 | RestClient + Single Model Proxy | **DONE / ACCEPTED** |
+| P2-T09 | Provider Error Mapping | **ACTIVE** |
 | P2-T10 | End-to-End Integration Test | NOT STARTED |
 | P2-T11 | Phase Closeout | NOT STARTED |
 
 ---
 
-## 3. P2-T07 Acceptance — DONE / ACCEPTED
+## 3. P2-T08 Acceptance — Actual Implementation
 
-实现提交：`14f0203d91dac394bc90c71bb8cf8bc1bccedbc7`。
-
-已实现：
+Reviewed code commits:
 
 ```text
-ProviderAdapter
-ProviderAdapterRegistry
-OpenAiCompatibleProviderAdapter
-OpenAiChatRequest / OpenAiChatMessage
-InvalidProviderResponseException
+5edbd468757e15df8492205eb3512cf8f8c112ef
+6b1501ed681806642ff640637f60ad5ebf7fb596
 ```
 
-转换方向：
+Implemented production components:
 
 ```text
-InvokeRequest + remoteModelName
-→ ProviderAdapterRegistry.select(ProviderType.OPENAI_COMPATIBLE)
+runtime.controller.RuntimeInvokeController
+runtime.service.ModelProxyService
+runtime.service.ModelInvocationException
+runtime.client.ProviderHttpClient
+config.RestClientConfig
+```
+
+Request main flow:
+
+```text
+Client POST /v1/invoke
+→ Runtime API Key SecurityFilterChain
+→ ApplicationIdentity
+→ @Valid InvokeRequest
+→ ModelProxyService
+→ Application.defaultDeploymentId
+→ ModelDeployment.enabled
+→ Provider.type
+→ ProviderAdapterRegistry
 → OpenAiCompatibleProviderAdapter.buildRequest
-→ OpenAiChatRequest JSON
-
-Provider successful JSON
+→ CredentialService.decrypt (only if encrypted credential exists)
+→ RestClient HTTP POST {endpointUrl}/chat/completions
 → OpenAiCompatibleProviderAdapter.parseResponse
-→ InvokeResponse(content, model, finishReason)
+→ InvokeResponse
 ```
 
-已验证：
+- Client API Key is never sent to upstream; only the separately stored Provider credential can be used as Authorization.
+- `endpointUrl` is the configured Provider API base URL. One trailing slash is normalized; `/chat/completions` is appended.
+- Null Provider Credential means no upstream Authorization header.
+- Connection timeout defaults to 3 seconds; read timeout defaults to 60 seconds. They are configurable.
+- No retries, fallback, circuit breakers, SSE, routing, Redis, MQ or new DB migration.
 
-- model 来自 remoteModelName
-- 消息顺序和小写 role 保留
-- temperature / maxTokens → temperature / max_tokens
-- null 可选字段从 Provider 请求 JSON 省略
-- 200 成功响应读取 choices[0]
-- 无效 JSON、空 choices、缺失关键字段不伪造成功
-- Registry 对缺失类型及重复注册明确失败
-- Adapter 只负责协议转换，不涉及 HTTP / DB / Secret
-- 单元测试不依赖外部 Provider
+### P2-T08 Tests (Code Reviewed)
 
-GitHub commit 未提供 CI check 或 workflow run，不宣称 CI 已执行通过，继续保留 TD-009。
+```text
+RuntimeInvokeIntegrationTest
+ProviderHttpClientHttpTest
+ModelProxyServiceTest
+```
 
-结论：**P2-T07 COMPLETED / ACCEPTED**，无阻塞问题。
+Test code covers:
+
+- True HTTP Happy Path via local JDK HttpServer Mock Provider and MySQL Testcontainers
+- API Key 401 and Request Validation 400
+- Correct upstream path / JSON / remoteModelName / Content-Type
+- Provider Credential present/absent; client API Key not forwarded
+- No default Deployment or disabled Deployment -> no outbound request
+- Missing Application / Deployment / Provider / Unsupported Provider Type -> no outbound request
+- Trailing slash URL handling
+- Return of true provider content via Adapter (no hard-coded 200)
+
+GitHub implementation head `6b1501e...` has no CI statuses or workflow runs. Therefore only code/test coverage has been reviewed; do not claim actual CI green. TD-009 retained.
+
+**Acceptance result: P2-T08 COMPLETED / ACCEPTED.**
+
+Non-blocking follow-up: local configuration failures currently surface generic 500, to be mapped as explicit state/configuration failures in P2-T09. Production endpoint URL trust/SSRF restrictions must be addressed before internet-facing deployment (TD-011).
 
 ---
 
-## 4. P2-T08 — Business Goal
+## 4. P2-T09 — Business Goal
 
-> 让持有 ACTIVE Application API Key 的真实客户端，第一次能够经由 AIGate 调用其默认 ModelDeployment，并得到真实 Provider 的非流式模型响应，打通完整 Happy Path。
+> 当模型 Provider 出错、超时或返回坏数据时，AIGate 应准确向 Client 表示“本次调用失败了”，并区分错误大类，同时不暴露 Provider Credential、原始上游响应、内部 URL 或服务堆栈。
 
-最终目标：
+P2-T08 already has successful invocation; P2-T09 makes the **failure path predictable, useful and safe**.
+
+First principle: no fake success, no silent fallback, no retry. Client should receive a meaningful AIGate error category; don't forward raw upstream error body to untrusted callers.
+
+## 5. Target Failure Flow
 
 ```text
-Client
-→ POST /v1/invoke + Bearer Application API Key
-→ Runtime SecurityFilterChain
-→ ApplicationIdentity
-→ Runtime Controller (@Valid InvokeRequest)
-→ ModelProxyService
-→ Application.defaultDeploymentId
-→ ModelDeployment (enabled)
-→ Provider (type)
-→ ProviderAdapterRegistry / Adapter
-→ CredentialService.decrypt
-→ RestClient POST to OpenAI-Compatible endpoint
-→ Provider response
-→ Adapter.parseResponse
-→ InvokeResponse JSON
+RestClient request / response
+↓
+ProviderHttpClient detects:
+  - upstream HTTP status
+  - timeout / network exception
+↓
+safe categorized proxy exception
+↓
+GlobalExceptionHandler
+↓
+ApiErrorResponse
+→ HTTP status + stable error code + sanitized message
 ```
 
-这一任务是 Phase 2 首次真正的业务闭环。优先打通 Happy Path，不把重试、熔断、路由、限流等复杂度混进来。
-
-## 5. 为什么选择 RestClient
-
-RestClient 是 Spring 的同步 HTTP 客户端，适合当前 Spring MVC 同步、单次、非流式的 outbound 调用。
-
-当前选择原因：
-
-- 业务只需要一次同步 Chat Completions 请求/响应
-- 与已有 Spring MVC 技术栈一致
-- 比手写 HttpClient / 直接操作连接更简单
-- WebClient / WebFlux 不是当前业务必需
-- 不需要引入 Feign / 服务发现 / 微服务依赖
-
-代价：请求处理线程在上游响应前会阻塞；必须设置明确的连接与响应读取超时。等真实并发问题出现后再评估其他模型。
-
-## 6. P2-T08 Minimal Components
-
-建议最小新增：
+Also cover:
 
 ```text
-RuntimeInvokeController
+OpenAiCompatibleProviderAdapter.parseResponse
+→ InvalidProviderResponseException
+→ mapped provider invalid-response error
+```
+
+And local precondition failures in ModelProxyService:
+
+```text
+Application default Deployment missing/disabled
+→ explicit local configuration error
+→ never issue outbound HTTP request
+```
+
+## 6. Error Classification Scope
+
+At minimum distinguish:
+
+| Failure source | Category / intended client meaning |
+|---|---|
+| No default deployment | Runtime configuration unavailable (not successful) |
+| Disabled deployment | Runtime configuration disabled |
+| Provider HTTP 400 | Upstream rejected request |
+| Provider HTTP 401/403 | Provider authentication/authorization failed (not client's API Key) |
+| Provider HTTP 429 | Upstream rate-limited (not AIGate quota) |
+| Provider HTTP 5xx | Upstream provider failure |
+| Network / connection failure | Provider connection failure |
+| Read timeout | Provider timeout |
+| Invalid JSON / missing choices or content | Provider invalid response |
+
+Choose a **small explicit code→HTTP-status table** before implementation. Recommended guidance:
+
+```text
+MODEL_DEPLOYMENT_NOT_CONFIGURED → 409
+MODEL_DEPLOYMENT_DISABLED       → 409
+PROVIDER_BAD_REQUEST           → 502
+PROVIDER_AUTH_FAILED           → 502
+PROVIDER_RATE_LIMITED          → 503
+PROVIDER_UNAVAILABLE           → 502
+PROVIDER_CONNECTION_ERROR      → 502
+PROVIDER_TIMEOUT               → 504
+PROVIDER_INVALID_RESPONSE      → 502
+```
+
+These are proposed phase mappings, not currently implemented facts. It is acceptable to refine specific names/statuses during review provided they are consistent, documented and do not confuse Provider 401/429 with AIGate API Key auth or own quota errors.
+
+Unclassified or unsupported upstream codes must also result in safe, non-2xx failure.
+
+## 7. Data Exposure / Security Contract
+
+Must never expose or log:
+
+```text
+Client Application API Key
+Provider Credential plaintext or ciphertext
+Authorization header
+Provider raw error body
+Request messages or private prompt content
+Internal Provider URL if potentially sensitive
+Provider stacktrace to Client
+```
+
+Prefer fixed error messages and stable codes. No `exception.getMessage()` from upstream HTTP exceptions in public response or logs. Avoid preserving raw response bodies in nested causes that are logged by `GlobalExceptionHandler`.
+
+Provider 401/403 does **not** mean client needs a new Application API Key. Provider 429 does **not** imply an AIGate application quota was exceeded.
+
+## 8. Minimal Architecture
+
+Prefer to reuse:
+
+```text
+ProviderHttpClient
 ModelProxyService
-RestClient configuration / small outbound component
+InvalidProviderResponseException
+GlobalExceptionHandler
+ApiErrorResponse
 ```
 
-责任边界：
+A small typed failure kind / exception and a focused mapping handler are sufficient. Avoid introducing a large universal error framework, resilience library, retry policy, circuit breaker, Redis or MQ.
 
-- Controller：`POST /v1/invoke`，`@Valid @RequestBody InvokeRequest`，从 `Authentication.getPrincipal()` 获取 `ApplicationIdentity`，不解析 API Key
-- ModelProxyService：编排 Application、Deployment、Provider、凭证、Adapter、HTTP 调用
-- Adapter：继续只负责构造 Provider 请求和解析 Provider 成功响应
-- RestClient：只负责发送 HTTP、接收响应，不负责决定调用哪个 Deployment
-- CredentialService：现有 AES-GCM 解密能力复用，绝不回显或日志打印 Secret
+Clear separation:
 
-不提前创建复杂的 Router、Provider SDK、Executor hierarchy、通用 Middleware Pipeline。
+- ProviderHttpClient classifies outbound transport/status errors
+- ProviderAdapter flags invalid successful response structure
+- ModelProxyService gives explicit configuration failure
+- GlobalExceptionHandler translates classified failure into public safe API response
 
-## 7. Deployment Resolution
+## 9. Acceptance Criteria / Tests
+
+- Provider HTTP 400/401/403/429/5xx and unknown statuses → deterministic safe errors, not generic success
+- Connection refused and request/read timeout → deterministic categorized errors
+- Invalid Provider JSON / empty choices / missing required fields → safe `PROVIDER_INVALID_RESPONSE`
+- Missing/disabled default Deployment → explicit non-500 configuration error, zero outbound calls
+- Client missing/invalid API Key continues to return existing `401 UNAUTHORIZED` (do not conflate with upstream 401)
+- Correct Request Validation continues returning `400 VALIDATION_ERROR` / `400 INVALID_REQUEST`
+- No exception/log/client response leaks secret, Provider raw body or internal URL
+- No retry or fallback: each invocation makes at most one outbound attempt
+- Provider HTTP 200 Happy Path still produces existing InvokeResponse
+- Tests cover at least one real local HTTP Mock Provider failure plus fast unit tests for mappings
+- No DB schema change, no new dependencies unless a real blocker emerges
+
+## 10. Deferred / Technical Debt
+
+Keep TD-001 ~ TD-010.
+
+Add **TD-011 — Provider endpoint URL restrictions / SSRF hardening before internet-facing deployment**: currently an admin-configured endpointUrl is used to initiate server-side HTTP, so production should validate scheme / destination and restrict private-network/metadata access according to deployment policy. Do not break localhost Mock Provider tests in this stage; this is separate from error mapping.
+
+Defer to later phases:
 
 ```text
-ApplicationIdentity.applicationId
-↓
-ApplicationMapper.selectById
-↓
-Application.defaultDeploymentId
-↓
-ModelDeploymentMapper.selectById
-↓
-ModelDeployment.enabled == true
-↓
-ProviderMapper.selectById
-↓
-Provider.type
-↓
-ProviderAdapterRegistry.select(...)
+Retry
+Fallback
+Circuit Breaker
+Rate Limit / Quota
+Routing
+Streaming / SSE
+Redis / MQ
+Advanced Observability
 ```
 
-当前一个 Application 最多一个默认 Deployment；不根据 Client 输入选择模型。
+## 11. Automatic Advancement
 
-若 Application 没有默认 Deployment、目标被禁用、引用数据异常等，在本任务中**至少明确拒绝调用上游**，不得静默 fallback 到任意模型或给出假成功响应。可使用最小明确的业务异常；跨 Provider 的统一错误体系留 P2-T09。
+User confirmed 2026-10-17: on successful review with no blocking issues, finish Code Review / testing / architecture checks, update progress and architecture/API docs, record technical debt / ADR if necessary, and **start the next task immediately**. Failed acceptance stays ACTIVE until fixed. Phase-to-Phase advancement must complete Phase Closeout first.
 
-## 8. Upstream Endpoint / Credential Contract
-
-当前 `model_deployment.endpoint_url` 视为 **Provider 的 API base URL**，例如：
-
-```text
-http://mock-provider:8080/v1
-https://provider.example.com/v1
-```
-
-OpenAI-Compatible Chat Completions 当前请求目标：
-
-```text
-{endpointUrl 去掉末尾斜杠}/chat/completions
-```
-
-约定应形成可测试的单一行为，避免重复 `/v1` 或拼错路径。
-
-HTTP：
-
-```text
-POST /chat/completions
-Content-Type: application/json
-```
-
-Provider credential：
-
-```text
-encryptedCredential != null
-→ CredentialService.decrypt
-→ Authorization: Bearer <provider secret>
-
-encryptedCredential == null
-→ 不附加 Provider Authorization header
-```
-
-注意：**Application API Key 与 Provider Credential 完全分离**。客户端的 Bearer API Key 不得转发给上游。绝不把 Provider Secret、Authorization 或响应中的敏感内容写进日志。
-
-Model 来自 `ModelDeployment.remoteModelName`，不是 Runtime 请求字段。
-
-## 9. HTTP Boundaries
-
-最简单可运行方案：
-
-- Spring MVC + RestClient 同步非流式
-- 配置连接超时与响应读取超时（有界、可解释、可测试）
-- 不自动重试
-- 只支持 `OPENAI_COMPATIBLE`
-- 不实现 SSE / streaming
-- 不重新编写 Adapter 的 JSON mapping
-- 不把数据库 Entity 直接暴露为 Runtime HTTP 响应
-
-**P2-T09 专门处理** Provider 4xx/5xx、429、timeout、响应结构异常到 AIGate 标准 HTTP Error 的映射。P2-T08 应避免泄露上游原始凭证或错误 Body，暂不追求完整错误分类。
-
-## 10. Acceptance Criteria
-
-P2-T08 验收时至少确认：
-
-- 生产 `POST /v1/invoke` Controller 实际存在、可启动
-- 无 API Key → 401，ACTIVE API Key 可访问
-- `@Valid` 对空 messages、空内容、非法 temperature/maxTokens 生效，非法 role 返回 400
-- Application 身份只来自 SecurityContext，Client 不传 applicationId
-- App 默认 Deployment 被正确加载；ModelDeployment 必须 enabled
-- 没绑定或 disabled 时不发送上游 HTTP 请求
-- Provider Type 通过 Registry 选 Adapter；`remoteModelName` 被正确发送
-- OpenAI-Compatible POST 路径、Content-Type、JSON 字段正确
-- Provider Credential 存储密文经现有 CredentialService 解密后，使用独立 Bearer Header 发上游
-- 没有 Credential 的 Deployment 不附加 Provider Authorization
-- 上游真实 HTTP 200 → Adapter.parseResponse → 真实 InvokeResponse JSON
-- 可以用本地 Mock Provider / 测试 HTTP Server 验证 Happy Path，不能返回硬编码假结果
-- timeout 已配置，异常与日志不暴露 secrets
-- 未引入 Retry、Fallback、Circuit Breaker、Routing、Redis、MQ、WebFlux
-
-建议此阶段至少写一条**可复现的真实 HTTP Happy Path 测试**，证明出站 HTTP 真的发生；P2-T10 再做完整 Testcontainers + Mock Provider 的跨模块端到端测试矩阵。
-
-## 11. Scope Boundaries
-
-P2-T08 本阶段不做：
-
-```text
-Provider 4xx/5xx/429/timeout 完整标准化映射（P2-T09）
-完整 E2E failure matrix（P2-T10）
-Route / ModelAlias / Weighted Routing
-Rate Limit / Quota / Usage Ledger
-Retry / Fallback / Circuit Breaker
-SSE / Streaming
-WebFlux / Feign / MQ
-Redis / Distributed Cache
-Observability platform
-```
-
-数据库继续使用 Flyway V1–V6；当前任务预计不需新增 Migration。
-
-## 12. Execution Rule
-
-2026-10-17 用户已确认：**任务验收通过且无阻塞问题，完成收尾文档后自动启动下一任务。** 遇到阻塞问题先修复复验。Phase 级别切换必须先完成完整 Phase Closeout。
-
-当前只执行 **P2-T08**，不提前实现 P2-T09。
+**Current task: P2-T09 ACTIVE. P2-T10 NOT STARTED.**
