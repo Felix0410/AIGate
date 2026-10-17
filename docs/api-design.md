@@ -2,9 +2,9 @@
 
 ## 1. 当前基线
 
-当前内容以 **Phase 2 / P2-T05 完成后的实现** 为准。
+当前内容以 **Phase 2 / P2-T06 完成后的实现** 为准。
 
-当前认证边界：
+认证边界：
 
 ```text
 /api/**
@@ -14,97 +14,184 @@
 → Application API Key
 ```
 
-正式 Runtime 业务端点 `POST /v1/invoke` 尚未实现，但 `/v1/**` Security Chain 已经建立。
+P2-T06 已定义统一 Runtime 模型契约，但生产 `POST /v1/invoke` handler 尚未接通。
 
 ---
 
-## 2. Management API Authentication
-
-管理 API：
-
-```text
-/api/**
-```
-
-继续使用：
-
-```text
-HTTP Basic
-```
-
-Swagger：
-
-```text
-/v3/api-docs/**
-/swagger-ui/**
-/swagger-ui.html
-```
-
-继续公开。
-
-Application API Key 不能替代 HTTP Basic 访问 Management API。
-
----
-
-## 3. Runtime Authentication Contract
-
-Runtime 路径：
-
-```text
-/v1/**
-```
-
-认证 Header：
+## 2. Runtime Authentication
 
 ```http
 Authorization: Bearer <AIGATE_API_KEY>
 ```
 
-Bearer 在这里表示 bearer credential，不是 JWT。
-
-API Key 当前格式：
-
-```text
-aig_live_<keyId>.<secret>
-```
-
-Runtime 不接受 HTTP Basic 作为替代认证。
-
----
-
-## 4. Runtime Authentication Result
-
-认证成功后 Spring Security principal：
+认证成功后：
 
 ```text
 ApplicationIdentity
-
-applicationId
-applicationName
-teamId
+- applicationId
+- applicationName
+- teamId
 ```
 
-不会暴露：
-
-```text
-apiKey
-secret
-keyHash
-keyId
-Authorization header
-```
-
-后续 Runtime API 应从 Authentication / SecurityContext 获取 ApplicationIdentity，而不是让 Client 传 applicationId。
+Client 不需要、也不应声明 applicationId。
 
 ---
 
-## 5. Runtime Authentication Failure
+## 3. Unified Runtime API Contract
 
-以下情况统一：
+统一设计路径：
+
+```text
+POST /v1/invoke
+```
+
+当前状态：
+
+```text
+Request / Response Contract
+→ IMPLEMENTED
+
+Production Controller / execution
+→ NOT WIRED YET
+```
+
+这是有意的阶段边界：P2-T06 不制造 fake model success。
+
+---
+
+## 4. InvokeRequest
+
+```json
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a coding assistant."
+    },
+    {
+      "role": "user",
+      "content": "Explain Java HashMap."
+    }
+  ],
+  "temperature": 0.7,
+  "maxTokens": 500
+}
+```
+
+字段：
+
+```text
+messages      required
+temperature   optional
+maxTokens     optional
+```
+
+Validation：
+
+```text
+messages → non-null / non-empty
+temperature → 0.0..2.0 when present
+maxTokens → > 0 when present
+```
+
+Request 不提供：
+
+```text
+applicationId
+providerId
+modelId
+deploymentId
+```
+
+---
+
+## 5. InvokeMessage
+
+字段：
+
+```text
+role
+content
+```
+
+role 仅支持：
+
+```text
+system
+user
+assistant
+```
+
+content：non-blank。
+
+未知 role 无法被反序列化为 MessageRole。
+
+当前不支持：
+
+```text
+tool
+function
+developer
+multimodal
+image
+audio
+JSON schema
+```
+
+---
+
+## 6. InvokeResponse
+
+```json
+{
+  "content": "HashMap is...",
+  "model": "some-model",
+  "finishReason": "stop"
+}
+```
+
+字段固定为：
+
+```text
+content
+model
+finishReason
+```
+
+当前不包含：
+
+```text
+usage
+cost
+requestId
+providerResponse
+deploymentId
+routingMetadata
+```
+
+---
+
+## 7. Client / Provider Protocol Boundary
+
+```text
+InvokeRequest
+→ ProviderAdapter
+→ Provider protocol
+
+Provider response
+→ ProviderAdapter
+→ InvokeResponse
+```
+
+不把 OpenAI SDK DTO 直接暴露给 Runtime Client。
+
+---
+
+## 8. Authentication Failure
 
 ```text
 missing Authorization
-non-Bearer scheme
+non-Bearer
 malformed API Key
 unknown keyId
 revoked Key
@@ -113,176 +200,72 @@ missing Application
 → 401 UNAUTHORIZED
 ```
 
-统一错误响应继续为：
+---
 
-```json
-{
-  "code": "UNAUTHORIZED",
-  "message": "Authentication required",
-  "timestamp": "...",
-  "errors": null
-}
-```
+## 9. Validation Error Contract
 
-不向未认证调用方返回：
+当未来 `POST /v1/invoke` Controller 接入 `@Valid` 后：
 
 ```text
-API_KEY_NOT_FOUND
-KEY_REVOKED
-WRONG_SECRET
+Bean Validation
+→ 400 VALIDATION_ERROR
+
+非法 enum / JSON
+→ 400 INVALID_REQUEST
 ```
+
+P2-T06 当前通过 Contract Test 验证 DTO 层语义；HTTP handler 尚未落地，因此暂不声称 Invoke 错误路径已经通过 MockMvc 验证。
 
 ---
 
-## 6. Application API Key Management
-
-管理端点继续存在：
+## 10. Existing Management API
 
 ```text
-POST /api/applications/{applicationId}/api-keys
-GET  /api/applications/{applicationId}/api-keys
-POST /api/applications/{applicationId}/api-keys/{id}/revoke
+/api/teams
+/api/employees
+/api/applications
+/api/providers
+/api/models
+/api/model-deployments
+/api/applications/{applicationId}/api-keys
 ```
 
-Create Response 中完整 API Key 只返回一次。
-
-List / Revoke 不返回：
-
-```text
-apiKey
-secret
-keyHash
-```
+均继续使用 HTTP Basic。
 
 ---
 
-## 7. API Key Verification
+## 11. Next API Work
 
-数据库查询：
-
-```text
-SELECT by key_id
-```
-
-验证：
+P2-T07：
 
 ```text
-status == ACTIVE
-↓
-SHA-256(supplied secret)
-↓
-MessageDigest.isEqual(...)
+ProviderAdapter
+OpenAI-Compatible provider protocol conversion
 ```
 
-不会扫描所有 API Key Hash。
-
----
-
-## 8. Existing Application Configuration
-
-Application 当前管理字段：
+P2-T08：
 
 ```text
-name
-teamId
-defaultDeploymentId?
+ApplicationIdentity
+→ Application.defaultDeploymentId
+→ ModelDeployment
+→ CredentialService
+→ ProviderAdapter
+→ RestClient
+→ Provider
+→ InvokeResponse
 ```
 
-Runtime 后续会基于认证出的 Application 读取：
-
-```text
-Application.defaultDeploymentId
-```
-
-Client Runtime Request 不需要提供内部 Deployment ID。
-
----
-
-## 9. ModelDeployment Credential Boundary
-
-Create / Update 可输入：
-
-```text
-credential?
-```
-
-普通 Response 不包含：
-
-```text
-credential
-encryptedCredential
-```
-
-Provider Secret 与 Application API Key 是两种不同凭证体系。
-
----
-
-## 10. Current Error Contract
-
-管理面相关：
-
-```text
-400 VALIDATION_ERROR
-400 INVALID_REQUEST
-401 UNAUTHORIZED
-403 FORBIDDEN
-
-404 TEAM_NOT_FOUND
-404 APPLICATION_NOT_FOUND
-404 PROVIDER_NOT_FOUND
-404 MODEL_NOT_FOUND
-404 MODEL_DEPLOYMENT_NOT_FOUND
-404 API_KEY_NOT_FOUND
-
-409 *_ALREADY_EXISTS
-409 RESOURCE_CONFLICT
-
-500 INTERNAL_SERVER_ERROR
-```
-
-Runtime Authentication：
-
-```text
-所有凭证认证失败
-→ 401 UNAUTHORIZED
-```
-
----
-
-## 11. Planned Runtime Business API
-
-下一任务 P2-T06 才正式实现：
-
-```text
-POST /v1/invoke
-```
-
-计划最小 Request：
-
-```text
-messages
-temperature?
-maxTokens?
-```
-
-计划最小 Response：
-
-```text
-content
-model
-finishReason
-```
-
-P2-T05 没有提前实现模型调用协议。
+届时再真正接通生产 `POST /v1/invoke`。
 
 ---
 
 ## 12. API Design Principles
 
-- Management 与 Runtime 身份机制隔离
-- Runtime 身份来自 API Key，不由 Client 直接声明 applicationId
-- Secret 不进入业务 DTO / principal
-- 认证失败不泄露凭证内部状态
-- Controller 不重新解析 API Key
-- 后续 Runtime 业务只依赖 ApplicationIdentity
-- 当前不使用 JWT / OAuth2
+- Runtime 身份来自 Application API Key
+- Client 不传内部 Application / Deployment selector
+- AIGate Contract 与 Provider Protocol 分离
+- 不暴露 Provider SDK DTO
+- DTO 只包含当前主流程需要字段
+- 不为未实现的 Provider 调用伪造成功响应
+- 后续通过 Provider Adapter 承担协议转换
