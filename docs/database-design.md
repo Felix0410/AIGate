@@ -338,4 +338,8 @@ DELETE FROM invocation_record WHERE created_at < cutoff
 
 Entity/Mapper 和 MySQL Testcontainers 数据库集成测试源码已提交；静态 Code Review 通过。
 
-**历史 P3-T02 测试证据**：用户提供 V7 后本地测试汇总 149/0/0/0、BUILD SUCCESS（非 CI）。后续 P3-T03 SUCCESS 写入与 P3-T04 管理查询均已验收；P3-T05 FAILED 记录与 30 天清理代码已提交、待总控验收。数据库仍为 V1～V7，未增加 V8。
+**历史 P3-T02 测试证据**：用户提供 V7 后本地测试汇总 149/0/0/0、BUILD SUCCESS（非 CI）。后续 P3-T03 SUCCESS 写入与 P3-T04 管理查询均已验收；P3-T05 FAILED 记录与 30 天清理代码已实现并通过总控代码/测试覆盖验收；P3-T06 正处于 Phase Closeout。数据库仍为 V1～V7，未增加 V8。
+
+## Phase 3 当前 Schema 验收口径（2026-10-18）
+
+数据库依然为 Flyway V1～V7；`invocation_record` 已实际用于 SUCCESS/FAILED，管理端按 `application_id, id` 复合索引查询最近记录。定时清理通过 `created_at < cutoff` 删除较旧行；当前索引不支持该条件高效过滤，大表才考虑增加时间索引与分批删除。**本阶段未新增 V8。**
