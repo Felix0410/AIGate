@@ -36,8 +36,6 @@ P3-T02 Invocation Record Schema
 P3-T03 Successful Invocation Recording
 → COMPLETED / ACCEPTED
 P3-T04 Management Invocation History Query
-→ COMPLETED / ACCEPTED
-P3-T05 Invocation Record Completion
 → ACTIVE
 ```
 
@@ -298,6 +296,61 @@ Invoke Contract
 ```
 
 覆盖三种 role、unknown role 拒绝、messages / nested message 校验、temperature/maxTokens 边界、内部 selector 不暴露，以及 Response 最小字段。
+
+---
+
+## 13. Invocation Recording Architecture (Phase 3)
+
+P3-T03/T05 实现调用记录的双路径写入。
+
+```text
+POST /v1/invoke
+↓
+RuntimeInvokeController
+↓
+InvocationTrackingFacade
+  ├── try { modelProxyService.invoke() }
+  │     ├── 正常返回 → saveBestEffort(SUCCESS, null)
+  │     └── 抛出 RuntimeException
+  │           ├── classifyErrorCode(exception)
+  │           ├── saveBestEffort(FAILED, errorCode)
+  │           └── throw original  ← 原异常对象透传
+  ↓
+return InvokeResponse (或 异常继续传播)
+```
+
+成功/失败路径使用相同的 `System.nanoTime()` 计时，saveBestEffort 的整个记录构造和写入过程包含在局部 try-catch(Exception) 内，记录失败只输出固定安全告警 `Invocation record persistence failed`，不影响 Provider 响应或原始异常。
+
+异常分类：
+
+| 异常 | errorCode |
+|---|---|
+| ModelInvocationException | exception.getErrorType().getCode() |
+| InvalidProviderResponseException | PROVIDER_INVALID_RESPONSE |
+| 其他 RuntimeException | INTERNAL_SERVER_ERROR |
+
+**不记录：** exception message、cause、stacktrace、Provider 原始 HTTP 响应、Prompt、API Key、Credential。
+
+---
+
+## 14. 30 天调用历史清理
+
+每天 UTC 03:00，`InvocationRecordRetentionScheduler` 自动执行：
+
+```text
+cutoff = Instant.now() - Duration.ofDays(30)
+DELETE FROM invocation_record WHERE created_at < cutoff
+```
+
+- created_at 早于 cutoff → 删除。
+- created_at 等于/晚于 cutoff → 保留。
+- 清理失败只输出固定安全告警 `Invocation record retention failed`。
+- 不影响 Runtime Controller 或模型代理。
+- 当前采用单实例单条 DELETE 执行；不做分布式锁或分批。
+
+清理只操作 invocation_record，不删除 Application、API Key、Team、Provider 或其他业务数据。
+
+---
 
 GitHub 当前仍无 CI Test Gate。
 
@@ -687,17 +740,3 @@ P3-T03 提交 `ee38c95f20781de6aa219ea80b99ab590e7016bb` 已通过 Code Review�
 P3-T04 规划链路：Management HTTP Basic → InvocationQueryController → InvocationQueryService → ApplicationService.getApplicationById（404）→ InvocationRecordMapper（按 application_id 过滤、id 降序、LIMIT 1..100）→ 不暴露敏感数据的六字段 DTO 数组。
 
 采用已有 V7 复合索引 `(application_id,id)`，不新建表或缓存。HTTP 400 INVALID_REQUEST 包括 limit 数字转换异常与超界；200 [] 表示 Application 存在但记录为空；401 表示管理认证失败。查询保持数据库限量，不全表读取再内存截断。管理查询与 Runtime Bearer Key 认证边界独立。
-
-
----
-
-## 28. P3-T04 Accepted / P3-T05 Combined Work — 2026-10-18
-
-**P3-T04 DONE / ACCEPTED**，实现 `aae1546785e9daf7db3d40f989c2dfbaaede82ec`：`InvocationQueryController` + `InvocationQueryService` + 六字段 Response DTO，管理 HTTP Basic 路径按 Application 精确过滤，SQL 层按 id DESC LIMIT（默认20、最大100）、安全固定 400/404/200 []。测试覆盖跨 App 隔离、返回上限、认证和非法 limit；没有本次的 GitHub CI 运行数据。
-
-**P3-T05 ACTIVE**（原失败记录 + 清理/E2E 合并一个完整业务任务）：
-- 扩展当前 InvocationTrackingFacade 的异常路径，记录安全分类的 FAILED，继续抛原代理异常；成功 SUCCESS 和失败 FAILED 不重复，写记录失败不改变响应/异常；不引入包围上游 HTTP 的大事务。
-- 新增简单 RetentionService + Spring Scheduled 任务，默认保留 UTC 最近30天（`created_at < cutoff` 的记录删除；边界等于 cutoff 的记录保留）。只管理 invocation_record，真实大表/多节点问题以后再演进。
-- 使用现有 Testcontainers/MySQL/MockMvc/Mock Provider 一次验证成功+失败+管理查询+清理和全部 Phase 2 回归。
-
-**项目路线简化：P3-T05 整包开发与验收 → P3-T06 Phase Closeout。** 原 T06 清理/E2E 和 T07 Closeout 是历史任务编号，不再单独执行。这是项目管理粒度调整，技术方案继续沿用 ADR-003，不新建架构 ADR。

@@ -298,6 +298,44 @@ Soft Delete Framework
 
 `V7__create_invocation_record.sql` 已提交代码，定义 invocation_record 与 Application 的 CASCADE 外键、SUCCESS/FAILED 和非负耗时 CHECK、复合索引 (application_id,id)。
 
+## Phase 3 / P3-T05 — 30 天保留规则
+
+### 业务定义
+
+保留最近 30×24 小时的数据，以 UTC Instant 时间语义计算：
+
+```text
+cutoff = Instant.now() - Duration.ofDays(30)
+```
+
+删除条件：
+
+```sql
+DELETE FROM invocation_record WHERE created_at < cutoff
+```
+
+边界：
+
+- created_at 早于 cutoff → 删除。
+- created_at 等于 cutoff → 保留。
+- created_at 晚于 cutoff → 保留。
+
+### 现有索引限制
+
+当前 V7 索引是 `(application_id, id)`，不直接含 `created_at`。本次按 `created_at` 过滤的 DELETE 语句无法被该复合索引高效覆盖。
+
+在数据量较小时单条 DELETE 成本可接受。随着 invocation_record 增长，可能出现全表扫描、大事务、锁持有和大量 Undo/Redo 风险。
+
+### 后续演进方向
+
+如果后续确实遇到大表清理问题，再由总控评估：
+
+- V8 索引：在 `created_at` 上增加索引，或调整为 `(application_id, created_at)` 复合索引。
+- 分批删除：按 `LIMIT` 循环删除降低长事务影响。
+- 独立清理方案：夜间低峰时段执行等。
+
+本任务不引入 V8 迁移，不自行添加索引。
+
 Entity/Mapper 和 MySQL Testcontainers 数据库集成测试源码已提交；静态 Code Review 通过。
 
 **验收已完成**：用户提供 V7 后的本地测试汇总 149/0/0/0、BUILD SUCCESS（非 CI）。P3-T02 DONE / ACCEPTED；P3-T03 ACTIVE，尚未实现真实 SUCCESS 自动写入；P3-T04 查询 API 未开始。

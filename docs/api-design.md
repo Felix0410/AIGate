@@ -234,7 +234,38 @@ P2-T08 已通过 MockMvc 集成测试验证 Invoke 的 Validation 400 及无 API
 
 ---
 
-## 11. Next API Work
+## 11. Phase 3 Invocation History
+
+P3-T03/T04/T05 实现了调用历史记录的写入与查询。
+
+### 记录写入
+
+每次 `POST /v1/invoke` 的同步调用返回或失败后，facade 以 best-effort 方式写入一条 InvocationRecord，包含：
+
+```text
+applicationId  — 请求所属 Application
+status         — SUCCESS | FAILED
+errorCode      — 仅 FAILED 时设置
+durationMs     — 从 Controller 入口到 Provider 响应结束的单次调用耗时
+createdAt      — 记录写入时刻
+```
+
+**记录写入成功或失败不影响 Runtime HTTP 响应的正确性。** API 契约未改变。
+
+### 管理查询
+
+```http
+GET /api/applications/{applicationId}/invocations?limit=20
+Authorization: Basic <management_credentials>
+```
+
+返回按 `id DESC` 排序的最近调用记录，不包含 Prompt、Provider URL、API Key、Credential、上游原始错误内容。
+
+当前 `POST /v1/invoke` 的认证（Bearer Application API Key）和错误契约（401/400/409/500 系列）保持不变。
+
+---
+
+## 12. Next API Work
 
 P2-T07 **已完成并验收**：
 
