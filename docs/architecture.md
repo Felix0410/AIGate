@@ -616,3 +616,42 @@ P2-T11 Phase Closeout **ACTIVE**。需从整个 Phase 2 审视：
 首选需要验证的下一个业务缺口是：现有 Runtime 能调用，但没有可查询的每次调用记录/失败类别/耗时。P3-T01 将评估现有日志是否足够，以及结构化日志或 MySQL 少量元数据的成本；**尚未做存储方案或 ADR 决策**。任何持久化设计都应避免 Prompt、模型响应原文及凭证明文默认落库。
 
 TD-001 管理认证、TD-009 CI Gate、TD-010 Master Key Rotation、TD-011 SSRF 网络目标限制仍需根据实际发布风险处理。Phase 2 测试证据为用户本地 138/0/0/0，不是 CI。
+
+---
+
+## 25. Phase 3 已冻结架构决策（2026-10-18，PLANNED）
+
+**阶段：Phase 3 — Invocation Records & Basic Visibility。P3-T01 DONE；P3-T02 ACTIVE。**
+此节是已经批准但尚未实现的架构；现有生产代码依然是 Phase 2 的单模型同步代理主流程。
+
+### 当前业务问题
+
+Runtime 可以代理模型、返回结果/分类错误，但管理端不能按 Application 稳定查询最近调用历史、失败类别和耗时。
+
+### 目标架构
+
+```text
+/v1/invoke → P2 Runtime Security + @Valid
+          → P3 InvocationTrackingFacade [P3-T03 planned]
+                  ├── P2 ModelProxyService → Adapter/RestClient → Provider
+                  └── P3 InvocationRecordService/Mapper → MySQL V7 [planned]
+
+/api/applications/{id}/invocations [P3-T04 planned]
+          → HTTP Basic → Invocation query service
+          → MySQL WHERE application_id = ? ORDER BY id DESC LIMIT ?
+```
+
+- 记录入口在已有 Runtime Controller/ModelProxyService **边界**，不要侵入 ProviderAdapter、ProviderHttpClient 的协议/网络职责。
+- 只有成功认证、参数校验通过并进入代理业务后才记录。
+- 正常调用返回成功，记录失败仅作无敏感内容的告警；不更改响应。
+- 代理失败按稳定安全 errorCode 记 FAILED，不能吞掉/改变原始异常。
+- 当前不宣称 Exactly-once、严格审计、准确计费或分布式链路追踪。
+- 保存 applicationId/status/errorCode/durationMs/createdAt，禁止保存 Prompt、模型回答、API Key、Provider Secret、原始错误、Provider URL。
+- 查询默认 limit=20，允许 1..100；30 天保留（P3-T06 后落地）。
+- 不新增 Redis/MQ/ES/微服务。按真实写库延迟、吞吐再演进。
+
+### 备选方案与权衡
+
+单纯日志难以提供稳定的管理 API；结构化日志需要新的检索与保留基础设施；MySQL 已存在、开发/测试成本最低；MQ 适合将来吞吐与可靠异步写入问题，但现在增大 Broker、投递、幂等与运维复杂度。
+
+决策文件：`docs/adr/ADR-003-invocation-recording-persistence.md`。
