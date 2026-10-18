@@ -1,126 +1,137 @@
 # AIGate Current Phase
 
-> 总控冻结方案、接口、任务与验收；开发导师只负责讲解、实现、测试和 Code Review。当前任务优先于历史阶段讨论。
+> 本文件为**总控冻结的唯一当前任务执行合同**；开发导师只讲解、编码、测试和 Code Review，不重新选择业务方案。2026-10-18 已调整任务粒度：按完整业务能力交付，相关子功能不再逐个启动、提交验收。
 
 ## 1. Current Status
 
-**Phase 3 — Invocation Records & Basic Visibility（ACTIVE）**
+**Phase 3 — Invocation Records & Basic Visibility：ACTIVE**
 
-- Phase 1 / Phase 2：CLOSED
-- P3-T01：DONE / ACCEPTED（业务目标/ADR-003）
-- P3-T02：DONE / ACCEPTED（Flyway V7/Entity/Mapper）
-- P3-T03：**DONE / ACCEPTED（成功调用记录）**
-- **Current Task：P3-T04 — Management Invocation History Query（ACTIVE）**
-- Next：P3-T05 — Failed Invocation Recording（NOT STARTED）
-- P3-T06、P3-T07：NOT STARTED
+| Task | Scope | Status |
+|---|---|---|
+| P3-T01 | 总控业务需求/方案/ADR-003 | DONE / ACCEPTED |
+| P3-T02 | Flyway V7 调用记录表/Entity/Mapper | DONE / ACCEPTED |
+| P3-T03 | Runtime 成功调用 SUCCESS 记录 | DONE / ACCEPTED |
+| P3-T04 | 管理端调用记录列表查询 | **DONE / ACCEPTED** |
+| P3-T05 | 失败调用记录 + 30 天保留清理 + 全链路 E2E | **ACTIVE** |
+| P3-T06 | Phase 3 Closeout | NOT STARTED |
 
-## 2. P3-T03 Acceptance — 2026-10-18
+**原路线调整：** 原 P3-T05 失败记录与原 P3-T06 数据清理/E2E 合并为新的 P3-T05；原 P3-T07 收尾改为 P3-T06。此后旧编号仅作为历史计划，不应重复执行。
 
-实现提交：`ee38c95f20781de6aa219ea80b99ab590e7016bb`。
+### P3-T04 Acceptance — 2026-10-18
 
-生产代码已审查：
-- 新增 InvocationTrackingFacade，显式包装 ModelProxyService。
-- RuntimeInvokeController 保持原 `POST /v1/invoke`、身份来源 SecurityContext、`@Valid`，仅改为调用 Facade。
-- 成功调用后用 `System.nanoTime()` 计算非负 durationMs，写入 SUCCESS / null errorCode / applicationId / createdAt。
-- Mapper.insert 异常被局部隔离，安全固定 warn，不覆盖原 InvokeResponse，不自动重试。
-- Provider 失败不吞原异常，T03 不写 FAILED；未认证 401、非法请求 400 均不进入 Facade。
-- 无新 schema / MQ / Redis / AOP / 新公开 API。
+实现提交：`aae1546785e9daf7db3d40f989c2dfbaaede82ec`。
 
-测试代码：`InvocationTrackingFacadeTest`（写入失败仍返回同一 InvokeResponse，Provider 异常透传）和 `RuntimeInvokeRecordingIntegrationTest`（真实 MockMvc + Testcontainers MySQL + 本地 HTTP Provider，SUCCESS 写入、两次调用两条记录、401/400 无记录、Provider 500/429 错误原样回归）。
+已实现并审查：`InvocationQueryController`、`InvocationQueryService`、`InvocationRecordResponse`、`InvalidInvocationQueryException` 和独立的 400 Error Handler；管理 API `GET /api/applications/{applicationId}/invocations?limit=20`。
 
-**结论：P3-T03 DONE / ACCEPTED，无阻塞性问题。** 本次提交未返回 CI status/workflow run，未取得该提交的 Maven 汇总；本次依据 GitHub 代码/测试审查与用户既有的提交前测试约定验收，不声称独立执行 149+ 测试。TD-009 继续保留。
+结果：默认 20、允许 1..100、非法 400 INVALID_REQUEST、Application 不存在 404、无历史 200 []、按 `application_id` 隔离并 `id DESC LIMIT` 数据库端查询、仅六字段 DTO、HTTP Basic 管理身份边界。代码及 `InvocationQueryIntegrationTest` 的测试覆盖审查通过，无阻塞性问题。
+
+**P3-T04 DONE / ACCEPTED。** 本次没有关联的 GitHub CI status/workflow 和独立 Maven 测试统计；基于代码审查及项目既定“提交代表本地已通过测试”的工作约定验收，不虚构测试数量。TD-009 仍开放。
 
 ---
 
-## 3. P3-T04 — Business Goal
+## 2. Phase 3 Business Goal
 
-> 管理员能通过现有 HTTP Basic 管理入口，查看**某一个 Application 最近的模型调用记录**，快速知道成功/失败、错误类别和耗时。此任务是 Phase 3 第一个可对管理端使用的调用历史查询 API。
+真实调用成功和基础管理查询已实现。最后补齐的业务缺口是：**模型代理失败的请求现在不会记录 FAILED**；调用记录也缺乏 30 天生命周期管理。完成 P3-T05 后管理员才可以同时查成功和失败历史、区分原因并控制记录增长。
 
-目前 P3-T03 成功记录已落库，但管理员无法通过 HTTP 查询。优先做一个最简单、受限、无敏感信息的列表接口，不做分页平台和统计报表。
+本阶段仍是模块化单体 + MySQL V1–V7 + Spring MVC/RestClient，不是计费账本、准确审计系统或分布式追踪平台。
 
-## 4. Frozen API Contract
+## 3. P3-T05 — Business Goal
 
-```http
-GET /api/applications/{applicationId}/invocations?limit=20
-Authorization: Basic <management-credentials>
-```
+一次完成调用历史的**失败路径与生命周期闭环**，并真实验证：
 
-成功：**HTTP 200，JSON 数组**（无分页包装对象）；按 `id DESC` 最新在前。
+- 有效 Runtime 调用失败也产生 FAILED + 稳定安全错误码；
+- 记录保存失败不能覆盖原有错误或成功结果；
+- 保留最近 30 天，定期清理到期记录；
+- 现有管理查询可同时返回 SUCCESS/FAILED；
+- 全链路回归、隐私和资源检查均通过。
 
-响应示例：
+**开发方式：同一任务内按 失败记录 → 清理 → E2E 的顺序实现并自测，中途无需返回总控单独验收。** 完成整包后一次提交/验收，允许开发导师视实际需要在同一任务内提交多个 Git commit。
 
-```json
-[
-  {
-    "id": 12,
-    "applicationId": 3,
-    "status": "SUCCESS",
-    "errorCode": null,
-    "durationMs": 157,
-    "createdAt": "2026-10-18T09:00:00Z"
-  }
-]
-```
+## 4. Scope A — FAILED Invocation Recording
 
-请求约束：
-- `applicationId` 仅来自 URL path，必须确认 Application 存在，调用 `ApplicationService.getApplicationById(id)` 复用现有 404 `APPLICATION_NOT_FOUND`。
-- `limit` 默认 **20**；必须在 **1～100**，包括两端。0、负数、101、非数字均返回 400 `INVALID_REQUEST`，安全固定消息，不返回 500。
-- 无记录返回 `[]`，不是 404；Application 本身不存在才 404。
-- 此端点只在现有 `/api/**` HTTP Basic 管理链，未认证 401。Runtime Application Bearer Key 不可代替管理认证。
-- 不暴露客户端 Invoke Request/Response、Provider URL/Secret、Application API Key、Prompt、原始上游错误 Body。
-- 字段只允许：`id, applicationId, status, errorCode, durationMs, createdAt`。不要直接返回数据库 Entity 或任意其他内部字段。
-- P3-T05 之前只会查到 P3-T03 保存的 SUCCESS，FAILED 数据如果被测试预置可正常显示，但**本任务不实施 FAILED 自动写入**。
+当前代码：`RuntimeInvokeController → InvocationTrackingFacade → ModelProxyService → ProviderAdapter/RestClient`；T03 的正常调用只记 SUCCESS。
 
-## 5. Frozen Minimal Architecture
+在**现有 InvocationTrackingFacade** 扩展失败路径，不再新增一层 Facade：
 
-建议新增：
-- `invocation.controller.InvocationQueryController`：只接参数/返回 DTO，映射上述固定管理 API；不要修改原有 /v1/invoke。
-- `invocation.service.InvocationQueryService`：先调用已有 `ApplicationService.getApplicationById` 验证存在，再查询 InvocationRecordMapper。
-- `invocation.dto.InvocationRecordResponse`：只暴露合同中的六个字段（可用 record）。
-- 最小参数错误类型/Handler（若原项目尚无可复用的 400 路径）：类型转换错误如 `limit=abc` 和范围错误如 `limit=101` 都必须返回安全 400，不让 GlobalExceptionHandler 的异常兜底变为 500。
+1. 只对已经通过 Runtime API Key 身份认证和 `@Valid`、进入 `ModelProxyService.invoke` 的请求记录；无效 API Key 401、DTO 校验 400 不计入记录。
+2. 正常 Provider Invoke → 保持 SUCCESS/null errorCode，写入**恰好一条**。
+3. `ModelProxyService.invoke` 抛 `ModelInvocationException` 时，记录 FAILED + `exception.getErrorType().getCode()`（固定安全代码），然后重新抛出**同一个原异常**，让已有 GlobalExceptionHandler 保持原来的 HTTP/status/code。
+4. `InvalidProviderResponseException` → FAILED / `PROVIDER_INVALID_RESPONSE`，原异常继续抛出；不泄漏其原始 message。
+5. 对业务执行中的其他 `RuntimeException` → FAILED / `INTERNAL_SERVER_ERROR`，并原样抛出；只保存固定安全码，不保存异常 message/stacktrace。不要捕获 JVM `Error` 或试图保证进程崩溃时必然记录。
+6. 与 T03 一致，`System.nanoTime()` 量取代理执行耗时（成功或失败路径都使用同一计时定义，**不包括记录写入**），`createdAt` 使用 Instant；durationMs 不得为负。
+7. 在 Facade 中明确区分“模型代理异常”和“记录写入异常”，避免一条 SUCCESS insert 失败被误记为 FAILED；**同一次调用最多一次正常结果记录尝试**。
+8. 记录入库 SQLException / RuntimeException 被局部 best-effort 隔离，日志只能输出固定安全告警，不得输出 Prompt、Credential、Bearer、模型正文、上游 error body、异常 cause/message。失败记录入库失败仍须把**原始代理异常对象**继续上抛；成功记录入库失败仍须返回原 InvokeResponse。
+9. **不要**在整个 HTTP 调用 + DB 写入外层添加 `@Transactional`，不写 Retry/Fallback/MQ。
 
-查询语义：`WHERE application_id = ? ORDER BY id DESC LIMIT ?`，按已实现 V7 复合索引 `(application_id,id)`。可使用 MyBatis-Plus `LambdaQueryWrapper`；limit 必须先转换为 int 并验证 1..100 后才拼入固定 SQL 尾部。**不接受用户提供的 SQL 片段**。不需要额外分页依赖、动态 SQL XML、缓存或复杂 Repository 框架。
-
-依赖方向：
+### Frozen Failure Flow
 
 ```text
-Management HTTP Basic
-→ InvocationQueryController
-→ InvocationQueryService
-  ├── ApplicationService.getApplicationById（复用存在性检查）
-  └── InvocationRecordMapper → MySQL V7
-→ List<InvocationRecordResponse>
+valid POST /v1/invoke
+→ TrackingFacade
+→ ModelProxyService
+  ├── succeeds → best-effort SUCCESS → original InvokeResponse
+  └── throws original exception
+         → classify safe FAILED errorCode
+         → best-effort FAILED
+         → rethrow original exception
+         → existing GlobalExceptionHandler → original ApiErrorResponse
 ```
 
-现有 InvocationTrackingFacade/ModelProxyService/ProviderHttpClient 完全不改职责。
+只做“已分类错误码”，不保存原始 HTTP 状态、内部 URL 或请求内容。Application 默认部署缺失等运行时配置错误进入 Facade 后也属于业务失败，使用原 ProxyErrorType 记录；未认证与请求校验失败不记录。
 
-## 6. Tasks
+## 5. Scope B — 30-Day Retention
 
-1. 新增 Query Controller / Service / Response DTO，实施合同和合法 limit。
-2. 处理非数字、超界参数、Application 不存在与无历史的具体 HTTP 行为。
-3. 确保按 Application 过滤、id 降序、限制数据库层最多加载 limit 条（**不能先全表加载到 Java 再截取**）。
-4. 使用现有管理 HTTP Basic；不增加新的 SecurityFilterChain、RBAC 或 Runtime 查询端点。
-5. 补充 MockMvc + Testcontainers MySQL 集成测试，复用之前数据库和 MockProvider 测试支持；记录可直接通过 Mapper 预置，避免每个查询测试都发真实 LLM 请求。
-6. 更新 API 设计文档（实现前仍为 PLANNED；代码完成时记录实际接口与响应）。
-7. 完整回归已有测试；报告本地 Maven 的 Tests run / Failures / Errors / Skipped / BUILD 结果。
+对 `invocation_record.created_at` 建立最简单、可验证的保留策略：
 
-## 7. Acceptance Criteria
+- 默认保留 **30×24 小时**，使用 UTC Instant 语义；`created_at < now - 30 days` 删除，**边界等于 cutoff 的记录暂不删**。
+- 新增独立轻量 `InvocationRecordRetentionService`（可用 MyBatis Mapper/JdbcTemplate 完成按 cutoff 删除），以及一个 Spring `@Scheduled` 每日 UTC 定时触发器。调度配置若项目尚未启用，只添加必要的 `@EnableScheduling`，不能重复启动任务。
+- 为确定性测试，把“基准时间”和删除逻辑分离：公开/包级方法接受 `Instant cutoff` 或可注入 `Clock`。测试不依赖真的等待一天。
+- 只清理 invocation_record，不删除 Application、API Key、其他表；删除失败应以安全告警隔离，不影响模型运行/应用启动。
+- 目前是单进程、小数据量项目，不提前引入 Quartz、分布式锁、MQ。当前默认可使用一次定时 `DELETE WHERE created_at < ?` 的最简方案；但在文档明确大表全表扫描/大事务风险，真实数据量增长后再引入索引和分批删除。**禁止修改 V7**，如有真实数据库索引缺口需要新的 V8，则先由总控评估；本阶段不要为假想高并发强行加库表。
+- 清理属于“尽力保留”策略，不能宣称严格到秒删除或多节点恰好一次。
 
-- 管理 Basic 请求成功返回合法 JSON 数组，只含六个约定字段。
-- 默认 20，显式 1 / 100 合法；0、负数、101、非数字为 400 INVALID_REQUEST。
-- 预置两个 App 的交错数据，A 只能看到 A；结果按 id DESC，真实 SQL 查询限定条数。
-- 20+ 数据能验证默认截断；limit 参数控制返回上限；不允许不限量读取。
-- Application 不存在 404 APPLICATION_NOT_FOUND；存在但无记录 HTTP 200 []。
-- 未认证管理请求 401；仅持有 Runtime Application API Key 不得访问管理 API。
-- 预置 SUCCESS/FAILED 均能映射 DTO（P3-T05 才让真实失败自动生成记录）。
-- 返回 JSON 及错误消息不泄露数据库内部对象、凭证、Prompt、模型文本、内部 Provider URL。
-- Runtime POST /v1/invoke 及 P3-T03 SUCCESS 持久化的测试继续通过；不新增 Flyway 迁移。
-- 可实际执行完整 Maven 测试并提供结果；不强制增加新框架。
+## 6. Scope C — Full E2E & Regression
 
-## 8. Knowledge / Boundaries
+复用现有 MySQL Testcontainers、MockMvc、JDK HttpServer 和 T03/T04 测试；优先补增量场景，不复制整个测试夹具。
 
-导师本任务只需重点解释：**为什么管理端要有查询 API、业务记录和 Entity 的边界、MySQL 复合索引与 ORDER BY/LIMIT、参数校验为什么影响安全及性能、404（资源不存在）与 []（无数据）的业务区别**。先业务、执行流程、技术原理，再实现代码。避免重讲 P1/P2 基础。
+验收要求：
 
-**明确不做：** FAILED 自动写入（P3-T05）、30 天定时清理（P3-T06）、分页/统计/费用/Quota、Redis/MQ/ES、微服务、SSE、路由、生产 RBAC。
+1. 真实 HTTP 200 → 单条 SUCCESS，状态/耗时/时间正确。
+2. Provider 400、401/403、429、5xx、timeout、invalid response → 对应 FAILED + ProxyErrorType 安全 errorCode，原有对客户端 HTTP/status/code 不变。
+3. 默认 Deployment 未配置/disabled 等运行时业务前置错误也按原错误码记 FAILED；无外部 Provider 出站。
+4. 成功记录插入失败仍返回 200 和原 Provider InvokeResponse；失败记录插入失败仍返回原 Provider 错误响应且错误码不变。单位测试核对**同一个异常对象**向上传播。
+5. 未授权 401、Bean Validation 400 不记录；API Key 不泄漏；一条请求不会记入两条结果。
+6. 管理端 GET 查询正确展示混合 SUCCESS/FAILED，按 App 隔离、数据库 limit 1..100、排序与安全 DTO 不变。
+7. 预置 30 天以前、刚好 cutoff、cutoff 之后记录；手动触发清理后仅旧记录删除，其他记录和 Application 保留。测试调度配置及异常隔离，避免线程/测试上下文泄漏。
+8. 不保存 Prompt、回复正文、密钥、内部 URL 或原始错误；日志不打印原始异常/敏感上下文。
+9. 实际运行 Maven 全量测试，提交明确 `Tests run / Failures / Errors / Skipped / BUILD SUCCESS`，并关注测试资源可重复清理。
+10. 核对 P2 全量安全与模型代理回归：既有 `POST /v1/invoke` 请求响应契约不变、provider HTTP 不重试。
 
-**Execution Gate：P3-T04 ACTIVE；P3-T05 NOT STARTED。** 开发导师按本文件执行，完成代码/测试后回总控验收；通过且无阻塞时总控自动启动 P3-T05。
+## 7. Tasks / Architecture / Learning
+
+同一任务内三段实施（不再逐个验收）：
+- Step 1：Facade 失败记录 / 异常透传 / 最小单元与 MockMvc 测试。
+- Step 2：RetentionService + UTC scheduler / 确定性数据库测试。
+- Step 3：完整 E2E 回归、数据库增长成本检查、文档更新、Maven 运行结果。
+
+架构保持：
+
+```text
+Runtime Controller → InvocationTrackingFacade
+                  → ModelProxyService (existing)
+                  → InvocationRecordMapper (best effort)
+
+Management QueryController → QueryService → Mapper (existing)
+
+Scheduled RetentionService → MySQL invocation_record
+```
+
+导师只重点讲本任务新增的 **异常路径记账与原异常保留、为什么记录系统是 best-effort、Spring Scheduling 的最小用法、UTC 时间边界与 SQL 删除代价**；沿既有业务→原理→执行流程→代码，避免反复重讲 CRUD/MyBatis 初级知识。
+
+## 8. Out of Scope / Phase Gate
+
+不做 Token Usage、费用、计费账本、统计图表、路由、Redis/MQ/ES、微服务、复杂幂等、请求级精确审计或基础设施堆叠；不提前优化为复杂事件驱动。
+
+沿用 ADR-003；此次只合并执行任务，没有新的重大架构决策，不新增 ADR。保留 TD-001 管理 Basic、TD-009 CI、TD-010 Master Key Rotation、TD-011 Provider Endpoint SSRF 等生产前风险。
+
+**Current: P3-T05 ACTIVE。完成失败记录 + 清理 + E2E 后统一验收；通过且无阻塞时自动启动 P3-T06 Phase Closeout。** Phase 3 尚未 CLOSED。
