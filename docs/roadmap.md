@@ -35,7 +35,7 @@ Phase 2 不包含 Redis、MQ、微服务、SSE、自动重试、多模型路由�
 
 ## Phase 3 — Invocation Records & Basic Visibility
 
-**Status: ACTIVE（P3-T01~T03 DONE；P3-T04 ACTIVE）**
+**Status: ACTIVE（P3-T01~T04 DONE；P3-T05 ACTIVE，任务粒度已合并）**
 
 **总控已于 2026-10-18 冻结业务目标**：允许管理员按 Application 查询最近模型调用的 SUCCESS/FAILED、固定错误分类、耗时及时间，解决 Phase 2 已能代理模型但缺少业务调用历史的问题。
 
@@ -46,12 +46,11 @@ Phase 2 不包含 Redis、MQ、微服务、SSE、自动重试、多模型路由�
 | P3-T01 | 总控冻结业务目标、范围、数据/API 契约、架构与 ADR | **DONE / ACCEPTED** |
 | P3-T02 | V7 invocation_record + Entity/Mapper + DB Tests | **DONE / ACCEPTED** |
 | P3-T03 | 成功 Invoke 记录与写入失败隔离 | **DONE / ACCEPTED** |
-| P3-T04 | GET /api/applications/{id}/invocations?limit=20 | **ACTIVE** |
-| P3-T05 | 失败 Invoke 的安全分类记录 | NOT STARTED |
-| P3-T06 | 30 天清理 + 完整 E2E / Maven 回归 | NOT STARTED |
-| P3-T07 | Phase 3 Closeout、文档、技术债、知识与面试表达 | NOT STARTED |
+| P3-T04 | GET /api/applications/{id}/invocations?limit=20 | **DONE / ACCEPTED** |
+| P3-T05 | 失败 Invoke 记录 + 30 天清理 + 全链路 E2E（合并原 T05/T06） | **ACTIVE** |
+| P3-T06 | Phase 3 Closeout（原 T07，编号调整） | NOT STARTED |
 
-**P3-T02 已验收：本地 Maven 测试 149/0/0/0 且 BUILD SUCCESS（非 CI）。P3-T03 成功 Invoke 自动写入已完成并验收，P3-T04 正在开发受限的管理查询接口；失败调用记录仍留 P3-T05。**
+**P3-T02 已验收：本地 Maven 测试 149/0/0/0 且 BUILD SUCCESS（非 CI）。P3-T03 成功自动记录与 P3-T04 管理端调用历史查询均已验收。下一步 P3-T05 一次完成失败调用记录、30 天清理和完整 E2E；P3-T06 统一收尾。**
 
 **明确不做：** 计费/用量账本、聚合仪表盘、Retry、SSE、多模型路由、Redis、MQ、ES、微服务、全量 Prompt/Response 存储。
 
@@ -64,3 +63,8 @@ Phase 2 不包含 Redis、MQ、微服务、SSE、自动重试、多模型路由�
 - 其余技术债详见 progress / Phase 2 closeout。
 
 这些风险不随 Phase 2 CLOSED 自动消失；是否属于 P3 当前核心功能应由业务目标及安全部署约束决定。
+
+
+### 2026-10-18 Task Granularity Adjustment
+
+用户明确反馈此前拆分过细、单任务复杂度过低。总控已将相邻业务功能合并：原 P3-T05（FAILED）与 P3-T06（30 天清理/E2E）合并为 **P3-T05 Invocation Record Completion（ACTIVE）**；原 P3-T07 Phase Closeout 调整为 **P3-T06**。这样减少中间提交/验收/文档切换，同时保留失败记录、生命周期及 E2E 的独立验收条件。开发导师在 P3-T05 内按顺序完成所有子项，无需中途回总控验收。具体任务边界以最新 `docs/current-phase.md` 为准。
