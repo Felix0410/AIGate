@@ -7,8 +7,8 @@
 - **Phase 1 — CLOSED**
 - **Phase 2 — CLOSED / ACCEPTED（2026-10-18）**
 - **Phase 3 — ACTIVE**
-- **Current Task：P3-T03 — Successful Invocation Recording（ACTIVE）**
-- **Next Task：P3-T04 — Management Invocation Query（NOT STARTED）**
+- **Current Task：P3-T04 — Management Invocation History Query（ACTIVE）**
+- **Next Task：P3-T05 — Failed Invocation Recording（NOT STARTED）**
 
 Phase 2 的关闭已通过完整十项检查：功能、Code Review、测试、架构、技术债、progress、architecture、必要 ADR、知识点和面试表达。
 
@@ -66,8 +66,8 @@ Flyway V1–V6，MySQL 8.4；无新增 Usage/Quota/InvocationRecord 表。Key �
 |---|---|---|
 | P3-T01 | 目标/范围/架构与 ADR 冻结 | **DONE / ACCEPTED** |
 | P3-T02 | Flyway V7 + InvocationRecord Entity/Mapper/DB Test | **DONE / ACCEPTED** |
-| P3-T03 | 成功调用记录、写入失败隔离 | **ACTIVE** |
-| P3-T04 | HTTP Basic 管理查询最近历史、limit 1..100 | NOT STARTED |
+| P3-T03 | 成功调用记录、写入失败隔离 | **DONE / ACCEPTED** |
+| P3-T04 | HTTP Basic 管理查询最近历史、limit 1..100 | **ACTIVE** |
 | P3-T05 | 失败调用记录、安全错误分类 | NOT STARTED |
 | P3-T06 | 30 天保留/清理、完整 E2E 回归 | NOT STARTED |
 | P3-T07 | Phase 3 关闭评审和文档/面试整理 | NOT STARTED |
@@ -116,3 +116,18 @@ Phase 3 规划需考虑技术债，但不能为丰富技术栈而在一个任务
 ## P3-T03 冻结执行范围
 
 让正常完成 POST /v1/invoke 的 Application 记录一条 SUCCESS、空 errorCode、durationMs 和 createdAt。通过轻量 TrackingFacade 包装现有 ModelProxyService；记录插入失败不能把 Provider 的正常响应变成错误。T03 不记录 FAILED、不加查询 API、不做 30 天清理。详细验收标准以 docs/current-phase.md 为准。
+
+
+## P3-T03 Acceptance — 2026-10-18
+
+实现 `ee38c95f20781de6aa219ea80b99ab590e7016bb`：`InvocationTrackingFacade` 显式包装 `ModelProxyService`，成功调用后以 `System.nanoTime()` 测耗时，保存一条 `SUCCESS` / null errorCode 记录，写入异常被安全固定 warn 隔离，不改变原 Provider `InvokeResponse`；Provider 失败继续透传，不写 FAILED。
+
+单元测试覆盖 Mapper 写入失败隔离和 Provider 异常透传；`RuntimeInvokeRecordingIntegrationTest` 通过 MockMvc + MySQL Testcontainers + local HttpServer 验证真实 HTTP 成功入库、重复请求两条记录、401/400 不记录、Provider 500/429 回归。
+
+**P3-T03 DONE / ACCEPTED（静态代码与测试覆盖验收，无阻塞）。** GitHub 无该提交的 CI status/workflow；本次未收到独立 Maven 汇总，不宣称新测试总数。沿用用户的提交前测试工作约定，TD-009 仍开放。
+
+## P3-T04 ACTIVE — Management Invocation History Query
+
+冻结新管理面 API：`GET /api/applications/{applicationId}/invocations?limit=20`。复用 HTTP Basic，按 Application 存在性检查（404 APPLICATION_NOT_FOUND）、限量参数（1..100，默认20，非法为400 INVALID_REQUEST）执行 SQL `WHERE application_id=? ORDER BY id DESC LIMIT ?`，返回仅有六字段的 DTO 数组，无记录则 `[]`。必须测试跨 Application 隔离、排序和上限、401/404/400、安全响应与 P3-T03 回归。不做 FAILED 自动写入/保留清理。详细需求见 `docs/current-phase.md`。
+
+**Current: P3-T04 ACTIVE；P3-T05 NOT STARTED。**
