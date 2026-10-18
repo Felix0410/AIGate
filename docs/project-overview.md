@@ -4,7 +4,7 @@
 AIGate 是用于学习与验证现代 Java 后端设计的 AI 模型网关项目。目标不是只调用一个模型 API，而是形成可运行、可验证、可解释并能逐步演进的业务系统。
 
 ## 当前实现边界（2026-10-18）
-**Phase 1 CLOSED；Phase 2 P2-T01～T10 DONE/ACCEPTED，P2-T11 Closeout ACTIVE；Phase 3 NOT STARTED。**
+**Phase 1 CLOSED；Phase 2 CLOSED / ACCEPTED（2026-10-18）；Phase 3 ACTIVE / P3-T01 Business Goal & Scope Baseline。**
 
 技术基线：Java 21、Spring Boot、Spring MVC、Spring Security、MyBatis-Plus、MySQL 8.4、Flyway、Jackson 3；模块化单体 + 单 MySQL，非微服务。
 
@@ -19,3 +19,7 @@ MockMvc + MySQL Testcontainers + 本地 JDK HttpServer 验证应用级 E2E。用
 
 ## 工作规则
 业务问题 → 最简可运行方案 → 主流程 → 验证 → 真实问题 → 架构演进。以 GitHub 代码和验收记录为事实来源，聊天与历史草稿不替代项目文档。
+
+
+## Phase 3 当前执行任务（2026-10-18）
+Phase 2 的收尾已通过，见 `docs/phase-2-closeout.md`。Phase 3 **ACTIVE / P3-T01**，首先明确下一真实业务问题与最小范围。候选方向为调用可追踪性，但未冻结新增业务表、接口或技术栈。**不要把 Phase 3 规划误写为已实现能力。**
