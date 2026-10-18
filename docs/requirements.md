@@ -64,6 +64,11 @@ P3-T01 需回答：
 
 **R3-07：** 基于现有模块化单体 + MySQL + MyBatis-Plus + Flyway + Testcontainers；不得为了记录业务增加 Redis/MQ/ES、微服务、计费系统或新 Provider SDK。
 
-**当前仅 P3-T02 可编码**：Flyway V7 + Entity/Mapper + 数据库测试；P3-T03～T07 必须按路线依次验收。
+**历史原计划备注（已由新总控任务表取代）**：当时仅 P3-T02 可编码。当前 P3-T01～T04 已完成，P3-T05 正在执行合并后的失败记录、30 天保留和完整 E2E；P3-T06 为 Phase Closeout。开发以最新 docs/current-phase.md 为准。
 
 正式架构取舍记录：`docs/adr/ADR-003-invocation-recording-persistence.md`；实际代码状态以 `docs/current-phase.md` 为准。
+
+
+## Phase 3 Current Execution Update — 2026-10-18
+
+**P3-T04 管理历史查询已实现并验收**：Basic 管理 GET /api/applications/{applicationId}/invocations，默认20/最大100，按 App 过滤排序，严格只返回六字段，错误/空记录合同明确。**P3-T05 ACTIVE**：一次开发失败调用记录、30 天自动清理和全链路 E2E。原 T06 清理任务并入 T05，原 T07 阶段收尾调整为 T06。此次变更只调整工作包和验收频率，R3-01～R3-07 业务要求、ADR-003 MySQL best-effort 方案不变。
