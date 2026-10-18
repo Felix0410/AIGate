@@ -7,7 +7,7 @@
 - **Phase 1 — CLOSED**
 - **Phase 2 — CLOSED / ACCEPTED（2026-10-18）**
 - **Phase 3 — ACTIVE**
-- **Current Task：P3-T02 — Invocation Record Schema（ACTIVE）**
+- **Current Task：P3-T02 — Invocation Record Schema（ACTIVE / 等待 Maven 结果）**
 - **Next Task：P3-T03 — Successful Invocation Recording（NOT STARTED）**
 
 Phase 2 的关闭已通过完整十项检查：功能、Code Review、测试、架构、技术债、progress、architecture、必要 ADR、知识点和面试表达。
@@ -93,3 +93,16 @@ Phase 3 规划需考虑技术债，但不能为丰富技术栈而在一个任务
 用户已授权：单任务验收通过、无阻塞时完成收尾文档后自动启动下一任务；未通过则修复复验。跨 Phase 先完成 Phase Closeout。
 
 **当前：Phase 3 ACTIVE / P3-T01 ACTIVE；P3-T02 NOT STARTED。**
+
+
+---
+
+## P3-T02 验收记录（2026-10-18，PENDING）
+
+实现提交：`b790b2a780d333226ff0d6afff91d2c69aaa930f`。
+
+**代码审查通过**：V7 `invocation_record` + CHECK/FK CASCADE/复合索引、InvocationRecord/InvocationStatus/Mapper 与 10 个数据库测试方法；没有改动 P2 Runtime，也没有提前增加调用记录 API。当前测试源码覆盖 CRUD、非法状态、负 duration、无效 Application FK、CASCADE、按 App 最新 ID 限量查询。数据库文档时间线已修正：Phase 2 实际 V1–V6，V7 属于 Phase 3。
+
+**待完成条件：** 提供在本次 V7 代码上实际运行的 Maven 全量测试结果。GitHub 未提供 CI workflow/status，Phase 2 的 138 测试不能证明新增测试通过。
+
+**P3-T02 = ACTIVE / PENDING TEST EVIDENCE；P3-T03 NOT STARTED。** 只有本任务实测通过后才可由总控自动推进。
