@@ -27,3 +27,20 @@ Application 与认证 Key 分离，使撤销一个 Key 不需要删除 Applicati
 
 ## 数据与安全约束
 详见 `database-design.md` 中 V1–V6、唯一约束及 FK；入站 Key hash 和出站 Credential AES-GCM 作用不同，Provider Credential 不属于 Application API Key。
+
+---
+
+## Phase 3 Planned Domain — InvocationRecord（未实现）
+
+```text
+Application
+  └── 1:N InvocationRecord (planned; ON DELETE CASCADE)
+         ├── SUCCESS / FAILED
+         ├── safe errorCode (nullable)
+         ├── durationMs
+         └── createdAt
+```
+
+InvocationRecord 是**管理排障历史元数据**，不是 Prompt Conversation、计费 Ledger 或 Provider HTTP 原文。一个 Application 的多次有效 Invoke 可以形成多条记录；失败也要记录，但如果持久化本身失败，可以丢失本条，不覆盖真实业务结果。P3-T02 建表，P3-T03/05 写入，P3-T04 查询，P3-T06 清理。
+
+当前实际生产代码尚无该实体/表；状态 **PLANNED**。
