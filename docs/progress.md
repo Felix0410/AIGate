@@ -7,8 +7,8 @@
 - **Phase 1 — CLOSED**
 - **Phase 2 — CLOSED / ACCEPTED（2026-10-18）**
 - **Phase 3 — ACTIVE**
-- **Current Task：P3-T05 — Invocation Record Completion（ACTIVE）**
-- **Next Task：P3-T06 — Phase 3 Closeout（NOT STARTED）**
+- **Current Task：P3-T06 — Phase 3 Closeout（ACTIVE）**
+- **Next: Phase 4 — 未冻结业务范围；Phase 3 Closeout 完成后再决定**
 
 Phase 2 的关闭已通过完整十项检查：功能、Code Review、测试、架构、技术债、progress、architecture、必要 ADR、知识点和面试表达。
 
@@ -68,8 +68,8 @@ Flyway V1–V6，MySQL 8.4；无新增 Usage/Quota/InvocationRecord 表。Key �
 | P3-T02 | Flyway V7 + InvocationRecord Entity/Mapper/DB Test | **DONE / ACCEPTED** |
 | P3-T03 | 成功调用记录、写入失败隔离 | **DONE / ACCEPTED** |
 | P3-T04 | HTTP Basic 管理查询最近历史、limit 1..100 | **DONE / ACCEPTED** |
-| P3-T05 | FAILED 记录 + 30 天保留清理 + 完整 E2E（合并） | **ACTIVE** |
-| P3-T06 | Phase 3 Closeout（原 T07） | NOT STARTED |
+| P3-T05 | FAILED 记录 + 30 天保留清理 + 完整 E2E（合并） | **DONE / ACCEPTED** |
+| P3-T06 | Phase 3 Closeout（原 T07） | **ACTIVE** |
 
 计划数据：`invocation_record(id,application_id,status,error_code,duration_ms,created_at)`，index(application_id,id)，FK application_id CASCADE。**P3-T02 已实现并验收 V7，当前数据库代码 schema 为 V1–V7。**
 
@@ -149,3 +149,14 @@ Phase 3 规划需考虑技术债，但不能为丰富技术栈而在一个任务
 P3-T05 一次完成：Facade 保留原异常并记录安全 FAILED 码；写入异常不覆盖模型成功或失败；按 UTC 30 天边界做简单 Spring Scheduled 清理；Testcontainers/Mock Provider E2E 验证成功、失败、脱敏、管理查询、清理；Maven 全量回归提供结果。内部子任务无需逐个回总控验收。全部完成后统一 Code Review 并自动进入 P3-T06 Closeout。
 
 **当前 Phase 3 ACTIVE / P3-T05 ACTIVE；P3-T06 NOT STARTED。**
+
+
+## P3-T05 正式验收 — 2026-10-18
+
+实现 `8262303df74598f6e76e68ad1f10ce40b096e2c6`，测试修复 `dfcc70afb3228c817c9b42693257474b75895384`。已审查：Facade 对 ModelInvocationException/InvalidProviderResponseException/其它 RuntimeException 记录安全 FAILED 码后原样抛异常；SUCCESS/FAILED 记录 best-effort 隔离；UTC 03:00 定时清理 30 天前记录；按 SQL cutoff 严格小于删除。MySQL Testcontainers/Mock Provider 测试覆盖错误分类、认证/校验零记录、混合管理查询、时间边界及 Scheduler 异常隔离。
+
+**P3-T05 DONE / ACCEPTED（代码和测试覆盖验收）**。GitHub 没有 CI status/workflow，本次尚无独立提供的 Maven 全量统计；遵循提交前本地测试工作约定，不虚构 CI 结论。阶段收尾 P3-T06 需要记录最终可复现的 Maven 结果并处理测试稳定性问题。
+
+**非阻塞测试债与 P3-T06 集中处理**：60 秒 Mock HTTP 延迟恰等于读取超时可能发生时序竞态；RetentionIntegrationTest 需加强清理后状态断言及测试 Team 清理；onlyOneEnableScheduling 单测并未证明整个项目注解唯一。数据库 created_at 暂无高效清理索引/批次，仅作为日后真实规模增长时的性能风险记录。
+
+**当前 P3-T06 Phase Closeout ACTIVE；Phase 3 未关闭；Phase 4 未启动。** 核心执行清单见 docs/current-phase.md。
