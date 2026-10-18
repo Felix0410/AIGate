@@ -35,7 +35,7 @@ Phase 2 不包含 Redis、MQ、微服务、SSE、自动重试、多模型路由�
 
 ## Phase 3 — Invocation Records & Basic Visibility
 
-**Status: ACTIVE（P3-T01 DONE / P3-T02 ACTIVE）**
+**Status: ACTIVE（P3-T01/P3-T02 DONE；P3-T03 ACTIVE）**
 
 **总控已于 2026-10-18 冻结业务目标**：允许管理员按 Application 查询最近模型调用的 SUCCESS/FAILED、固定错误分类、耗时及时间，解决 Phase 2 已能代理模型但缺少业务调用历史的问题。
 
@@ -44,14 +44,14 @@ Phase 2 不包含 Redis、MQ、微服务、SSE、自动重试、多模型路由�
 | Task | Deliverable | Status |
 |---|---|---|
 | P3-T01 | 总控冻结业务目标、范围、数据/API 契约、架构与 ADR | **DONE / ACCEPTED** |
-| P3-T02 | V7 invocation_record + Entity/Mapper + DB Tests | **ACTIVE** |
-| P3-T03 | 成功 Invoke 记录与写入失败隔离 | NOT STARTED |
+| P3-T02 | V7 invocation_record + Entity/Mapper + DB Tests | **DONE / ACCEPTED** |
+| P3-T03 | 成功 Invoke 记录与写入失败隔离 | **ACTIVE** |
 | P3-T04 | GET /api/applications/{id}/invocations?limit=20 | NOT STARTED |
 | P3-T05 | 失败 Invoke 的安全分类记录 | NOT STARTED |
 | P3-T06 | 30 天清理 + 完整 E2E / Maven 回归 | NOT STARTED |
 | P3-T07 | Phase 3 Closeout、文档、技术债、知识与面试表达 | NOT STARTED |
 
-**P3-T02 当前只开发 Schema/Entity/Mapper/Test**，不修改生产 Runtime 调用，不抢跑 Controller。验收通过后由总控自动启动下一任务。
+**P3-T02 已验收：本地 Maven 测试 149/0/0/0 且 BUILD SUCCESS（非 CI）。当前 P3-T03 仅开发成功 Invoke 元数据记录及写入失败隔离；失败调用记录和管理查询留给后续任务。**
 
 **明确不做：** 计费/用量账本、聚合仪表盘、Retry、SSE、多模型路由、Redis、MQ、ES、微服务、全量 Prompt/Response 存储。
 
