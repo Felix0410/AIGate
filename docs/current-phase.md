@@ -8,8 +8,8 @@
 - Phase 2：**CLOSED / ACCEPTED**
 - Phase 3：**ACTIVE — Invocation Records & Basic Visibility（调用记录与基础业务可见性）**
 - **P3-T01 — Business Goal & Architecture Baseline：DONE / ACCEPTED（总控）**
-- **Current Task：P3-T02 — Invocation Record Schema（ACTIVE / 待 Maven 测试证据）**
-- Next：P3-T03 — Successful Invocation Recording（NOT STARTED）
+- **Current Task：P3-T03 — Successful Invocation Recording（ACTIVE）**
+- Next：P3-T04 — Management Invocation Query（NOT STARTED）
 
 用户 2026-10-18 要求由总控决定项目内容。P3-T01 已由总控基于真实代码与 Phase 2 闭环制定明确目标、方案、任务和 ADR-003；开发导师不再自主选题。
 
@@ -129,7 +129,7 @@ P3-T03 采用 Tracking Facade 包装现有 `ModelProxyService`，不修改 Provi
 
 已知风险继续保留：TD-001 临时管理 Basic、TD-009 无 CI Test Gate、TD-010 Provider Master Key Rotation、TD-011 Provider Endpoint SSRF。公网发布前仍需独立处理。
 
-**Execution Gate: P3-T02 ACTIVE。开发导师现在仅执行 Schema/Mapper/测试，完成 Review 后回总控验收。**
+**Historical gate for P3-T02; superseded by latest P3-T03 activation below.**
 
 ---
 
@@ -144,3 +144,42 @@ P3-T03 采用 Tracking Facade 包装现有 `ModelProxyService`，不修改 Provi
 复验只需在 Java 21 + Docker 可用环境执行 `./mvnw test`，提供测试统计（Tests run, Failures, Errors, Skipped），并处理实际失败项。现有测试已经覆盖主要数据约束，额外的 INFORMATION_SCHEMA 索引断言可以后续改进但不是阻塞项。
 
 **状态保持 P3-T02 ACTIVE，P3-T03 NOT STARTED。** 实测无失败并经确认后，总控按自动推进规则完成验收并启动 P3-T03。
+
+---
+
+## P3-T02 Final Acceptance / P3-T03 Execution Baseline — 2026-10-18
+
+**P3-T02 DONE / ACCEPTED.** 实现 commit b790b2a；用户本地 Maven 提供：Tests run: 149, Failures: 0, Errors: 0, Skipped: 0；BUILD SUCCESS。代码审查及 V7 MySQL Testcontainers 测试覆盖已通过；该结果不是 CI（TD-009 保留）。Phase 2 历史数据库为 V1–V6；Phase 3 自 P3-T02 起为 V1–V7。
+
+### P3-T03 Business Goal
+
+在成功的 POST /v1/invoke 之后持久化 **一条 SUCCESS 元数据记录**，不改变已有模型响应。记录 DB 写失败也必须保持原模型响应成功。失败调用的 FAILED 记录暂不做（P3-T05）。
+
+### Frozen Scope / Architecture
+
+- 在 RuntimeInvokeController 和现有 ModelProxyService 之间加轻量 **InvocationTrackingFacade**（或等职责明确的 Service），不重复模型代理业务。入站 applicationId 仍必须从认证后的 ApplicationIdentity 获取。
+- Facade 调用 ModelProxyService.invoke 前用 System.nanoTime() 开始计时；成功返回后以单调时钟差值计算非负 durationMs，**不包括随后的 DB 保存时间**。createdAt 用 Instant.now（墙上时间）或与现有 DB 默认时间一致的方案。
+- 用 InvocationRecordMapper 保存 applicationId / status=SUCCESS / errorCode=null / durationMs / createdAt，不变更现有 V7 schema。
+- 写入记录异常时仅输出安全固定文案告警、不打印原异常消息、敏感字段或上游原始内容，**始终返回原 InvokeResponse**。不得将 Mapper 写入包在一个覆盖上游 HTTP 的 @Transactional 中。
+- ModelProxyService、ProviderAdapter、ProviderHttpClient 不承担记录保存职责；不新增 AOP/Filter、MQ、Redis、ES、流式、计费系统。
+- 本任务**不记录失败请求**；模型代理抛异常时直接保留原异常语义，不吞掉、不转换、不将其改为 SUCCESS。P3-T05 再实现 FAILED 记录。
+- 无效 API Key 401 / 非法 Request 400 发生在业务入口前，不产生记录。不开发管理查询 API（P3-T04），不做 30 天清理（P3-T06）。
+
+### Happy Path
+
+Client Bearer Key → Security → @Valid InvokeRequest → TrackingFacade → ModelProxyService → Provider HTTP success → 计算 durationMs → Mapper insert SUCCESS（best effort）→ 原 InvokeResponse。
+
+### Acceptance Criteria
+
+1. 使用 MockMvc + Testcontainers MySQL + 本地 HTTP Mock Provider，成功 Invoke 返回真实 Provider 内容，库里恰好多一条 SUCCESS，applicationId 正确、errorCode NULL、durationMs 非负、createdAt 非空。
+2. 连续两次成功 Invoke 得到两条不同记录，不出现隐式重试或重复记录。
+3. 用聚焦单元测试模拟 Mapper 写入失败，Controller/Facade 仍返回与原 Provider 一致的成功结果；警告不含 Prompt、Key、Provider Credential、请求/响应正文或数据库异常原文。
+4. 原有 Provider 失败结果/错误码不改变，当前任务不新增 FAILED 记录。
+5. 未认证 401、参数校验 400 不产生 SUCCESS；不修改 InvokeRequest/InvokeResponse JSON，不修改 Flyway V1–V7。
+6. Maven 全量回归实测通过，提供 run/failures/errors/skipped 与 BUILD 状态；当前参照基线是 149/0/0/0。
+
+### Knowledge Points
+
+按业务 → 问题 → 方案 → 原理 → 调用流程 → 代码教学：为什么显式 Facade 比当前用 AOP 更简单；nanoTime 与 Instant 的区别；外部 HTTP 和 MySQL 写入为何不能通过本地事务保证原子性；best-effort 记录为什么不适合精确计费。
+
+**Execution Gate：P3-T03 ACTIVE；P3-T04 NOT STARTED。导师只执行成功记录与保存失败隔离，交付后由总控验收并自动推进。**
