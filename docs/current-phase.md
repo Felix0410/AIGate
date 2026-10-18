@@ -527,3 +527,12 @@ Runtime /v1/** (Application API Key)
 ### Execution Gate
 
 **P2-T11 ACTIVE。Phase 2 尚未关闭，Phase 3 NOT STARTED。** 用户已授权“验收通过则自动推进”，但 Phase 3 只会在 P2-T11 自身完成正式 Phase Closeout 审核、无阻塞且文档同步后启动。
+
+
+---
+
+## 17. P2-T11 Documentation Sync — 2026-10-18
+
+本轮更新 roadmap、architecture、progress、api-design、database-design、knowledge-map、interview-notes，核对 Phase 2 实际闭环与过期文档，保留 P2-T01～T10 已验收历史。项目当前仍为 **P2-T11 ACTIVE / Phase 2 NOT CLOSED / Phase 3 NOT STARTED**；文档更新本身不代替总控的完整 Phase Closeout 审核。
+
+用户提供本地 Maven 138/0/0/0；没有 GitHub CI 记录，TD-009 不关闭。生产前风险包括管理面当前 HTTP Basic（TD-001）及 Provider endpointUrl SSRF/网络目标限制（TD-011）。当前无新重大架构决策，不强行新增 ADR。
