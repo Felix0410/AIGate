@@ -34,6 +34,8 @@ P3-T01 Business Goal & Scope Baseline
 P3-T02 Invocation Record Schema
 → COMPLETED / ACCEPTED
 P3-T03 Successful Invocation Recording
+→ COMPLETED / ACCEPTED
+P3-T04 Management Invocation History Query
 → ACTIVE
 ```
 
@@ -670,3 +672,16 @@ Phase 3 的 V7 数据基础已实现：invocation_record 表、InvocationRecord/
 P3-T03 ACTIVE：只接成功调用记录，使用显式 InvocationTrackingFacade 包装现有 ModelProxyService，获取认证后的 applicationId。通过 System.nanoTime 量取模型代理耗时，调用成功后同步 best-effort 保存 SUCCESS/errorCode NULL/durationMs/createdAt。写入异常只生成安全固定告警，不改变真实 Provider 返回；不要给包含 HTTP 的外层调用加 @Transactional。ModelProxyService、Adapter、ProviderHttpClient 保持现有职责。失败记录交给 P3-T05，查询交给 P3-T04，保留清理交给 P3-T06。
 
 这是 P3-T03 的已批准设计，不是当前已实现的自动成功记录功能。决策沿用 ADR-003，不需要重复新增 ADR。
+
+
+---
+
+## 27. P3-T03 实现验收 / P3-T04 管理查询设计（2026-10-18）
+
+P3-T03 提交 `ee38c95f20781de6aa219ea80b99ab590e7016bb` 已通过 Code Review，现有 `RuntimeInvokeController` 委托 `InvocationTrackingFacade`，Facade 调用原 `ModelProxyService`。正常响应时记录 SUCCESS，非负 durationMs 用 System.nanoTime 计算，createdAt 用 Instant，Mapper 写入异常被安全固定 warn 隔离且不影响原 InvokeResponse；上游错误继续原样映射，FAILED 延至 P3-T05。
+
+**P3-T03 DONE / ACCEPTED，P3-T04 ACTIVE**。GitHub 无关联 CI/workflow，测试源码已审阅，没有独立的这次 Maven 汇总。
+
+P3-T04 规划链路：Management HTTP Basic → InvocationQueryController → InvocationQueryService → ApplicationService.getApplicationById（404）→ InvocationRecordMapper（按 application_id 过滤、id 降序、LIMIT 1..100）→ 不暴露敏感数据的六字段 DTO 数组。
+
+采用已有 V7 复合索引 `(application_id,id)`，不新建表或缓存。HTTP 400 INVALID_REQUEST 包括 limit 数字转换异常与超界；200 [] 表示 Application 存在但记录为空；401 表示管理认证失败。查询保持数据库限量，不全表读取再内存截断。管理查询与 Runtime Bearer Key 认证边界独立。
