@@ -7,8 +7,8 @@
 - **Phase 1 — CLOSED**
 - **Phase 2 — CLOSED / ACCEPTED（2026-10-18）**
 - **Phase 3 — ACTIVE**
-- **Current Task：P3-T02 — Invocation Record Schema（ACTIVE / 等待 Maven 结果）**
-- **Next Task：P3-T03 — Successful Invocation Recording（NOT STARTED）**
+- **Current Task：P3-T03 — Successful Invocation Recording（ACTIVE）**
+- **Next Task：P3-T04 — Management Invocation Query（NOT STARTED）**
 
 Phase 2 的关闭已通过完整十项检查：功能、Code Review、测试、架构、技术债、progress、architecture、必要 ADR、知识点和面试表达。
 
@@ -65,14 +65,14 @@ Flyway V1–V6，MySQL 8.4；无新增 Usage/Quota/InvocationRecord 表。Key �
 | Task | Work | Status |
 |---|---|---|
 | P3-T01 | 目标/范围/架构与 ADR 冻结 | **DONE / ACCEPTED** |
-| P3-T02 | Flyway V7 + InvocationRecord Entity/Mapper/DB Test | **ACTIVE** |
-| P3-T03 | 成功调用记录、写入失败隔离 | NOT STARTED |
+| P3-T02 | Flyway V7 + InvocationRecord Entity/Mapper/DB Test | **DONE / ACCEPTED** |
+| P3-T03 | 成功调用记录、写入失败隔离 | **ACTIVE** |
 | P3-T04 | HTTP Basic 管理查询最近历史、limit 1..100 | NOT STARTED |
 | P3-T05 | 失败调用记录、安全错误分类 | NOT STARTED |
 | P3-T06 | 30 天保留/清理、完整 E2E 回归 | NOT STARTED |
 | P3-T07 | Phase 3 关闭评审和文档/面试整理 | NOT STARTED |
 
-计划数据：`invocation_record(id,application_id,status,error_code,duration_ms,created_at)`，index(application_id,id)，FK application_id CASCADE。**尚未实施 V7，实际数据库仍为 V1–V6。**
+计划数据：`invocation_record(id,application_id,status,error_code,duration_ms,created_at)`，index(application_id,id)，FK application_id CASCADE。**P3-T02 已实现并验收 V7，当前数据库代码 schema 为 V1–V7。**
 
 P3-T02 仅建数据基础，不改 Runtime 业务行为；后续遵循 Happy Path → 验证 → 失败记录 → 清理与架构检查。
 
@@ -105,4 +105,14 @@ Phase 3 规划需考虑技术债，但不能为丰富技术栈而在一个任务
 
 **待完成条件：** 提供在本次 V7 代码上实际运行的 Maven 全量测试结果。GitHub 未提供 CI workflow/status，Phase 2 的 138 测试不能证明新增测试通过。
 
-**P3-T02 = ACTIVE / PENDING TEST EVIDENCE；P3-T03 NOT STARTED。** 只有本任务实测通过后才可由总控自动推进。
+**历史 PENDING 状态已经解除，最新验收见下方。**
+
+## P3-T02 验收通过（2026-10-18）
+
+代码提交 b790b2a：V7 invocation_record、Entity、枚举、Mapper、MySQL Testcontainers DB 测试；代码审查已通过。用户提供新的本地 Maven 汇总：Tests run 149 / Failures 0 / Errors 0 / Skipped 0 / BUILD SUCCESS。这不是 CI 记录；TD-009 保留。
+
+**P3-T02 DONE / ACCEPTED；P3-T03 ACTIVE。**
+
+## P3-T03 冻结执行范围
+
+让正常完成 POST /v1/invoke 的 Application 记录一条 SUCCESS、空 errorCode、durationMs 和 createdAt。通过轻量 TrackingFacade 包装现有 ModelProxyService；记录插入失败不能把 Provider 的正常响应变成错误。T03 不记录 FAILED、不加查询 API、不做 30 天清理。详细验收标准以 docs/current-phase.md 为准。
