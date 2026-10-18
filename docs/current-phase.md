@@ -8,7 +8,7 @@
 - Phase 2：**CLOSED / ACCEPTED**
 - Phase 3：**ACTIVE — Invocation Records & Basic Visibility（调用记录与基础业务可见性）**
 - **P3-T01 — Business Goal & Architecture Baseline：DONE / ACCEPTED（总控）**
-- **Current Task：P3-T02 — Invocation Record Schema（ACTIVE）**
+- **Current Task：P3-T02 — Invocation Record Schema（ACTIVE / 待 Maven 测试证据）**
 - Next：P3-T03 — Successful Invocation Recording（NOT STARTED）
 
 用户 2026-10-18 要求由总控决定项目内容。P3-T01 已由总控基于真实代码与 Phase 2 闭环制定明确目标、方案、任务和 ADR-003；开发导师不再自主选题。
@@ -130,3 +130,17 @@ P3-T03 采用 Tracking Facade 包装现有 `ModelProxyService`，不修改 Provi
 已知风险继续保留：TD-001 临时管理 Basic、TD-009 无 CI Test Gate、TD-010 Provider Master Key Rotation、TD-011 Provider Endpoint SSRF。公网发布前仍需独立处理。
 
 **Execution Gate: P3-T02 ACTIVE。开发导师现在仅执行 Schema/Mapper/测试，完成 Review 后回总控验收。**
+
+---
+
+## P3-T02 验收检查（2026-10-18）
+
+代码实现提交：`b790b2a780d333226ff0d6afff91d2c69aaa930f`。
+
+静态 Code Review 已通过：Flyway V7、InvocationRecord Entity/Mapper、SUCCESS/FAILED 和非负耗时 CHECK、Application 外键 CASCADE、(application_id,id) 索引、MySQL Testcontainers CRUD/约束/级联测试。提交仅包含数据库/映射/测试和数据库文档，未提前接入 Runtime 调用链，也未新增 API 或中间件。
+
+**尚未最终 ACCEPTED：** 最新代码提交没有 GitHub CI statuses/workflow run，本轮未收到 V7 后的完整 Maven 测试执行汇总。旧的 Phase 2 138/0/0/0 不可复用作为新代码测试证据。
+
+复验只需在 Java 21 + Docker 可用环境执行 `./mvnw test`，提供测试统计（Tests run, Failures, Errors, Skipped），并处理实际失败项。现有测试已经覆盖主要数据约束，额外的 INFORMATION_SCHEMA 索引断言可以后续改进但不是阻塞项。
+
+**状态保持 P3-T02 ACTIVE，P3-T03 NOT STARTED。** 实测无失败并经确认后，总控按自动推进规则完成验收并启动 P3-T03。
