@@ -15,6 +15,7 @@ V3 → application
 V4 → provider / model / model_deployment
 V5 → application.default_deployment_id
 V6 → application_api_key
+V7 → invocation_record
 ```
 
 已执行 migration 不修改，后续变化继续新增 migration。
@@ -34,6 +35,7 @@ Application N ---- 0..1 ModelDeployment
         via default_deployment_id
 
 Application 1 ---- N ApplicationApiKey
+Application 1 ---- N InvocationRecord
 ```
 
 ---
@@ -113,6 +115,46 @@ application_id
 → application.id
 → ON DELETE CASCADE
 ```
+
+---
+
+## 5.5 invocation_record
+
+P3-T02 新增。
+
+```text
+id BIGINT PK AUTO_INCREMENT
+application_id BIGINT NOT NULL
+status VARCHAR(16) NOT NULL
+error_code VARCHAR(64) NULL
+duration_ms BIGINT NOT NULL
+created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+```
+
+CHECK 约束：
+
+```text
+status IN ('SUCCESS', 'FAILED')
+duration_ms >= 0
+```
+
+索引：
+
+```text
+INDEX(application_id, id)   -- 复合索引，支持按 Application 分页查最新记录
+```
+
+外键：
+
+```text
+application_id
+→ application.id
+→ ON DELETE CASCADE
+```
+
+业务状态仅 `SUCCESS` 和 `FAILED`。`error_code` 仅在 `FAILED` 时有意义，但不提前增加数据库级的状态/错误码关联约束。
+
+与 `application_api_key` 一致使用 `ON DELETE CASCADE`：InvocationRecord 是 Application 的调用历史从属记录，Application 删除后记录无独立业务价值。
 
 ---
 
@@ -222,6 +264,7 @@ application.default_deployment_id → model_deployment.id RESTRICT
 model_deployment.provider_id → provider.id RESTRICT
 model_deployment.model_id → model.id RESTRICT
 application_api_key.application_id → application.id CASCADE
+invocation_record.application_id → application.id CASCADE
 ```
 
 ---
@@ -245,35 +288,9 @@ Soft Delete Framework
 
 ## Phase 2 Closeout — Schema 与调用关系核对（2026-10-18）
 
-当前 Flyway 数据库基线为 V1–V6：Team、Employee、Application、Provider、Model、ModelDeployment 和 ApplicationApiKey 等数据模型。运行时的核心外键链为 `application.default_deployment_id → model_deployment.id`，Deployment 关联 Provider 和逻辑 Model；API Key 记录关联 Application。
+当前 Flyway 数据库基线为 V1–V7：Team、Employee、Application、Provider、Model、ModelDeployment、ApplicationApiKey 和 InvocationRecord 等数据模型。运行时的核心外键链为 `application.default_deployment_id → model_deployment.id`，Deployment 关联 Provider 和逻辑 Model；API Key 记录关联 Application；InvocationRecord 关联 Application（ON DELETE CASCADE）。
 
 - `model_deployment` 保存 `endpoint_url`（API base URL）、`remote_model_name`、`encrypted_credential` 与 `enabled`；Credential 加密保存，只有真实出站调用时才解密。
 - `application_api_key` 存 `key_id`、secret hash、状态等信息；明文 Secret 仅创建时展示，不可从数据库还原。新建 Key 不自动撤销旧 ACTIVE Key，显式撤销后 Runtime 认证拒绝。
 - Application 默认部署可以更新，Runtime 每次根据当前 DB 配置解析，不需要 Redis 才能正确切换。
 - 本阶段不新增业务 schema 迁移。以 Flyway SQL 文件和 Entity/Mapper 为实际字段与约束的最终核验来源；不要把计划中的 Key 自动轮换/过期、配额、用量统计写作现有表字段。
-
----
-
-## Phase 3 — V7 Invocation Record 数据模型（**PLANNED / NOT IMPLEMENTED**）
-
-**当前真实数据库仍为 Flyway V1–V6。P3-T02 才实现 V7。**
-
-新表名：`invocation_record`。
-
-| Column | Type | Constraints / Meaning |
-|---|---|---|
-| `id` | BIGINT | PRIMARY KEY AUTO_INCREMENT |
-| `application_id` | BIGINT | NOT NULL, FK `application.id` ON DELETE CASCADE |
-| `status` | VARCHAR(16) | NOT NULL, SUCCESS/FAILED |
-| `error_code` | VARCHAR(64) | NULL；正常调用为空 |
-| `duration_ms` | BIGINT | NOT NULL, >= 0 |
-| `created_at` | TIMESTAMP(6) | NOT NULL, 记录时间（UTC 语义） |
-
-- 复合索引：`INDEX idx_invocation_app_id (application_id, id)`（具体最终索引名称以 migration 为准）；面向按 Application 最新 1..100 条查询。
-- 计划 FK 为 CASCADE，因为本表只是 Application 从属的排障记录，不是合规审计/计费历史。删除 Application 时不能被调用历史意外 RESTRICT。
-- P3-T03 起才写真实成功记录；P3-T05 起才记录失败；P3-T06 完成 30 天保留/清理。
-- **严禁敏感字段**：Prompt、回复正文、请求/响应原文、Client API Key、Provider Credential、原始上游错误/URL。
-- 不引入 DeploymentId、Token Usage、Cost、Batch/Outbox 字段；这些都不属于本阶段最简可见性问题。
-- 记录写入 best-effort，不改变模型调用结果；表内数据不能充当完整计费账本。
-
-只有 P3-T02 实现代码并经总控验收后，才可将 V7 状态标记为 IMPLEMENTED。
