@@ -2,7 +2,7 @@
 
 ## 1. 当前基线
 
-当前生产 API 内容以 **Phase 2 完成并于 2026-10-18 CLOSED 的代码基线** 为准；Phase 3 已启动 P3-T01（需求范围定义），尚未批准或实现新增 API。
+当前已实现 API 包含 Phase 2 Runtime 调用（Phase 3 的 P3-T03 已加入成功记录写入）；Phase 3 当前 P3-T04 正在实现管理查询，以下查询 API 仍为设计合同，尚未上线。
 
 认证边界：
 
@@ -508,7 +508,7 @@ Phase 3 当前只开启 P3-T01 业务目标定义，**尚无新的 Invoke Record
 
 ## Phase 3 — 调用历史管理 API（**PLANNED / NOT IMPLEMENTED**）
 
-总控已经冻结需求，当前仅执行 P3-T02 的数据库任务；**本接口直到 P3-T04 才实现**。
+总控已冻结查询 API 合同；**当前 P3-T04 ACTIVE，本接口在代码验收前仍属于 PLANNED / NOT IMPLEMENTED**。
 
 ```http
 GET /api/applications/{applicationId}/invocations?limit=20
@@ -525,3 +525,19 @@ Authorization: Basic <management-credentials>
 - 本数据是尽力保留的排障历史，不表示官方计费用量。
 
 相关冻结设计见 `docs/current-phase.md` 和 `docs/adr/ADR-003-invocation-recording-persistence.md`。
+
+
+---
+
+## P3-T03 Actual / P3-T04 Frozen Query API — 2026-10-18
+
+**已实现并验收（P3-T03）**：`POST /v1/invoke` 仍返回原 `InvokeResponse` 或原分类错误。成功时 Facade 尽力写 `SUCCESS`、durationMs、createdAt；写入失败不影响该 HTTP 响应。尚不记录 FAILED。
+
+**当前计划（P3-T04）**：`GET /api/applications/{applicationId}/invocations?limit=20`，管理 HTTP Basic；返回 HTTP 200 JSON 数组，各记录仅 `id,applicationId,status,errorCode,durationMs,createdAt`，status SUCCESS/FAILED（测试可预置 FAILED）。
+
+- limit 不提供时默认为 20；1～100 合法，超界与非数字值 HTTP 400 `INVALID_REQUEST`，不可落入通用 500。
+- 根据 Application ID 过滤且按 id DESC，SQL 层 LIMIT，不跨 Application 泄漏；无记录 `[]`。
+- Application 不存在返回 404 `APPLICATION_NOT_FOUND`；管理 API 未认证为 401；Runtime Bearer Key 不能代替 Basic 管理认证。
+- 不返回数据库 Entity 或敏感 Prompt/模型回复/Key/Provider 配置；不做全量分页、聚合、费用或历史导出。
+
+P3-T04 只负责查询，P3-T05 才加入真实失败调用自动落库，P3-T06 才加入记录保留清理。当前 API 不是已实现事实。
