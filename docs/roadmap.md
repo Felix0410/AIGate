@@ -35,7 +35,7 @@ Phase 2 不包含 Redis、MQ、微服务、SSE、自动重试、多模型路由�
 
 ## Phase 3 — Invocation Records & Basic Visibility
 
-**Status: ACTIVE（P3-T01~T04 DONE；P3-T05 ACTIVE，任务粒度已合并）**
+**Status: ACTIVE（P3-T01~T05 DONE；P3-T06 Phase Closeout ACTIVE）**
 
 **总控已于 2026-10-18 冻结业务目标**：允许管理员按 Application 查询最近模型调用的 SUCCESS/FAILED、固定错误分类、耗时及时间，解决 Phase 2 已能代理模型但缺少业务调用历史的问题。
 
@@ -47,8 +47,8 @@ Phase 2 不包含 Redis、MQ、微服务、SSE、自动重试、多模型路由�
 | P3-T02 | V7 invocation_record + Entity/Mapper + DB Tests | **DONE / ACCEPTED** |
 | P3-T03 | 成功 Invoke 记录与写入失败隔离 | **DONE / ACCEPTED** |
 | P3-T04 | GET /api/applications/{id}/invocations?limit=20 | **DONE / ACCEPTED** |
-| P3-T05 | 失败 Invoke 记录 + 30 天清理 + 全链路 E2E（合并原 T05/T06） | **ACTIVE** |
-| P3-T06 | Phase 3 Closeout（原 T07，编号调整） | NOT STARTED |
+| P3-T05 | 失败 Invoke 记录 + 30 天清理 + 全链路 E2E（合并原 T05/T06） | **DONE / ACCEPTED** |
+| P3-T06 | Phase 3 Closeout（原 T07，编号调整） | **ACTIVE** |
 
 **P3-T02 已验收：本地 Maven 测试 149/0/0/0 且 BUILD SUCCESS（非 CI）。P3-T03 成功自动记录与 P3-T04 管理端调用历史查询均已验收。下一步 P3-T05 一次完成失败调用记录、30 天清理和完整 E2E；P3-T06 统一收尾。**
 
@@ -68,3 +68,8 @@ Phase 2 不包含 Redis、MQ、微服务、SSE、自动重试、多模型路由�
 ### 2026-10-18 Task Granularity Adjustment
 
 用户明确反馈此前拆分过细、单任务复杂度过低。总控已将相邻业务功能合并：原 P3-T05（FAILED）与 P3-T06（30 天清理/E2E）合并为 **P3-T05 Invocation Record Completion（ACTIVE）**；原 P3-T07 Phase Closeout 调整为 **P3-T06**。这样减少中间提交/验收/文档切换，同时保留失败记录、生命周期及 E2E 的独立验收条件。开发导师在 P3-T05 内按顺序完成所有子项，无需中途回总控验收。具体任务边界以最新 `docs/current-phase.md` 为准。
+
+
+### P3-T05 验收与阶段推进（2026-10-18）
+
+8262303 实现 FAILED 记录及 UTC 03:00 的 30 天清理，dfcc70a 补充修复测试。静态代码与测试设计审查通过；P3-T05 DONE / ACCEPTED。GitHub 无 CI 记录，本次无新增 Maven 总量统计，待 P3-T06 Closeout 复核。阶段收尾统一检查功能、测试可靠性、架构、风险、文档、知识点与面试表达，**Phase 3 尚未 CLOSED，Phase 4 尚未冻结/启动**。
