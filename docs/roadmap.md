@@ -33,26 +33,27 @@ Provider / Model / ModelDeployment 管理
 
 Phase 2 不包含 Redis、MQ、微服务、SSE、自动重试、多模型路由、配额、账本或收费。
 
-## Phase 3 — Business Problem → Minimal Feature
+## Phase 3 — Invocation Records & Basic Visibility
 
-**Status: ACTIVE（2026-10-18 启动）**
+**Status: ACTIVE（P3-T01 DONE / P3-T02 ACTIVE）**
 
-**Current Task: P3-T01 — Business Goal & Scope Baseline（ACTIVE）**
+**总控已于 2026-10-18 冻结业务目标**：允许管理员按 Application 查询最近模型调用的 SUCCESS/FAILED、固定错误分类、耗时及时间，解决 Phase 2 已能代理模型但缺少业务调用历史的问题。
 
-Phase 3 尚未冻结下一项业务功能；因此第一项工作是确认真实业务需求，而不是凭技术栈清单决定开发任务。
+**选定方案：** Flyway V7 一张 MySQL `invocation_record` 表，最小元数据同步 best-effort 写入；管理面只提供有上限的最近记录查询。设计取舍见 `ADR-003-invocation-recording-persistence.md`。不存原始 Prompt、模型回复、任何 API Key / Provider Secret 或原始上游错误。保留 30 天，后续做简单清理。
 
-优先评估的候选目标：**Invocation Traceability**——现在虽然能成功代理模型调用，但缺乏可按 Application 查询的历史调用结果/失败类别/耗时等跨请求业务记录。先确认这是当前要解决的问题。
-
-方案比较：现有日志是否已足够 → 结构化日志 → 如确有查询需求，单 MySQL 最小调用元数据记录。不得在 P3-T01 直接创建 Usage 表、费用系统或 MQ。
-
-### Phase 3 任务路线（逐步冻结）
-
-| Task | 目标 | 状态 |
+| Task | Deliverable | Status |
 |---|---|---|
-| P3-T01 | 确认业务痛点、最小范围、主流程、验收、候选方案与任务拆分 | **ACTIVE** |
-| P3-T02 起 | 待 P3-T01 验收后根据已确认范围定义 | NOT STARTED |
+| P3-T01 | 总控冻结业务目标、范围、数据/API 契约、架构与 ADR | **DONE / ACCEPTED** |
+| P3-T02 | V7 invocation_record + Entity/Mapper + DB Tests | **ACTIVE** |
+| P3-T03 | 成功 Invoke 记录与写入失败隔离 | NOT STARTED |
+| P3-T04 | GET /api/applications/{id}/invocations?limit=20 | NOT STARTED |
+| P3-T05 | 失败 Invoke 的安全分类记录 | NOT STARTED |
+| P3-T06 | 30 天清理 + 完整 E2E / Maven 回归 | NOT STARTED |
+| P3-T07 | Phase 3 Closeout、文档、技术债、知识与面试表达 | NOT STARTED |
 
-**P3-T01 验收门**：确定单一主目标、为什么当前需要、最小 Happy Path、数据与安全边界、测试方案、下一任务清单及文档。验收通过后按用户规则自动推进下一任务。
+**P3-T02 当前只开发 Schema/Entity/Mapper/Test**，不修改生产 Runtime 调用，不抢跑 Controller。验收通过后由总控自动启动下一任务。
+
+**明确不做：** 计费/用量账本、聚合仪表盘、Retry、SSE、多模型路由、Redis、MQ、ES、微服务、全量 Prompt/Response 存储。
 
 ## 保留的生产化/工程风险
 
