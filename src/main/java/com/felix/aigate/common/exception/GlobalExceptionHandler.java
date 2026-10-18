@@ -1,5 +1,6 @@
 package com.felix.aigate.common.exception;
 
+import com.felix.aigate.invocation.exception.InvalidInvocationQueryException;
 import com.felix.aigate.common.response.ApiErrorResponse;
 import com.felix.aigate.provider.adapter.InvalidProviderResponseException;
 import com.felix.aigate.runtime.exception.ProxyErrorType;
@@ -183,6 +184,22 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(type.getHttpStatus()).body(response);
+    }
+
+    @ExceptionHandler(InvalidInvocationQueryException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidInvocationQuery(
+            InvalidInvocationQueryException exception) {
+
+        ApiErrorResponse response = new ApiErrorResponse(
+                "INVALID_REQUEST",
+                "Invalid invocation query limit",
+                Instant.now(),
+                null
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(response);
     }
 
     @ExceptionHandler(Exception.class)

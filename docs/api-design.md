@@ -2,7 +2,7 @@
 
 ## 1. 当前基线
 
-当前已实现 API 包含 Phase 2 Runtime 调用（Phase 3 的 P3-T03 已加入成功记录写入）；Phase 3 当前 P3-T04 正在实现管理查询，以下查询 API 仍为设计合同，尚未上线。
+当前生产 API 内容以 **Phase 2 完成并于 2026-10-18 CLOSED 的代码基线** 为准；Phase 3 已启动 P3-T01（需求范围定义），尚未批准或实现新增 API。
 
 认证边界：
 
@@ -506,38 +506,38 @@ Phase 3 当前只开启 P3-T01 业务目标定义，**尚无新的 Invoke Record
 
 ---
 
-## Phase 3 — 调用历史管理 API（**PLANNED / NOT IMPLEMENTED**）
+## Phase 3 — 调用历史管理 API（P3-T04 **IMPLEMENTED** / P3-T05 **未实现**）
 
-总控已冻结查询 API 合同；**当前 P3-T04 ACTIVE，本接口在代码验收前仍属于 PLANNED / NOT IMPLEMENTED**。
+### 20.1 已实现：Management Invocation History Query（P3-T04 DONE）
 
 ```http
 GET /api/applications/{applicationId}/invocations?limit=20
 Authorization: Basic <management-credentials>
 ```
 
-- 查询管理面仍使用现有 HTTP Basic（不使用 Application API Key 访问此管理接口）。
-- 返回按 `id DESC` 排序的最近记录数组；`limit` 默认 20、合法范围 1..100；无记录返回空数组 `[]`。
-- 不存在的 Application 返回 404；非法 `limit` 返回 400。
-- 每项响应仅含 `id, applicationId, status, errorCode, durationMs, createdAt`。
-- 不提供查询其他 Application 的运行面接口、导出大量记录、全文搜索、聚合报表或分页平台。
+- **认证**：管理面现有 HTTP Basic，Runtime Application API Key 不可访问此管理接口。
+- **limit**：可选 query param，默认 20，合法范围 1～100（含两端）。非法值返回 400 `INVALID_REQUEST`，消息固定为 `"Invalid invocation query limit"`。
+- **排序**：按 `id DESC`，最新记录在前。
+- **无记录**：返回空数组 `[]`，HTTP 200。
+- **不存在的 Application**：返回 404 `APPLICATION_NOT_FOUND`，复用现有 `ApplicationService.getApplicationById`。
+- **成功响应字段**：每项仅含 `id, applicationId, status, errorCode, durationMs, createdAt` 六个字段。`errorCode` 即使为 null 也作为字段输出。
+- **数据隔离**：只返回指定 Application 的记录，不跨 Application 混入。
+- **不提供**：分页对象/游标/总数/聚合/导出/全文搜索/跨 Application 查询。
+
+### 20.2 异常响应速查
+
+| 场景 | HTTP | code | message |
+|---|---|---|---|
+| limit=0/-1/101/abc/空/1.5 | 400 | INVALID_REQUEST | Invalid invocation query limit |
+| Application 不存在 | 404 | APPLICATION_NOT_FOUND | Application not found |
+| 未认证 | 401 | 沿用现有 Security 契约 | |
+
+### 20.3 与 P3-T05 的边界
+
+- P3-T04 当前只返回 `invocation_record` 表中已存在的记录。
+- **FAILED 记录的自动写入尚未实现**（P3-T05 范围）。
+- 若表中已有 FAILED 记录（如手动插入），查询 API 可正常返回其字段。
 - `POST /v1/invoke` 现有 Request/Response **不变**；客户端不知道也无需知道调用记录写入。
-- P3-T03/P3-T05 只统计通过身份认证、Bean Validation 并进入代理业务的请求，不以原始密钥/Prompt 为记录数据。
 - 本数据是尽力保留的排障历史，不表示官方计费用量。
 
 相关冻结设计见 `docs/current-phase.md` 和 `docs/adr/ADR-003-invocation-recording-persistence.md`。
-
-
----
-
-## P3-T03 Actual / P3-T04 Frozen Query API — 2026-10-18
-
-**已实现并验收（P3-T03）**：`POST /v1/invoke` 仍返回原 `InvokeResponse` 或原分类错误。成功时 Facade 尽力写 `SUCCESS`、durationMs、createdAt；写入失败不影响该 HTTP 响应。尚不记录 FAILED。
-
-**当前计划（P3-T04）**：`GET /api/applications/{applicationId}/invocations?limit=20`，管理 HTTP Basic；返回 HTTP 200 JSON 数组，各记录仅 `id,applicationId,status,errorCode,durationMs,createdAt`，status SUCCESS/FAILED（测试可预置 FAILED）。
-
-- limit 不提供时默认为 20；1～100 合法，超界与非数字值 HTTP 400 `INVALID_REQUEST`，不可落入通用 500。
-- 根据 Application ID 过滤且按 id DESC，SQL 层 LIMIT，不跨 Application 泄漏；无记录 `[]`。
-- Application 不存在返回 404 `APPLICATION_NOT_FOUND`；管理 API 未认证为 401；Runtime Bearer Key 不能代替 Basic 管理认证。
-- 不返回数据库 Entity 或敏感 Prompt/模型回复/Key/Provider 配置；不做全量分页、聚合、费用或历史导出。
-
-P3-T04 只负责查询，P3-T05 才加入真实失败调用自动落库，P3-T06 才加入记录保留清理。当前 API 不是已实现事实。
