@@ -34,3 +34,19 @@ Spring Security Runtime FilterChain
 
 ## 关联文档
 `architecture.md`、`domain-model.md`、`api-design.md`、`database-design.md`、`knowledge-map.md`。
+
+---
+
+## Phase 3 模块扩展设计（PLANNED）
+
+新增轻量 `invocation` 业务模块。P3-T02 先只有 `InvocationRecord` + `InvocationRecordMapper`，不改变 P2 的代理行为。
+
+后续任务按需加入：
+- P3-T03 `InvocationTrackingFacade`：包装现有 ModelProxyService，用单调时钟量取耗时，成功后尽力保存元数据，不接管 Provider HTTP。
+- P3-T04 `InvocationQueryService` / 管理 Controller：查询某 Application 最近记录，限制 limit 1..100。
+- P3-T05：Facade 记录失败和安全固定错误码，继续抛出原始错误。
+- P3-T06：使用最小每天定时清理实现 30 天保留，补全完整 E2E。
+
+依赖方向：Runtime 调用边界 → Tracking → Invocation Mapper/MySQL；Provider Adapter 只负责协议，ProviderHttpClient 只负责网络；管理查询不读 Prompt/模型响应原文。不增加 MQ/Redis/ES 等额外基础设施。
+
+**这仍是设计计划，不是现有代码事实。**
