@@ -7,8 +7,8 @@
 - **Phase 1 — CLOSED**
 - **Phase 2 — CLOSED / ACCEPTED（2026-10-18）**
 - **Phase 3 — ACTIVE**
-- **Current Task：P3-T01 — Business Goal & Scope Baseline（ACTIVE）**
-- **Next Task：P3-T02（NOT STARTED；待 P3-T01 冻结业务范围）**
+- **Current Task：P3-T02 — Invocation Record Schema（ACTIVE）**
+- **Next Task：P3-T03 — Successful Invocation Recording（NOT STARTED）**
 
 Phase 2 的关闭已通过完整十项检查：功能、Code Review、测试、架构、技术债、progress、architecture、必要 ADR、知识点和面试表达。
 
@@ -56,21 +56,29 @@ Phase 2 的关闭已通过完整十项检查：功能、Code Review、测试、�
 
 Flyway V1–V6，MySQL 8.4；无新增 Usage/Quota/InvocationRecord 表。Key 状态 ACTIVE/REVOKED，新 Key 不会自动撤销旧 ACTIVE Key。
 
-## 3. P3-T01 — ACTIVE
+## 3. Phase 3 — 总控已冻结的规划（2026-10-18）
 
-**Business Goal:** 确定 Phase 3 要解决的下一个真实业务问题，冻结最简 Happy Path 和阶段路线。
+**Business Goal：模型调用记录与基础可见性。** 管理员按 Application 查询最近的 SUCCESS/FAILED、errorCode、durationMs 和 createdAt。不做 Prompt/模型回答存储、计费或复杂可观测系统。
 
-当前优先评估：**是否需要最小调用可追踪性**。Phase 2 已能调用，但没有记录每次 Invoke 的可查询历史结果及耗时；这只是业务候选，尚未批准任何新表、接口或中间件。
+总控已完成 P3-T01：核对 P2 Runtime 代码、比较普通日志/结构化日志/MySQL/MQ，决定**单 MySQL 的最小元数据同步 best-effort 持久化**；ADR-003 已提交，状态 DONE / ACCEPTED。
 
-待完成：
+| Task | Work | Status |
+|---|---|---|
+| P3-T01 | 目标/范围/架构与 ADR 冻结 | **DONE / ACCEPTED** |
+| P3-T02 | Flyway V7 + InvocationRecord Entity/Mapper/DB Test | **ACTIVE** |
+| P3-T03 | 成功调用记录、写入失败隔离 | NOT STARTED |
+| P3-T04 | HTTP Basic 管理查询最近历史、limit 1..100 | NOT STARTED |
+| P3-T05 | 失败调用记录、安全错误分类 | NOT STARTED |
+| P3-T06 | 30 天保留/清理、完整 E2E 回归 | NOT STARTED |
+| P3-T07 | Phase 3 关闭评审和文档/面试整理 | NOT STARTED |
 
-- 核实调用追踪缺口及目标使用者
-- 比较应用日志、结构化日志、最小 MySQL 元数据方案及不做的代价
-- 冻结单一目标、最小范围、隐私保护、验证与任务拆分
-- 更新 requirements / roadmap / architecture，必要时 ADR
-- 完成 P3-T01 评审后自动启动冻结的 P3-T02
+计划数据：`invocation_record(id,application_id,status,error_code,duration_ms,created_at)`，index(application_id,id)，FK application_id CASCADE。**尚未实施 V7，实际数据库仍为 V1–V6。**
 
-**本任务不开发生产代码、不新增 Migration、不引入 Redis/MQ/ES。**
+P3-T02 仅建数据基础，不改 Runtime 业务行为；后续遵循 Happy Path → 验证 → 失败记录 → 清理与架构检查。
+
+### 验收推进
+
+单任务经总控验收通过后自动更新文档并启动下一任务。开发导师没有自主决定业务范围的权限；变更需求先回到总控。
 
 ## 4. 技术债
 
