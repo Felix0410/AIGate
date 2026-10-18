@@ -2,7 +2,7 @@
 
 ## 1. 当前基线
 
-当前生产 API 内容以 **Phase 2 完成并于 2026-10-18 CLOSED 的代码基线** 为准；Phase 3 已启动 P3-T01（需求范围定义），尚未批准或实现新增 API。
+当前已实现 API 包括 Phase 2 同步模型调用和 Phase 3 成功记录/管理端查询。**P3-T04 DONE / ACCEPTED；当前 P3-T05 ACTIVE**，正在补齐失败记录和 30 天保留。历史 PLANNED/ACTIVE 段落仅表示当时状态。
 
 认证边界：
 
@@ -506,9 +506,9 @@ Phase 3 当前只开启 P3-T01 业务目标定义，**尚无新的 Invoke Record
 
 ---
 
-## Phase 3 — 调用历史管理 API（P3-T04 **IMPLEMENTED** / P3-T05 **未实现**）
+## Phase 3 — 调用历史管理 API（P3-T04 IMPLEMENTED；P3-T05 ACTIVE）
 
-### 20.1 已实现：Management Invocation History Query（P3-T04 DONE）
+### 20.1 已实现并验收：Management Invocation History Query（P3-T04 DONE / ACCEPTED）
 
 ```http
 GET /api/applications/{applicationId}/invocations?limit=20
@@ -541,3 +541,11 @@ Authorization: Basic <management-credentials>
 - 本数据是尽力保留的排障历史，不表示官方计费用量。
 
 相关冻结设计见 `docs/current-phase.md` 和 `docs/adr/ADR-003-invocation-recording-persistence.md`。
+
+---
+
+## Current API / Runtime Data Status — 2026-10-18
+
+P3-T04 已通过代码与测试覆盖验收，具体 API 如第20节。**现有 GET /api/applications/{applicationId}/invocations?limit=20 已实现且可调用**，默认20、合法1..100、按 App 隔离与 id DESC SQL LIMIT；无记录200 []，不存在 App 404，非法 limit 400。返回只包含 id/applicationId/status/errorCode/durationMs/createdAt。
+
+**P3-T05 ACTIVE（后续实现）**：继续保持 POST /v1/invoke 成功/失败 HTTP 合同不变，仅在合法业务调用失败时 best-effort 写 FAILED 与安全分类码；增加后台30天历史清理，不新增客户端公开 API。成功记录逻辑已实现。P3-T05 E2E 验证管理查询能读到真实 SUCCESS/FAILED 混合历史。所有业务调用数据均不存原 Prompt、响应内容和凭证。
