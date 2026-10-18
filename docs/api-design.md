@@ -537,7 +537,7 @@ Phase 3 当前只开启 P3-T01 业务目标定义，**尚无新的 Invoke Record
 
 ---
 
-## Phase 3 — 调用历史管理 API（P3-T04 IMPLEMENTED；P3-T05 ACTIVE）
+## Phase 3 — 调用历史管理 API（P3-T04/P3-T05 DONE；P3-T06 Closeout ACTIVE）
 
 ### 20.1 已实现并验收：Management Invocation History Query（P3-T04 DONE / ACCEPTED）
 
@@ -579,4 +579,13 @@ Authorization: Basic <management-credentials>
 
 P3-T04 已通过代码与测试覆盖验收，具体 API 如第20节。**现有 GET /api/applications/{applicationId}/invocations?limit=20 已实现且可调用**，默认20、合法1..100、按 App 隔离与 id DESC SQL LIMIT；无记录200 []，不存在 App 404，非法 limit 400。返回只包含 id/applicationId/status/errorCode/durationMs/createdAt。
 
-**P3-T05 实现提交待验收**：`POST /v1/invoke` 原有 HTTP 合同不变。Facade 对已认证且已通过请求校验的业务调用分类记录 SUCCESS/FAILED，记录保存失败不覆盖原响应或异常；每日 UTC 03:00 后台清理早于 30 天截止时间的记录；E2E 已增加 SUCCESS/FAILED 混合历史测试。所有记录均不保存 Prompt、响应正文或凭证。
+**P3-T05 已验收**：`POST /v1/invoke` 原有 HTTP 合同不变。Facade 对已认证且已通过请求校验的业务调用分类记录 SUCCESS/FAILED，记录保存失败不覆盖原响应或异常；每日 UTC 03:00 后台清理早于 30 天截止时间的记录；E2E 已增加 SUCCESS/FAILED 混合历史测试。所有记录均不保存 Prompt、响应正文或凭证。
+
+
+---
+
+## P3-T05 Accepted / P3-T06 Closeout Baseline（2026-10-18）
+
+当前已实现调用历史闭环：每次通过认证与校验、实际进入模型调用的 Runtime 请求，对成功保存 SUCCESS，对已分类代理异常保存 FAILED + 固定安全错误码。写入是 best-effort；写入失败不覆盖原 InvokeResponse/ApiErrorResponse。未认证/非法参数请求不记录。管理 GET 历史继续按照单 Application、默认20/最大100、id DESC、六字段 DTO 返回 SUCCESS/FAILED。每天 UTC 03:00 清理早于 30 天的调用记录。
+
+生产 API 契约、管理 Basic 与 Runtime Key 安全隔离均不变化。P3-T05 DONE / ACCEPTED；P3-T06 Phase Closeout ACTIVE，仍须核查完整 Maven 测试证据和文档，Phase 3 尚未关闭。
