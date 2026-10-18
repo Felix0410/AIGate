@@ -84,7 +84,7 @@ valid POST /v1/invoke
 对 `invocation_record.created_at` 建立最简单、可验证的保留策略：
 
 - 默认保留 **30×24 小时**，使用 UTC Instant 语义；`created_at < now - 30 days` 删除，**边界等于 cutoff 的记录暂不删**。
-- 新增独立轻量 `InvocationRecordRetentionService`（可用 MyBatis Mapper/JdbcTemplate 完成按 cutoff 删除），以及一个 Spring `@Scheduled` 每日 UTC 定时触发器。调度配置若项目尚未启用，只添加必要的 `@EnableScheduling`，不能重复启动任务。
+- 新增独立轻量 `InvocationRecordRetentionService`（可用 MyBatis Mapper/JdbcTemplate 完成按 cutoff 删除），以及一个 Spring `@Scheduled(cron="0 0 3 * * *", zone="UTC")` 每日 **03:00 UTC** 定时触发器。调度配置若项目尚未启用，只添加必要的 `@EnableScheduling`，不能重复启动任务。
 - 为确定性测试，把“基准时间”和删除逻辑分离：公开/包级方法接受 `Instant cutoff` 或可注入 `Clock`。测试不依赖真的等待一天。
 - 只清理 invocation_record，不删除 Application、API Key、其他表；删除失败应以安全告警隔离，不影响模型运行/应用启动。
 - 目前是单进程、小数据量项目，不提前引入 Quartz、分布式锁、MQ。当前默认可使用一次定时 `DELETE WHERE created_at < ?` 的最简方案；但在文档明确大表全表扫描/大事务风险，真实数据量增长后再引入索引和分批删除。**禁止修改 V7**，如有真实数据库索引缺口需要新的 V8，则先由总控评估；本阶段不要为假想高并发强行加库表。
