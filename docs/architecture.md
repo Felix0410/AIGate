@@ -756,3 +756,14 @@ P3-T04 规划链路：Management HTTP Basic → InvocationQueryController → In
 InvocationRecordRetentionScheduler 使用 `@Scheduled(cron="0 0 3 * * *", zone="UTC")` 每日触发，删除早于 `Instant.now().minus(Duration.ofDays(30))` 的记录，等于边界的记录保留；清理失败只生成固定安全警告。当前为单实例、单条 DELETE；缺少 created_at 索引，未来真实数据规模扩大时评估批量删除和单列时间索引。
 
 状态：P3-T01～T04 DONE / ACCEPTED；P3-T05 功能已提交但仍为 ACTIVE，等待 Review 问题处理和总控验收；P3-T06 仅用于 Phase 3 Closeout，不提前启动。GitHub 无独立 CI 验证，依用户提交前测试通过的约定确认本地测试。
+
+
+---
+
+## 30. P3-T05 修复复审（2026-10-18）
+
+测试修复提交 `dfcc70afb3228c817c9b42693257474b75895384` 已完成静态 Code Review。新增 `InvocationRecordRetentionSchedulerTest`，覆盖 UTC 03:00 cron、cutoff 30 天计算、只调用一次和 RetentionService 异常不向外传播。`InvocationRecordRetentionIntegrationTest` 改为按记录 ID 验证时间边界和 Application 保留，不再把全库删除条数等同于测试数据数量，并在测试后删除本次创建的 Application。生产代码未改动。
+
+非阻塞测试技术债：`onlyOneEnableScheduling` 目前只能证明指定配置类存在注解，不能证明全项目注解唯一；测试的 AfterEach 删除 Application 未断言 HTTP 状态，且未清理本次创建的 Team。此类问题不再反复开启小修复任务，纳入后续测试质量整理。由于没有独立 CI 运行证据，测试运行以“提交前本地测试通过”的项目工作约定为准。
+
+**P3-T05 代码及修复复审通过、可交总控验收；总控尚未在本文件中确认 ACCEPTED。P3-T06 Phase Closeout 不由开发导师自行开启。**
