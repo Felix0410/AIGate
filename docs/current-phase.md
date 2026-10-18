@@ -1,137 +1,132 @@
 # AIGate Current Phase
 
-> 本文件只记录**当前执行任务**及其冻结边界。已关闭的 Phase 2 全量验收记录见 `docs/phase-2-closeout.md`、`docs/progress.md` 和对应历史提交。
+> 总控决定业务目标、技术方案、任务拆分、验收；开发导师只按已冻结任务讲解、编码、测试和 Review。GitHub 文档是项目事实基线。
 
-## 1. Current Phase
+## 1. Phase State
 
-**Phase 3 — Business Goal & Minimal Scope Definition**
+- Phase 1：**CLOSED**
+- Phase 2：**CLOSED / ACCEPTED**
+- Phase 3：**ACTIVE — Invocation Records & Basic Visibility（调用记录与基础业务可见性）**
+- **P3-T01 — Business Goal & Architecture Baseline：DONE / ACCEPTED（总控）**
+- **Current Task：P3-T02 — Invocation Record Schema（ACTIVE）**
+- Next：P3-T03 — Successful Invocation Recording（NOT STARTED）
 
-Status: **ACTIVE（范围定义中，尚未开始 P3 业务代码）**
+用户 2026-10-18 要求由总控决定项目内容。P3-T01 已由总控基于真实代码与 Phase 2 闭环制定明确目标、方案、任务和 ADR-003；开发导师不再自主选题。
 
-Current Task: **P3-T01 — Phase 3 Business Goal & Scope Baseline（ACTIVE）**
+## 2. Business Goal
 
-Next Task: **P3-T02 — 待 P3-T01 验收后冻结，NOT STARTED**
+Phase 2 已经能通过 `POST /v1/invoke` 真实调用 Provider、返回结果或脱敏错误，但管理端无法按 Application 查看跨请求的成功/失败、失败类别和耗时历史。
 
-- Phase 1: CLOSED
-- Phase 2: **CLOSED / ACCEPTED**（P2-T01～T11）
-- Phase 3: **ACTIVE / P3-T01**
+Phase 3 的**唯一核心目标**：管理员可以查询某 Application 最近的模型调用结果、分类错误码与延迟，进行基础排障。**不是**计费账本、聚合报表、分布式链路追踪或复杂运维平台。
 
-> 2026-10-18 用户明确同意进入 P3。Phase 2 Closeout 已完成：完整单模型同步调用闭环、Phase 级 Code Review、文档、知识点和面试表达。用户报告本地 Maven **138 tests / 0 failures / 0 errors / 0 skipped**；该数据不是 GitHub CI。
-
-## 2. Business Background
-
-当前 AIGate 已能完成：
-
-```text
-Management 配置 Provider/Model/ModelDeployment
-→ Application 绑定默认 Deployment
-→ Application API Key 认证
-→ POST /v1/invoke
-→ ModelProxyService + ProviderAdapter + RestClient
-→ OpenAI-Compatible Provider
-→ InvokeResponse / 安全分类错误
-```
-
-Phase 2 解决了**调用是否能真实成功、调用失败如何正确表达**的问题。
-
-但现有最小模型代理没有持久化调用事件、平台用量/成本记录或跨请求的业务可见性。这是一个**值得分析的下一步业务缺口**，并不自动意味着现在需要 Redis、MQ、分布式追踪或计费。
-
-## 3. P3-T01 Business Goal
-
-> 在已有模型调用闭环上，明确 Phase 3 究竟先解决哪个可验证的业务问题，并用最小方案冻结范围、主流程、实体/API 边界及验收标准。不要在需求确认前直接编码“调用记录/限流/路由”。
-
-**首选待验证方向：最小调用可追踪性（Invocation Traceability）**：
-
-- 能否回答某个 Application 最近是否调用成功、失败的类别与耗时？
-- 如果无法回答，当前运维/排障的真实成本是什么？
-- 是否需要按 Application 查询调用历史，还是简单服务日志就够？
-- 如需保存数据，哪些最小元信息可保留、保留多久？（严禁默认落库 Prompt、模型输出、Bearer Key 或 Provider Secret）
-- 这件事是否优先于 CI 自动验证和安全技术债？用户确认的业务价值决定最终 Scope。
-
-这一方向是**候选题目，不是已经批准的数据表或新功能**。
-
-## 4. Scope（本任务）
-
-P3-T01 需要：
-
-1. 从现有代码/文档核实当前能看到哪些调用信息，哪些真实缺失。
-2. 比较最小候选：现有应用日志 / 结构化日志 / MySQL 保存少量元数据 / 暂不保存。
-3. 明确业务价值、数据隐私、失败调用如何记录、吞吐与数据增长的初步权衡。
-4. 形成一个**只有一个主目标**的 Phase 3 范围建议；写清 Scope / Out of Scope。
-5. 冻结最简 Happy Path、可能涉及的数据模型/API（仅在有需求时）、测试策略。
-6. 拆出可逐一验收的 P3-T02 及后续任务，避免一次加入所有优化。
-7. 对真正重大技术决策视情况建 ADR；小范围约定无需形式化 ADR。
-
-P3-T01 **不修改生产代码、不新增 Flyway、不引入中间件**，只是通过事实、业务价值和方案比较确认下一开发目标。
-
-## 5. Architecture / Proposed Options
-
-保留现有 **Spring Boot 模块化单体 + MySQL**。候选方案的评价顺序：
+## 3. Planned Main Flow
 
 ```text
-Option A: 现有日志是否足以解决业务问题？
-Option B: 增加少量结构化日志？
-Option C: 如需可查询历史，单 MySQL 最小调用元数据记录？
-Option D: 只有出现明确异步量/吞吐问题后再考虑 MQ 等
+POST /v1/invoke + Application API Key
+→ P2 Runtime Security / @Valid
+→ 小型 Tracking Facade（P3-T03）
+→ P2 ModelProxyService / ProviderAdapter / RestClient
+→ Provider success / failure
+→ best-effort save metadata to MySQL invocation_record
+
+Management HTTP Basic
+→ GET /api/applications/{id}/invocations?limit=20
+→ MySQL bounded latest-record query
 ```
 
-不得因为想学习 Redis / MQ / Elasticsearch 而先引入。
+只记录**认证和入参校验通过后，实际进入 Invoke 业务**的请求。不在无效 API Key、非法 Request 阶段产生记录；失败写入不得覆盖原始 Provider 结果或异常。这个表不是 exactly-once 审计/计费账本。
 
-对任何拟采用的新技术，必须回答：
-它是什么、解决什么、当前为何需要、不采用会怎样、替代方案、选择理由、新复杂度。
+## 4. Phase 3 Scope
 
-## 6. Main Flow（候选，未批准/未实现）
+- Flyway V7 一张 `invocation_record` 表、Entity、Mapper
+- 成功调用记录 SUCCESS；后续失败记录 FAILED + 安全分类 errorCode
+- 记录 elapsed milliseconds，并按 Application 查询最近记录
+- 写入失败 best-effort，不改变 `InvokeResponse` 或原异常
+- 30 天保留，最终通过简单定时清理控制数据量
+- 完整 Testcontainers + Mock HTTP Provider E2E、隐私检查和阶段收尾
 
-若最终选择“最小调用记录”，拟分析的流程：
+**不做** Redis / MQ / Elasticsearch / 微服务、token Usage/Cost/Quota、模型路由、SSE、异步事件、复杂聚合、原始 Prompt/Output 存储。
 
-```text
-POST /v1/invoke + ApplicationIdentity
-↓
-既有 ModelProxyService / ProviderAdapter / RestClient
-↓
-成功或分类失败
-↓
-仅记录最小安全元信息（Application、Deployment、Outcome、Latency 等候选字段）
-↓
-根据需求决定是否提供管理端查询
+## 5. Frozen Tasks
+
+| Task | Deliverable | Status |
+|---|---|---|
+| P3-T01 | 总控确定目标、范围、候选方案/取舍、ADR 与任务路线 | **DONE / ACCEPTED** |
+| P3-T02 | V7 invocation_record 表、Entity/Mapper、DB 测试 | **ACTIVE** |
+| P3-T03 | 成功 Invoke 的最小记录和记录失败隔离 | NOT STARTED |
+| P3-T04 | 管理端按 Application 查询最近调用记录 | NOT STARTED |
+| P3-T05 | 失败 Invoke 记录和错误码、隐私检查 | NOT STARTED |
+| P3-T06 | 30 天清理 + 完整 E2E/回归/增长检查 | NOT STARTED |
+| P3-T07 | Phase 3 Closeout：验收、架构、技术债、文档、知识点、面试 | NOT STARTED |
+
+只开展当前 ACTIVE Task。每次任务验收通过，**由总控**更新文档并自动启动下一任务。跨 Phase 必须先完成 Closeout。
+
+## 6. Frozen Data Contract（PLANNED，非已实现）
+
+V7: `invocation_record`
+
+| Column | Type | Semantics |
+|---|---|---|
+| id | BIGINT PK AUTO_INCREMENT | 记录 ID |
+| application_id | BIGINT NOT NULL | FK → application.id ON DELETE CASCADE |
+| status | VARCHAR(16) NOT NULL | SUCCESS / FAILED |
+| error_code | VARCHAR(64) NULL | SUCCESS 为空；FAILED 为固定安全错误码 |
+| duration_ms | BIGINT NOT NULL | 非负耗时 |
+| created_at | TIMESTAMP(6) NOT NULL | 记录时间 |
+
+索引：`INDEX(application_id, id)`，服务于 `WHERE application_id=? ORDER BY id DESC LIMIT ?`。
+
+**不保存** Prompt、模型返回文本、Client API Key、Provider Credential、内部 Provider URL、原始上游错误 Body。暂不存 Deployment ID：最小排障目标首先是“哪个 Application 何时失败、原因类别及耗时”；避免为多模型路由提前设计复杂记录模型。
+
+`ON DELETE CASCADE` 因为这只是 Application 的基础排障历史，删除 Application 不应因为记录表被阻塞；正式法定审计/收费不可直接复用此设计。
+
+## 7. Frozen Management Query（PLANNED，非已实现）
+
+```http
+GET /api/applications/{applicationId}/invocations?limit=20
+Authorization: Basic <management credentials>
 ```
 
-不要在当前任务里直接实现拦截器、AOP 记录、Usage 表、收费算法或异步 MQ。
+默认 20，限制 **1..100**，超出返回 400；按 `id DESC` 排序；不存在 Application 返回 404，无记录返回 `[]`。每个 item 仅 `id, applicationId, status, errorCode, durationMs, createdAt`。本阶段不实现全量导出、跨 Application 聚合或用户级细粒度权限。
 
-## 7. Tasks / Deliverables
+## 8. ADR / Tradeoffs
 
-P3-T01 完成时应提交到项目文档：
+`docs/adr/ADR-003-invocation-recording-persistence.md` 已决定 **MySQL 同步 best-effort 保存最小元数据**。
 
-- `docs/requirements.md`：确定 Phase 3 Business Goal + 为什么是当前优先业务问题
-- `docs/roadmap.md`：冻结 Phase 3 可验收任务路线、先 Happy Path 后增量优化
-- `docs/architecture.md`：边界/方案取舍（计划与已实现分开）
-- `docs/domain-model.md`、`docs/database-design.md`、`docs/api-design.md`：仅在确定需要时写**计划设计**，不把计划当现有能力
-- `docs/progress.md`：P3-T01 验收结论
-- ADR：重大技术决策才新增
+- 当前普通日志不适合稳定的按 Application 业务历史查询。
+- 复用 MySQL 比新增日志搜索平台、MQ 或 Redis 简单，容易用 Testcontainers E2E 测试。
+- 成本：每次有效 Invoke 多一次 DB 写；若记录保存失败可能丢历史，**不保证 exactly-once**。
+- 30 天清理是因为每次调用都会产生记录，必须避免无界增长；主业务打通之后再做清理。
+- 将来只有出现真实吞吐/可靠性需求时才评估批量写入、事件队列或 Outbox。
 
-**下一业务编码任务 P3-T02 由 P3-T01 最终 Scope 决定，目前 NOT STARTED。**
+## 9. Current Task P3-T02 — ONLY
 
-## 8. Acceptance Criteria
+**Business Goal:** 为未来的模型调用记录提供最小数据库基础；此任务不应改变实际 `POST /v1/invoke` 行为。
 
-- [ ] 明确只围绕一个可解释的 Phase 3 核心业务问题
-- [ ] 区分已证实痛点、假设以及未来可选增强
-- [ ] 给出最小可运行的 Happy Path 及完整验证方式
-- [ ] 解释为什么不用现有最简单方案、替代方案和成本
-- [ ] 如涉及调用信息持久化，明确敏感信息禁存、数据清理/保留、失败路径和一致性语义
-- [ ] 只拆必须做的第一批任务，不将 Redis/MQ/ES/微服务强行加入
-- [ ] 必要核心文档已更新，与 Phase 2 已实现事实一致
-- [ ] 开发导师 Code Review / 需求评审后回总控验收
+**Tasks:**
+1. 新建 Flyway **V7**，保持 V1–V6 不变；字段、FK、复合索引严格按第 6 节。
+2. 新增简单 `invocation` 模块（或项目一致命名）的 `InvocationRecord` Entity 与 `InvocationRecordMapper`。
+3. 处理 SUCCESS/FAILED 状态映射，避免非法状态值无意落库；不设计复杂状态机。
+4. 使用现有 MySQL Testcontainers 测试 migration、CRUD、FK、CASCADE、基本索引及异常/nullable 字段。
+5. 更新 `docs/database-design.md` 为“V7 已实现”，但只能在真实代码实现并验收后标记 DONE。
+6. 运行 Maven 测试，提供测试数/失败/错误/跳过汇总。
 
-## 9. Knowledge Points
+**Acceptance Criteria:**
+- V7 可在真实 MySQL Testcontainers 自动迁移；历史 migration 不被改写
+- 可保存并读取 SUCCESS 和 FAILED 两类记录；errorCode nullable，耗时非负
+- FK 和级联删除与既有 Application 管理 API 兼容
+- `(application_id,id)` 索引可用于最新记录有界查询
+- 表结构没有敏感请求/响应/凭证字段
+- `POST /v1/invoke`、Security 和 Provider Adapter 均未被提前修改
+- 没有新 Controller、MQ、Redis 或额外 Framework
+- 完整现有测试回归并提供实际执行结果
 
-本任务优先学会：**从已实现业务发现下一真实问题、如何比较日志与数据库记录、如何设计最小验收标准、如何识别安全与数据增长成本**。
+**Knowledge Points（开发导师需讲清楚）：** 业务记录表的必要性、Flyway V7、FK CASCADE、复合索引与按 App 查询、MyBatis-Plus Mapper、MySQL Testcontainers。
 
-## 10. Existing Technical Debt / Safety Gates
+## 10. Future Failure & Query Rules（NOT STARTED）
 
-- TD-001：HTTP Basic 只是管理开发期身份方案（公网/多用户上线前要重新评估）。
-- TD-009：没有 GitHub CI Test Gate；本地 138 项通过不等于自动 CI。
-- TD-011：Provider endpointUrl SSRF 与出站目标限制，公网生产化前需处理。
-- TD-010：Provider Master Key Rotation。
-- 其余 TD-002～TD-008 延续 Phase 2，根据真实问题排期。
+P3-T03 采用 Tracking Facade 包装现有 `ModelProxyService`，不修改 ProviderAdapter/ProviderHttpClient 的职责。以单调时钟测耗时；保存失败只警告，不覆盖真实成功响应。P3-T05 才处理模型调用失败，分类错误和未知异常的安全码，不吞异常。P3-T06 约定默认保留 30 天，简单每日清理和边界测试，非计费账本。
 
-**P3-T01 ACTIVE。不要自动假设已经开始调用记录业务编码，也不要擅自启动 P3-T02。** 用户已授权：后续单任务验收通过且无阻塞时，自动更新文档并启动下一任务。
+已知风险继续保留：TD-001 临时管理 Basic、TD-009 无 CI Test Gate、TD-010 Provider Master Key Rotation、TD-011 Provider Endpoint SSRF。公网发布前仍需独立处理。
+
+**Execution Gate: P3-T02 ACTIVE。开发导师现在仅执行 Schema/Mapper/测试，完成 Review 后回总控验收。**
