@@ -482,3 +482,15 @@ Status 为 502。上游返回 401 时，AIGate 不会返回客户端 Authenticat
 - 真正执行 Maven 测试并保留命令、测试数、失败与跳过信息
 
 P2-T10 不改变公开 API Contract、不新增 Migration。P2-T11 才进行完整 Phase 2 Closeout。
+
+
+---
+
+## Phase 2 Closeout — 当前 API 契约摘要（2026-10-18）
+
+- 管理面 `/api/**` 当前使用 HTTP Basic；Runtime `/v1/**` 使用 Application API Key Bearer，身份由服务端认证生成，客户端不传 Application/Deployment/Provider selector。
+- `POST /v1/invoke` 已正式实现：`InvokeRequest(messages, temperature?, maxTokens?)` → `InvokeResponse(content, model, finishReason)`。仅同步非流式。
+- Runtime 默认部署来自 `Application.defaultDeploymentId`，必须 enabled；支持 OpenAI-Compatible，endpointUrl 解释为 API base URL 并拼接 `/chat/completions`。
+- 入站认证失败 401；无默认部署/禁用 409；Provider HTTP 400/401/403/5xx 等映射到 502；Provider 429 映射 503；超时 504；上游成功响应结构非法 502。详细稳定错误码与消息以本文件错误契约章节及 `ProxyErrorType` 为准。
+- Application API Key 和 Provider Credential 严格隔离；不透传客户端 Key，不返回 Provider 原始错误 Body。
+- API 暂不包含 streaming/SSE、用量、计费、别名路由、配额或自动重试。文中较早的“待实现”描述仅代表历史任务状态，不代表当前运行情况。
