@@ -239,3 +239,15 @@ Soft Delete Framework
 ```
 
 这些等真实需求出现后再设计。
+
+
+---
+
+## Phase 2 Closeout — Schema 与调用关系核对（2026-10-18）
+
+当前 Flyway 数据库基线为 V1–V6：Team、Employee、Application、Provider、Model、ModelDeployment 和 ApplicationApiKey 等数据模型。运行时的核心外键链为 `application.default_deployment_id → model_deployment.id`，Deployment 关联 Provider 和逻辑 Model；API Key 记录关联 Application。
+
+- `model_deployment` 保存 `endpoint_url`（API base URL）、`remote_model_name`、`encrypted_credential` 与 `enabled`；Credential 加密保存，只有真实出站调用时才解密。
+- `application_api_key` 存 `key_id`、secret hash、状态等信息；明文 Secret 仅创建时展示，不可从数据库还原。新建 Key 不自动撤销旧 ACTIVE Key，显式撤销后 Runtime 认证拒绝。
+- Application 默认部署可以更新，Runtime 每次根据当前 DB 配置解析，不需要 Redis 才能正确切换。
+- 本阶段不新增业务 schema 迁移。以 Flyway SQL 文件和 Entity/Mapper 为实际字段与约束的最终核验来源；不要把计划中的 Key 自动轮换/过期、配额、用量统计写作现有表字段。
