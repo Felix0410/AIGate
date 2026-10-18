@@ -28,6 +28,8 @@ P2-T09 Provider Error Mapping
 P2-T10 End-to-End Integration Test
 → COMPLETED / ACCEPTED
 P2-T11 Phase Closeout
+→ COMPLETED / ACCEPTED
+P3-T01 Business Goal & Scope Baseline
 → ACTIVE
 ```
 
@@ -601,3 +603,16 @@ P2-T11 Phase Closeout **ACTIVE**。需从整个 Phase 2 审视：
 凭证分离：入站 Application Key 存高熵 Secret 的 SHA-256 hash，Provider Secret 存 AES-GCM 密文，只有出站才解密；客户端 Key 永不转发上游。E2E 通过 MockMvc + Testcontainers MySQL + 本地 JDK HTTP Provider；用户本地 Maven 汇总 138/0/0/0，仍无 GitHub CI Gate（TD-009）。
 
 架构风险/处置门槛：生产化前必须审视 HTTP Basic 管理认证（TD-001）与 Provider Endpoint 的 SSRF 出站目标限制（TD-011）；其他 TD 依真实问题逐步解决。没有本轮新增重大架构决策，不需要为了收尾虚构 ADR。
+
+
+---
+
+## 24. Phase 2 Closed / Phase 3 Scope Baseline（2026-10-18）
+
+**当前优先级最高的状态说明：** Phase 2 已完成 P2-T11 全面收尾，**CLOSED / ACCEPTED**；关闭审查及保留的生产风险见 `docs/phase-2-closeout.md`。以上各节历史“ACTIVE/NOT STARTED”状态表示当时阶段记录，不是现在执行任务。
+
+**Phase 3 当前：P3-T01 ACTIVE（只定义业务目标与最小范围）**。现有真实代码保持模块化单体、Spring MVC + RestClient、MySQL V1–V6、两条 Spring SecurityFilterChain、ProviderAdapter + 安全 ProxyErrorType。尚未开发新的 InvocationRecord、Usage、Quota 或其他 P3 业务代码。
+
+首选需要验证的下一个业务缺口是：现有 Runtime 能调用，但没有可查询的每次调用记录/失败类别/耗时。P3-T01 将评估现有日志是否足够，以及结构化日志或 MySQL 少量元数据的成本；**尚未做存储方案或 ADR 决策**。任何持久化设计都应避免 Prompt、模型响应原文及凭证明文默认落库。
+
+TD-001 管理认证、TD-009 CI Gate、TD-010 Master Key Rotation、TD-011 SSRF 网络目标限制仍需根据实际发布风险处理。Phase 2 测试证据为用户本地 138/0/0/0，不是 CI。
