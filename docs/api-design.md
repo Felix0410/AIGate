@@ -2,7 +2,7 @@
 
 ## 1. 当前基线
 
-当前内容以 **Phase 2 / P2-T09 已验收、P2-T10 已启动的真实代码与规划边界** 为准。
+当前生产 API 内容以 **Phase 2 完成并于 2026-10-18 CLOSED 的代码基线** 为准；Phase 3 已启动 P3-T01（需求范围定义），尚未批准或实现新增 API。
 
 认证边界：
 
@@ -494,3 +494,12 @@ P2-T10 不改变公开 API Contract、不新增 Migration。P2-T11 才进行完�
 - 入站认证失败 401；无默认部署/禁用 409；Provider HTTP 400/401/403/5xx 等映射到 502；Provider 429 映射 503；超时 504；上游成功响应结构非法 502。详细稳定错误码与消息以本文件错误契约章节及 `ProxyErrorType` 为准。
 - Application API Key 和 Provider Credential 严格隔离；不透传客户端 Key，不返回 Provider 原始错误 Body。
 - API 暂不包含 streaming/SSE、用量、计费、别名路由、配额或自动重试。文中较早的“待实现”描述仅代表历史任务状态，不代表当前运行情况。
+
+
+---
+
+## Phase 2 Closed / Phase 3 API Baseline（2026-10-18）
+
+Phase 2 的现有公开接口仍为管理面 `/api/**` 以及同步 Runtime `POST /v1/invoke`。请求、响应与错误契约详见本文件各节；历史“P2-T09 ACTIVE / P2-T10 NEXT”的描述已经过期，仅作阶段演进记录。
+
+Phase 3 当前只开启 P3-T01 业务目标定义，**尚无新的 Invoke Record / Usage / Quota / Routing API 被批准或实现**。只有 P3-T01 确定业务问题和最小流程后，才会在本文件注明新增接口的计划与实现状态。
