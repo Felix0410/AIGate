@@ -222,7 +222,7 @@ P2-T06 完成 AIGate 侧统一 DTO；P2-T07 已实现 ProviderAdapter、Provider
 POST /v1/invoke
 ```
 
-当前尚未创建生产 handler。
+**历史状态（P2-T06 时）：尚未创建生产 handler；当前已经实现。**
 
 原因：
 
@@ -248,7 +248,7 @@ ProviderAdapter protocol conversion
 → DONE
 
 Production /v1/invoke execution
-→ NOT WIRED
+→ DONE（P2-T08 已实现；P2-T09/T10 错误与 E2E 已验收）
 ```
 
 P2-T08 已完成真实同步非流式调用主链，并经静态代码、测试覆盖验收通过；当前 P2-T09 处理统一失败语义。
@@ -338,7 +338,7 @@ P2-T06 与 P2-T07 均执行已冻结的架构设计，未发生新的重大决�
 
 继续保留 TD-001 ~ TD-010。
 
-当前 Runtime 仍未具备真实模型调用；这是任务顺序中的未完成功能，不记为技术债。
+**历史 P2-T06 记录：** 当时 Runtime 未具备真实模型调用；P2-T08 后已完成，当前不再是未完成功能。
 
 没有为了 Contract 引入 Conversation persistence、Prompt aggregate、OpenAI SDK 或复杂领域层。
 
@@ -366,7 +366,7 @@ InvalidProviderResponseException
 
 P2-T07 已通过代码与测试设计审查，**COMPLETED / ACCEPTED**。GitHub 未提供该实现提交的 CI status/workflow run，TD-009 保留。
 
-## 17. P2-T08 RestClient + Single Model Proxy — 进行中
+## 17. P2-T08 RestClient + Single Model Proxy — 历史设计稿（现已完成）
 
 ### Business Goal
 
@@ -586,3 +586,18 @@ P2-T11 Phase Closeout **ACTIVE**。需从整个 Phase 2 审视：
 本阶段 Closeout 必须同步 progress/roadmap、核心架构与数据库/API 文档、knowledge-map、interview-notes；若无重大新决策则不强行新增 ADR。
 
 **当前 Phase 2 仍 ACTIVE / Closeout in progress，Phase 3 未启动。**
+
+
+---
+
+## 23. Phase 2 当前有效架构（2026-10-18，优先于上文历史设计段落）
+
+**P2-T01～T10 已实现并验收；P2-T11 Closeout ACTIVE，Phase 3 NOT STARTED。** 以上以“进行中”“尚未实现”描述 P2-T06/P2-T08 的段落属于阶段历史，不是当前运行事实。
+
+管理面 `/api/**` 通过 HTTP Basic 管理 Team/Application/Provider/Model/ModelDeployment/API Key；运行面 `/v1/**` 通过 Bearer Application Key → Spring SecurityFilterChain → ApplicationIdentity → RuntimeInvokeController → ModelProxyService（从 DB 读取 Application.defaultDeploymentId、启用的 ModelDeployment、Provider）→ ProviderAdapterRegistry/OpenAiCompatibleProviderAdapter → CredentialService（如有密文则 AES-GCM 解密）→ ProviderHttpClient/RestClient（同步非流式，3s connect、60s read 默认值）→ Provider → Adapter.parseResponse → InvokeResponse。
+
+失败边界：ModelProxyService 检查本地配置，ProviderHttpClient 按 HTTP 状态/网络异常分类，Adapter 检查成功 JSON 结构，GlobalExceptionHandler 根据 ProxyErrorType 统一脱敏返回 ApiErrorResponse。没有自动重试、Fallback、Redis、MQ、Nacos、微服务、SSE 或复杂路由。
+
+凭证分离：入站 Application Key 存高熵 Secret 的 SHA-256 hash，Provider Secret 存 AES-GCM 密文，只有出站才解密；客户端 Key 永不转发上游。E2E 通过 MockMvc + Testcontainers MySQL + 本地 JDK HTTP Provider；用户本地 Maven 汇总 138/0/0/0，仍无 GitHub CI Gate（TD-009）。
+
+架构风险/处置门槛：生产化前必须审视 HTTP Basic 管理认证（TD-001）与 Provider Endpoint 的 SSRF 出站目标限制（TD-011）；其他 TD 依真实问题逐步解决。没有本轮新增重大架构决策，不需要为了收尾虚构 ADR。
