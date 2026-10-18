@@ -870,3 +870,48 @@ Spring 内部执行流程
 ```
 
 是后续需要继续加强的重点。
+
+
+---
+
+# Phase 2 — 可直接用于面试的项目表达
+
+## 项目业务与架构（约 60 秒）
+
+AIGate 当前是 Spring Boot 模块化单体 AI 模型网关。管理端配置 Provider、逻辑 Model、ModelDeployment 与 Application 默认部署，并为 Application 创建 API Key。运行时 Client 通过 `POST /v1/invoke` 使用 Bearer Key；Spring Security 验证后生成 ApplicationIdentity，ModelProxyService 读取默认部署并检查启用状态，由 Adapter 构造 OpenAI-Compatible 请求、RestClient 发送真实 HTTP，再将响应转换为稳定 InvokeResponse。失败时按来源区分本地配置、上游状态/超时、无效 JSON，映射统一 ApiErrorResponse，且不暴露上游凭证和原始错误。测试通过 MockMvc、Testcontainers MySQL 和本地 HTTP Mock Provider 覆盖整条链路。
+
+## Q1 为什么区分 Provider、Model 和 ModelDeployment？
+
+Provider 是服务提供方，Model 是逻辑模型记录，ModelDeployment 才是具体调用配置（Provider/Model 关联、endpointUrl、remoteModelName、可选加密凭证、enabled）。Application 绑定默认 Deployment，变更部署无需把 URL 和 Secret 硬编码进客户端或 Application。
+
+## Q2 为什么 Application API Key 用 hash，Provider Credential 用 AES-GCM？
+
+入站 Key 只需验证，无需还原，因此数据库保留 SHA-256 摘要并使用安全比较；上游 Provider Bearer 必须在调用时恢复明文，所以 AES-GCM 可逆加密。两类凭证绝不互传。SHA-256 在这里依赖高熵随机 Secret，不适合作为用户低熵密码的通用替代。
+
+## Q3 为什么分两条 Spring SecurityFilterChain？
+
+管理端 `/api/**` 暂用 HTTP Basic；运行面 `/v1/**` 接受 Application Bearer Key。Filter 认证后只保存 ApplicationIdentity，不携带原始 Key，防止将客户端凭证错误转发给 Provider。这是单应用内的安全边界，不必为了隔离立刻拆两个微服务。
+
+## Q4 Adapter 与 RestClient 为什么分开？
+
+Adapter 负责供应商协议的请求/响应转换（例如 `maxTokens` → `max_tokens`，`choices[0]` → `InvokeResponse`）；RestClient 负责 HTTP、Header、网络超时；Service 编排业务部署选择。协议变化、网络变化、业务变化分别修改各自边界，避免一个大类包揽全部逻辑。
+
+## Q5 为什么同步调用、不自动重试？
+
+目前仅有单次非流式请求，Spring MVC + RestClient 最简单。代价是 Tomcat 请求线程等待上游响应，所以设置连接/读取超时。上游超时后不能确定是否已执行/计费，自动重试可能重复消耗，因此先把安全错误返回客户端，等待明确重试语义再演进。
+
+## Q6 Provider 返回 401 或 429，为什么不原样透传？
+
+Provider 401 说明上游凭证问题，并非客户端 Application Key 错；映射为 502 PROVIDER_AUTH_FAILED。Provider 429 表示上游限流，映射 503 PROVIDER_RATE_LIMITED。超时映射 504，成功 HTTP 200 但协议错误映射 502。统一错误码避免调用方误判，也不泄露上游原始 Body。
+
+## Q7 怎么验证不是假接口？
+
+E2E 通过管理 API 建配置和 Key，MockMvc 走真实认证/Controller/Service/Mapper，Testcontainers 跑真实 MySQL，RestClient 通过 TCP 发到本地 JDK HttpServer。验证真实请求目标、凭证隔离、撤销 Key 后零出站、默认 Deployment 切换和错误映射。用户报告本地 Maven 138 项测试全通过；没有 CI 流水线验收，不能说 CI 已绿。
+
+## Q8 为什么不用 Redis、MQ、微服务和熔断框架？
+
+现阶段单模型同步调用在模块化单体中能形成完整闭环，尚无吞吐、跨服务一致性或异步削峰的真实问题。引入这些技术会增大部署、运维和故障模式复杂度。后续以业务指标和实际瓶颈推动演进，而不是为技术栈堆砌。
+
+## 未完成事项如何诚实表达？
+
+生产化之前仍需要管理面权限强化、Provider Endpoint SSRF/出站目标防护、CI 测试门禁，以及按需求补充追踪与主密钥轮换。当前不是生产级多租户高并发平台，不宣称具备尚未开发的限流/计费/流式/多模型路由。
