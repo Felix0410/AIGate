@@ -503,3 +503,25 @@ P2-T10 不改变公开 API Contract、不新增 Migration。P2-T11 才进行完�
 Phase 2 的现有公开接口仍为管理面 `/api/**` 以及同步 Runtime `POST /v1/invoke`。请求、响应与错误契约详见本文件各节；历史“P2-T09 ACTIVE / P2-T10 NEXT”的描述已经过期，仅作阶段演进记录。
 
 Phase 3 当前只开启 P3-T01 业务目标定义，**尚无新的 Invoke Record / Usage / Quota / Routing API 被批准或实现**。只有 P3-T01 确定业务问题和最小流程后，才会在本文件注明新增接口的计划与实现状态。
+
+---
+
+## Phase 3 — 调用历史管理 API（**PLANNED / NOT IMPLEMENTED**）
+
+总控已经冻结需求，当前仅执行 P3-T02 的数据库任务；**本接口直到 P3-T04 才实现**。
+
+```http
+GET /api/applications/{applicationId}/invocations?limit=20
+Authorization: Basic <management-credentials>
+```
+
+- 查询管理面仍使用现有 HTTP Basic（不使用 Application API Key 访问此管理接口）。
+- 返回按 `id DESC` 排序的最近记录数组；`limit` 默认 20、合法范围 1..100；无记录返回空数组 `[]`。
+- 不存在的 Application 返回 404；非法 `limit` 返回 400。
+- 每项响应仅含 `id, applicationId, status, errorCode, durationMs, createdAt`。
+- 不提供查询其他 Application 的运行面接口、导出大量记录、全文搜索、聚合报表或分页平台。
+- `POST /v1/invoke` 现有 Request/Response **不变**；客户端不知道也无需知道调用记录写入。
+- P3-T03/P3-T05 只统计通过身份认证、Bean Validation 并进入代理业务的请求，不以原始密钥/Prompt 为记录数据。
+- 本数据是尽力保留的排障历史，不表示官方计费用量。
+
+相关冻结设计见 `docs/current-phase.md` 和 `docs/adr/ADR-003-invocation-recording-persistence.md`。
