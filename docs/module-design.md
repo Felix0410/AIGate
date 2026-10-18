@@ -38,19 +38,19 @@ Spring Security Runtime FilterChain
 
 ---
 
-## Phase 3 模块扩展（已实现代码，P3-T05 待验收）
+## Phase 3 模块扩展（P3-T05 已实现并验收）
 
 新增轻量 `invocation` 业务模块。P3-T02 先只有 `InvocationRecord` + `InvocationRecordMapper`，不改变 P2 的代理行为。
 
 后续任务按需加入：
 - P3-T03 `InvocationTrackingFacade`：**已实现并验收**；包装原 ModelProxyService，用单调时钟量取耗时，成功后 best-effort 写 SUCCESS，不接管 Provider HTTP。
 - P3-T04 `InvocationQueryService` / 管理 Controller：**DONE / ACCEPTED**；管理 Basic 查询指定 Application 最近记录，限制 limit 1..100。
-- P3-T05：**实现已提交、待总控验收**；Facade 记录失败和安全固定错误码，继续抛出原始错误。新增 RetentionService 和 Scheduling 实现 30 天自动清理。
-- P3-T06：Phase 3 Closeout（NOT STARTED），阶段审查与文档/面试整理，不额外增加清理功能。
+- P3-T05：**DONE / ACCEPTED**；Facade 记录失败安全码，继续抛出原始错误；RetentionService 和 Scheduler 实现 30 天自动清理。
+- P3-T06：Phase 3 Closeout（**ACTIVE**），阶段审查、测试稳定性与文档/面试整理，不额外增加清理功能。
 
 依赖方向：Runtime 调用边界 → Tracking → Invocation Mapper/MySQL；Provider Adapter 只负责协议，ProviderHttpClient 只负责网络；管理查询不读 Prompt/模型响应原文。不增加 MQ/Redis/ES 等额外基础设施。
 
-**当前代码状态 2026-10-18：P3-T03 DONE / ACCEPTED，P3-T04 DONE / ACCEPTED，P3-T05 已提交 / 待验收。**
+**当前代码状态 2026-10-18：P3-T03/P3-T04/P3-T05 DONE / ACCEPTED；P3-T06 Phase Closeout ACTIVE。**
 
 ### P3-T05 新增组件职责
 
@@ -72,3 +72,5 @@ Spring Security Runtime FilterChain
 
 **InvocationSchedulingConfig**：
 - 项目级 @EnableScheduling，不重复启用。不引入 Quartz/Redis 锁/MQ。
+
+**总控验收更新：** P3-T05 生产代码和测试覆盖检查通过；后续只做集中阶段收尾和测试稳健性检查。模块职责继续保持 Tracking Facade / Query Service / Retention Scheduler 分离，严禁改造成通用消息驱动体系。
