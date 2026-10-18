@@ -27,7 +27,7 @@
 
 P2-T01～T11 已全部完成并通过总控收尾，**Phase 2 CLOSED / ACCEPTED**；功能与测试依据见 `docs/phase-2-closeout.md`。用户报告本地 138/0/0/0 测试通过，此证据不是 GitHub CI 门禁。
 
-## Phase 3 — P3-T01 需求确认中（非已批准功能）
+## Phase 3 前期需求讨论（历史；已由 2026-10-18 总控决策取代）
 
 Phase 3 已由用户授权启动，目前仅**冻结 P3-T01 的目标：找出 Phase 2 后最值得做的单一业务问题，比较最简方案并确认最小范围。**
 
@@ -42,3 +42,28 @@ P3-T01 需回答：
 - 为什么不在没有实际瓶颈时上 Redis、MQ、ES 或微服务？
 
 **P3-T01 不等于批准 InvocationRecord 表或查询 API。** 在范围验收前不得将该候选方向写成已实现需求；P3-T02 尚未启动。
+
+
+---
+
+## Phase 3 已冻结业务需求（2026-10-18，总控决定）
+
+**项目阶段：Phase 3 — Invocation Records & Basic Visibility。P3-T01 DONE，P3-T02 ACTIVE。**
+
+**R3-01：** 通过认证和 `@Valid`、进入 Runtime Invoke 的请求，应产生最小可查询调用历史。未认证或参数非法的请求不产生 InvocationRecord。
+
+**R3-02：** 成功时记录 Application ID、SUCCESS、耗时毫秒数和时间；失败时记录 FAILED 和已归类的安全错误码。不得保存 Prompt、模型回答、请求/响应 JSON、客户端 API Key、Provider Credential、内部 Provider URL。
+
+**R3-03：** 记录属于 best-effort 业务排障数据，**记录写入失败不能覆盖或修改客户端原始 InvokeResponse/ApiErrorResponse**；不承诺 exactly-once、合规审计或准确计费。
+
+**R3-04：** 管理员可使用已有 Basic 身份通过 `GET /api/applications/{applicationId}/invocations?limit=20` 查询特定 App 最近历史；默认 20，合法范围 1..100，按 ID 降序；不存在 Application 404，无记录 `[]`。
+
+**R3-05：** 记录保留默认 30 天，使用最小定时清理避免表无限增长；数据生命周期和超界查询都要测试。
+
+**R3-06：** MySQL V7 最小表结构：`id, application_id, status, error_code, duration_ms, created_at`；`application_id` FK CASCADE，索引 `(application_id,id)`。
+
+**R3-07：** 基于现有模块化单体 + MySQL + MyBatis-Plus + Flyway + Testcontainers；不得为了记录业务增加 Redis/MQ/ES、微服务、计费系统或新 Provider SDK。
+
+**当前仅 P3-T02 可编码**：Flyway V7 + Entity/Mapper + 数据库测试；P3-T03～T07 必须按路线依次验收。
+
+正式架构取舍记录：`docs/adr/ADR-003-invocation-recording-persistence.md`；实际代码状态以 `docs/current-phase.md` 为准。
