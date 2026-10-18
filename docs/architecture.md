@@ -40,9 +40,9 @@ P3-T03 Successful Invocation Recording
 P3-T04 Management Invocation History Query
 → COMPLETED / ACCEPTED
 P3-T05 Invocation Record Completion
-→ 实现已提交，Code Review / 验收待完成
+→ COMPLETED / ACCEPTED
 P3-T06 Phase 3 Closeout
-→ NOT STARTED
+→ ACTIVE
 ```
 
 ---
@@ -766,4 +766,17 @@ InvocationRecordRetentionScheduler 使用 `@Scheduled(cron="0 0 3 * * *", zone="
 
 非阻塞测试技术债：`onlyOneEnableScheduling` 目前只能证明指定配置类存在注解，不能证明全项目注解唯一；测试的 AfterEach 删除 Application 未断言 HTTP 状态，且未清理本次创建的 Team。此类问题不再反复开启小修复任务，纳入后续测试质量整理。由于没有独立 CI 运行证据，测试运行以“提交前本地测试通过”的项目工作约定为准。
 
-**P3-T05 代码及修复复审通过、可交总控验收；总控尚未在本文件中确认 ACCEPTED。P3-T06 Phase Closeout 不由开发导师自行开启。**
+**P3-T05 已由总控完成验收，DONE / ACCEPTED；P3-T06 已启动 Phase 3 Closeout。**
+
+
+---
+
+## 31. P3-T05 总控正式验收与 P3-T06 Closeout（2026-10-18）
+
+总控核对实现 `8262303df74598f6e76e68ad1f10ce40b096e2c6` 与修复 `dfcc70afb3228c817c9b42693257474b75895384`，确认 P3-T05 的失败调用安全记录、原异常透传、best-effort 写入隔离、UTC 30 天历史清理与相关 E2E 测试覆盖符合 ADR-003 决策，没有阻塞性生产代码缺陷。
+
+**P3-T05 DONE / ACCEPTED；P3-T06 Phase 3 Closeout ACTIVE。** Phase 3 尚未 CLOSED。本轮 GitHub 无 CI 运行证据，尚未提供新的 Maven 全量测试汇总；Closeout 需取得可复现的执行结果。
+
+P3-T06 优先检查测试稳定性：RuntimeInvokeRecordingIntegrationTest 的慢 Provider 延迟与默认 read timeout 均为 60 秒，应采用明确小于 Mock 延迟的独立超时配置，避免竞态及测试耗时；清理测试的生命周期断言和注解唯一性断言需更加准确。另将 created_at 缺索引、单条大 DELETE 的未来数据库成本归入按真实数据规模触发的技术债，不提前 V8 或批量框架。
+
+架构事实：单个 Spring Boot 模块化单体、MySQL V1～V7；Runtime → InvocationTrackingFacade → ModelProxyService，SUCCESS/FAILED 安全元数据 best-effort 入库，GET 管理历史限量查询，定时删除 created_at < UTC 30天 cutoff。API 与错误 HTTP 语义没有变化。
