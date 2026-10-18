@@ -397,3 +397,16 @@ Business Goal: 正式审查并收尾 Phase 2 的真实业务闭环、代码、�
 10. Phase Closeout 结论、阻塞清单和下一阶段准备
 
 **当前 P2-T11 ACTIVE，Phase 2 仍 ACTIVE；不把“138 个测试通过”直接等同于“Phase 2 CLOSED”。** 在 P2-T11 无阻塞且文档全部同步后，再按自动推进约定进入下一 Phase。
+
+
+---
+
+## P2-T11 文档核对记录（2026-10-18）
+
+- **当前状态：P2-T11 ACTIVE；Phase 2 尚未 CLOSED；Phase 3 未启动。** P2-T01～T10 均 DONE / ACCEPTED。
+- 核心闭环已实现：管理配置 → Application 默认部署 → Application API Key → Spring Security 认证 → Adapter/RestClient → Provider → 统一结果或错误。
+- 用户提供的本地 Maven 汇总为 **138 tests / 0 failures / 0 errors / 0 skipped**；不是 CI 执行结果，TD-009 保留。
+- 关键边界：HTTP Basic 管理面与 Bearer Runtime；API Key hash 与 Provider Credential AES-GCM；Adapter 协议转换与 ProviderHttpClient HTTP 传输分离。
+- 生产化前重点：TD-001 管理面认证升级、TD-011 出站 URL/SSRF 防护；工程质量 TD-009 CI 和 TD-006 requestId/traceId 后续处理。其余 TD-002~TD-010 继续按真实需求决定，无需本阶段一次偿还。
+- 文档核对已明确：修正 roadmap 对 Phase 2 的过期 PLANNED 说明、architecture 中 Runtime 尚未实现的过期说明；补写 Phase 2 开发知识与面试表达。未修改业务代码、数据库或阶段状态。
+- **收尾门槛**：仍需总控综合验收 P2-T11，再决定 Phase 2 CLOSED 与 Phase 3 启动，不以文档提交自动替代验收。
