@@ -2,7 +2,7 @@
 
 ## 1. 当前基线
 
-当前已实现 API 包括 Phase 2 同步模型调用和 Phase 3 成功记录/管理端查询。**P3-T04 DONE / ACCEPTED；当前 P3-T05 ACTIVE**，正在补齐失败记录和 30 天保留。历史 PLANNED/ACTIVE 段落仅表示当时状态。
+当前已实现 API 包括 Phase 2 同步模型调用、Phase 3 SUCCESS/FAILED best-effort 记录及管理端历史查询。**P3-T04 DONE / ACCEPTED；P3-T05 已提交、待总控验收**。历史 PLANNED/ACTIVE 段落仅反映当时状态。
 
 认证边界：
 
@@ -246,7 +246,7 @@ P3-T03/T04/T05 实现了调用历史记录的写入与查询。
 applicationId  — 请求所属 Application
 status         — SUCCESS | FAILED
 errorCode      — 仅 FAILED 时设置
-durationMs     — 从 Controller 入口到 Provider 响应结束的单次调用耗时
+durationMs     — 从 Facade 调用 ModelProxyService 前至其正常返回或抛异常的耗时（不含记录保存）
 createdAt      — 记录写入时刻
 ```
 
@@ -566,7 +566,7 @@ Authorization: Basic <management-credentials>
 ### 20.3 与 P3-T05 的边界
 
 - P3-T04 当前只返回 `invocation_record` 表中已存在的记录。
-- **FAILED 记录的自动写入尚未实现**（P3-T05 范围）。
+- **FAILED 记录的自动写入已经提交实现，P3-T05 尚待最终验收**。
 - 若表中已有 FAILED 记录（如手动插入），查询 API 可正常返回其字段。
 - `POST /v1/invoke` 现有 Request/Response **不变**；客户端不知道也无需知道调用记录写入。
 - 本数据是尽力保留的排障历史，不表示官方计费用量。
@@ -579,4 +579,4 @@ Authorization: Basic <management-credentials>
 
 P3-T04 已通过代码与测试覆盖验收，具体 API 如第20节。**现有 GET /api/applications/{applicationId}/invocations?limit=20 已实现且可调用**，默认20、合法1..100、按 App 隔离与 id DESC SQL LIMIT；无记录200 []，不存在 App 404，非法 limit 400。返回只包含 id/applicationId/status/errorCode/durationMs/createdAt。
 
-**P3-T05 ACTIVE（后续实现）**：继续保持 POST /v1/invoke 成功/失败 HTTP 合同不变，仅在合法业务调用失败时 best-effort 写 FAILED 与安全分类码；增加后台30天历史清理，不新增客户端公开 API。成功记录逻辑已实现。P3-T05 E2E 验证管理查询能读到真实 SUCCESS/FAILED 混合历史。所有业务调用数据均不存原 Prompt、响应内容和凭证。
+**P3-T05 实现提交待验收**：`POST /v1/invoke` 原有 HTTP 合同不变。Facade 对已认证且已通过请求校验的业务调用分类记录 SUCCESS/FAILED，记录保存失败不覆盖原响应或异常；每日 UTC 03:00 后台清理早于 30 天截止时间的记录；E2E 已增加 SUCCESS/FAILED 混合历史测试。所有记录均不保存 Prompt、响应正文或凭证。
