@@ -2,7 +2,7 @@
 
 ## 1. 当前基线
 
-**当前代码基线：Phase 3 / P3-T02 实现提交 `b790b2a`；V7 已提交代码，尚待实际 Maven 测试运行证据完成任务验收。**
+**当前代码基线：Phase 3 / P3-T02 实现提交 `b790b2a`；V7 已实现并通过本地测试验收。**
 
 数据库：**MySQL 8.4**
 
@@ -294,7 +294,7 @@ Soft Delete Framework
 
 **V7 属于 Phase 3 的 P3-T02 实现，不得追溯记入 Phase 2。**
 
-## Phase 3 / P3-T02 — 当前实现待执行验收
+## Phase 3 / P3-T02 — 已验收
 
 `V7__create_invocation_record.sql` 已提交代码，定义 invocation_record 与 Application 的 CASCADE 外键、SUCCESS/FAILED 和非负耗时 CHECK、复合索引 (application_id,id)。
 
