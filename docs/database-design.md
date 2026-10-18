@@ -2,7 +2,7 @@
 
 ## 1. 当前基线
 
-当前内容以 **Phase 2 / P2-T04 完成后的实际实现** 为准。
+**当前代码基线：Phase 3 / P3-T02 实现提交 `b790b2a`；V7 已提交代码，尚待实际 Maven 测试运行证据完成任务验收。**
 
 数据库：**MySQL 8.4**
 
@@ -286,11 +286,18 @@ Soft Delete Framework
 
 ---
 
-## Phase 2 Closeout — Schema 与调用关系核对（2026-10-18）
+## Phase 2 Closeout — 历史数据库基线（2026-10-18）
 
-当前 Flyway 数据库基线为 V1–V7：Team、Employee、Application、Provider、Model、ModelDeployment、ApplicationApiKey 和 InvocationRecord 等数据模型。运行时的核心外键链为 `application.default_deployment_id → model_deployment.id`，Deployment 关联 Provider 和逻辑 Model；API Key 记录关联 Application；InvocationRecord 关联 Application（ON DELETE CASCADE）。
+**Phase 2 关闭时的 Flyway 数据库版本为 V1–V6，不包含 InvocationRecord。**
 
-- `model_deployment` 保存 `endpoint_url`（API base URL）、`remote_model_name`、`encrypted_credential` 与 `enabled`；Credential 加密保存，只有真实出站调用时才解密。
-- `application_api_key` 存 `key_id`、secret hash、状态等信息；明文 Secret 仅创建时展示，不可从数据库还原。新建 Key 不自动撤销旧 ACTIVE Key，显式撤销后 Runtime 认证拒绝。
-- Application 默认部署可以更新，Runtime 每次根据当前 DB 配置解析，不需要 Redis 才能正确切换。
-- 本阶段不新增业务 schema 迁移。以 Flyway SQL 文件和 Entity/Mapper 为实际字段与约束的最终核验来源；不要把计划中的 Key 自动轮换/过期、配额、用量统计写作现有表字段。
+当时已实现的主要关系：Application.defaultDeploymentId → ModelDeployment、ModelDeployment → Provider/Model，以及 Application → ApplicationApiKey。Runtime 通过默认部署查找 Provider；入站 API Key 哈希存储，上游 Credential 使用 AES-GCM 密文保存。
+
+**V7 属于 Phase 3 的 P3-T02 实现，不得追溯记入 Phase 2。**
+
+## Phase 3 / P3-T02 — 当前实现待执行验收
+
+`V7__create_invocation_record.sql` 已提交代码，定义 invocation_record 与 Application 的 CASCADE 外键、SUCCESS/FAILED 和非负耗时 CHECK、复合索引 (application_id,id)。
+
+Entity/Mapper 和 MySQL Testcontainers 数据库集成测试源码已提交；静态 Code Review 通过。
+
+**当前仅待新的 Maven 实际执行结果**。之前 Phase 2 的 138 个测试通过记录不能替代 V7 后的回归测试。P3-T02 尚未标记 ACCEPTED，业务层仍未开始向本表写入 Invoke 历史；P3-T03/P3-T04 等任务未启动。
