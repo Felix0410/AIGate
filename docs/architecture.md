@@ -30,6 +30,10 @@ P2-T10 End-to-End Integration Test
 P2-T11 Phase Closeout
 → COMPLETED / ACCEPTED
 P3-T01 Business Goal & Scope Baseline
+→ COMPLETED / ACCEPTED
+P3-T02 Invocation Record Schema
+→ COMPLETED / ACCEPTED
+P3-T03 Successful Invocation Recording
 → ACTIVE
 ```
 
@@ -655,3 +659,14 @@ Runtime 可以代理模型、返回结果/分类错误，但管理端不能按 A
 单纯日志难以提供稳定的管理 API；结构化日志需要新的检索与保留基础设施；MySQL 已存在、开发/测试成本最低；MQ 适合将来吞吐与可靠异步写入问题，但现在增大 Broker、投递、幂等与运维复杂度。
 
 决策文件：`docs/adr/ADR-003-invocation-recording-persistence.md`。
+
+
+---
+
+## 26. P3-T02 Accepted / P3-T03 Success Tracking Design
+
+Phase 3 的 V7 数据基础已实现：invocation_record 表、InvocationRecord/InvocationStatus/Mapper、CHECK/FK CASCADE/(application_id,id) 复合索引。用户本地 Maven 149 项测试无失败/错误/跳过，BUILD SUCCESS；不是 GitHub CI 结果。
+
+P3-T03 ACTIVE：只接成功调用记录，使用显式 InvocationTrackingFacade 包装现有 ModelProxyService，获取认证后的 applicationId。通过 System.nanoTime 量取模型代理耗时，调用成功后同步 best-effort 保存 SUCCESS/errorCode NULL/durationMs/createdAt。写入异常只生成安全固定告警，不改变真实 Provider 返回；不要给包含 HTTP 的外层调用加 @Transactional。ModelProxyService、Adapter、ProviderHttpClient 保持现有职责。失败记录交给 P3-T05，查询交给 P3-T04，保留清理交给 P3-T06。
+
+这是 P3-T03 的已批准设计，不是当前已实现的自动成功记录功能。决策沿用 ADR-003，不需要重复新增 ADR。
