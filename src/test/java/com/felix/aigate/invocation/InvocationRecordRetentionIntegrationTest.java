@@ -6,6 +6,7 @@ import com.felix.aigate.invocation.entity.InvocationStatus;
 import com.felix.aigate.invocation.mapper.InvocationRecordMapper;
 import com.felix.aigate.invocation.service.InvocationRecordRetentionService;
 import com.felix.aigate.support.IntegrationTestBase;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -15,8 +16,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -24,7 +27,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 30 天保留规则集成测试。
  *
  * <p>使用固定的 now/cutoff 验证 TIMESTAMP(6) 边界，不依赖系统时间修改。
- * <p>通过真实 REST 创建 Application 以满足外键约束。
+ * <p>通过真实 REST 创建 Application 以满足外键约束，测试结束通过 CASCADE 清理。
+ * <p>通过记录 ID 断言个体状态，不依赖全局表行数。
  */
 class InvocationRecordRetentionIntegrationTest extends IntegrationTestBase {
 
@@ -50,6 +54,17 @@ class InvocationRecordRetentionIntegrationTest extends IntegrationTestBase {
         app2 = createApplication("reta2-" + suffix, teamId);
     }
 
+    @AfterEach
+    void removeApplications() throws Exception {
+
+        if (app1 != null) {
+            mockMvc.perform(authed(delete("/api/applications/" + app1)));
+        }
+        if (app2 != null) {
+            mockMvc.perform(authed(delete("/api/applications/" + app2)));
+        }
+    }
+
     @Test
     @DisplayName("cutoff 前 1μs 删除、cutoff 相等保留、cutoff 后保留")
     void boundaryCleanupShouldMatchSpec() {
@@ -66,17 +81,16 @@ class InvocationRecordRetentionIntegrationTest extends IntegrationTestBase {
         invocationRecordMapper.insert(r2);
         invocationRecordMapper.insert(r3);
 
-        int deleted = retentionService.deleteBefore(CUTOFF);
-        assertEquals(1, deleted);
+        retentionService.deleteBefore(CUTOFF);
 
-        List<InvocationRecord> remaining = listAll();
+        assertNull(recordById(r1.getId()), "cutoff 前的记录已删除");
+        assertNotNull(recordById(r2.getId()), "cutoff 相等的记录保留");
+        assertNotNull(recordById(r3.getId()), "cutoff 后的记录保留");
 
-        List<Long> remainingIds = remaining.stream()
-                .map(InvocationRecord::getId)
-                .toList();
-        assertTrue(remainingIds.contains(r2.getId()));
-        assertTrue(remainingIds.contains(r3.getId()));
-        assertEquals(2, remainingIds.size());
+        List<InvocationRecord> appRecords = recordsForApp(app1);
+        List<Long> ids = appRecords.stream().map(InvocationRecord::getId).toList();
+        assertTrue(ids.contains(r2.getId()));
+        assertTrue(ids.contains(r3.getId()));
     }
 
     @Test
@@ -88,8 +102,9 @@ class InvocationRecordRetentionIntegrationTest extends IntegrationTestBase {
         InvocationRecord r1 = buildRecord(app1, beforeCutoff);
         invocationRecordMapper.insert(r1);
 
-        int deleted = retentionService.deleteBefore(CUTOFF);
-        assertEquals(1, deleted);
+        retentionService.deleteBefore(CUTOFF);
+
+        assertNull(recordById(r1.getId()), "过期记录应被删除");
 
         mockMvc.perform(authed(
                         org.springframework.test.web.servlet.request.MockMvcRequestBuilders
@@ -98,23 +113,26 @@ class InvocationRecordRetentionIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
-    @DisplayName("对相同 cutoff 第二次清理返回 0，结果不变")
+    @DisplayName("对相同 cutoff 第二次清理后本测试记录仍不存在")
     void idempotentCleanupShouldReturnZero() {
 
         Instant beforeCutoff = CUTOFF.minus(Duration.ofDays(1));
 
-        invocationRecordMapper.insert(buildRecord(app1, beforeCutoff));
+        InvocationRecord r1 = buildRecord(app1, beforeCutoff);
+        invocationRecordMapper.insert(r1);
 
-        int first = retentionService.deleteBefore(CUTOFF);
-        assertEquals(1, first);
+        retentionService.deleteBefore(CUTOFF);
+
+        assertNull(recordById(r1.getId()), "第一次清理后过期记录已删除");
 
         int second = retentionService.deleteBefore(CUTOFF);
-        assertEquals(0, second);
+
+        assertNull(recordById(r1.getId()), "第二次清理后过期记录仍不存在");
     }
 
     @Test
-    @DisplayName("不同 Application 的记录都会在 cutoff 前全部被清理")
-    void applicationIsolationInCleanup() {
+    @DisplayName("不同 Application 的过期记录都会被清理，Application 保留")
+    void applicationIsolationInCleanup() throws Exception {
 
         Instant beforeCutoff = CUTOFF.minus(Duration.ofDays(1));
 
@@ -124,11 +142,32 @@ class InvocationRecordRetentionIntegrationTest extends IntegrationTestBase {
         invocationRecordMapper.insert(r1);
         invocationRecordMapper.insert(r2);
 
-        int deleted = retentionService.deleteBefore(CUTOFF);
-        assertEquals(2, deleted);
+        retentionService.deleteBefore(CUTOFF);
+
+        assertNull(recordById(r1.getId()), "app1 过期记录已删除");
+        assertNull(recordById(r2.getId()), "app2 过期记录已删除");
+
+        mockMvc.perform(authed(
+                        org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                                .get("/api/applications/" + app1)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(authed(
+                        org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                                .get("/api/applications/" + app2)))
+                .andExpect(status().isOk());
     }
 
     // ---- helpers ----
+
+    private InvocationRecord recordById(Long id) {
+        return invocationRecordMapper.selectById(id);
+    }
+
+    private List<InvocationRecord> recordsForApp(Long appId) {
+        return invocationRecordMapper.selectList(new LambdaQueryWrapper<InvocationRecord>()
+                .eq(InvocationRecord::getApplicationId, appId));
+    }
 
     private InvocationRecord buildRecord(Long applicationId, Instant createdAt) {
 
@@ -138,11 +177,6 @@ class InvocationRecordRetentionIntegrationTest extends IntegrationTestBase {
         record.setDurationMs(100L);
         record.setCreatedAt(createdAt);
         return record;
-    }
-
-    private List<InvocationRecord> listAll() {
-        return invocationRecordMapper.selectList(new LambdaQueryWrapper<InvocationRecord>()
-                .in(InvocationRecord::getApplicationId, List.of(app1, app2)));
     }
 
     private long createTeam(String name) throws Exception {
