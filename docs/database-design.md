@@ -300,4 +300,4 @@ Soft Delete Framework
 
 Entity/Mapper 和 MySQL Testcontainers 数据库集成测试源码已提交；静态 Code Review 通过。
 
-**当前仅待新的 Maven 实际执行结果**。之前 Phase 2 的 138 个测试通过记录不能替代 V7 后的回归测试。P3-T02 尚未标记 ACCEPTED，业务层仍未开始向本表写入 Invoke 历史；P3-T03/P3-T04 等任务未启动。
+**验收已完成**：用户提供 V7 后的本地测试汇总 149/0/0/0、BUILD SUCCESS（非 CI）。P3-T02 DONE / ACCEPTED；P3-T03 ACTIVE，尚未实现真实 SUCCESS 自动写入；P3-T04 查询 API 未开始。
