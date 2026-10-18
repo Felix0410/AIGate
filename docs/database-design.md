@@ -141,7 +141,7 @@ duration_ms >= 0
 索引：
 
 ```text
-INDEX(application_id, id)   -- 复合索引，支持按 Application 分页查最新记录
+INDEX(application_id, id)   -- 复合索引，支持按 Application 查询最近 N 条（当前无分页）
 ```
 
 外键：
@@ -338,4 +338,4 @@ DELETE FROM invocation_record WHERE created_at < cutoff
 
 Entity/Mapper 和 MySQL Testcontainers 数据库集成测试源码已提交；静态 Code Review 通过。
 
-**验收已完成**：用户提供 V7 后的本地测试汇总 149/0/0/0、BUILD SUCCESS（非 CI）。P3-T02 DONE / ACCEPTED；P3-T03 ACTIVE，尚未实现真实 SUCCESS 自动写入；P3-T04 查询 API 未开始。
+**历史 P3-T02 测试证据**：用户提供 V7 后本地测试汇总 149/0/0/0、BUILD SUCCESS（非 CI）。后续 P3-T03 SUCCESS 写入与 P3-T04 管理查询均已验收；P3-T05 FAILED 记录与 30 天清理代码已提交、待总控验收。数据库仍为 V1～V7，未增加 V8。
