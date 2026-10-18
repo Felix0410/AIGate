@@ -7,8 +7,8 @@
 - **Phase 1 — CLOSED**
 - **Phase 2 — CLOSED / ACCEPTED（2026-10-18）**
 - **Phase 3 — ACTIVE**
-- **Current Task：P3-T04 — Management Invocation History Query（ACTIVE）**
-- **Next Task：P3-T05 — Failed Invocation Recording（NOT STARTED）**
+- **Current Task：P3-T05 — Invocation Record Completion（ACTIVE）**
+- **Next Task：P3-T06 — Phase 3 Closeout（NOT STARTED）**
 
 Phase 2 的关闭已通过完整十项检查：功能、Code Review、测试、架构、技术债、progress、architecture、必要 ADR、知识点和面试表达。
 
@@ -67,10 +67,9 @@ Flyway V1–V6，MySQL 8.4；无新增 Usage/Quota/InvocationRecord 表。Key �
 | P3-T01 | 目标/范围/架构与 ADR 冻结 | **DONE / ACCEPTED** |
 | P3-T02 | Flyway V7 + InvocationRecord Entity/Mapper/DB Test | **DONE / ACCEPTED** |
 | P3-T03 | 成功调用记录、写入失败隔离 | **DONE / ACCEPTED** |
-| P3-T04 | HTTP Basic 管理查询最近历史、limit 1..100 | **ACTIVE** |
-| P3-T05 | 失败调用记录、安全错误分类 | NOT STARTED |
-| P3-T06 | 30 天保留/清理、完整 E2E 回归 | NOT STARTED |
-| P3-T07 | Phase 3 关闭评审和文档/面试整理 | NOT STARTED |
+| P3-T04 | HTTP Basic 管理查询最近历史、limit 1..100 | **DONE / ACCEPTED** |
+| P3-T05 | FAILED 记录 + 30 天保留清理 + 完整 E2E（合并） | **ACTIVE** |
+| P3-T06 | Phase 3 Closeout（原 T07） | NOT STARTED |
 
 计划数据：`invocation_record(id,application_id,status,error_code,duration_ms,created_at)`，index(application_id,id)，FK application_id CASCADE。**P3-T02 已实现并验收 V7，当前数据库代码 schema 为 V1–V7。**
 
@@ -131,3 +130,22 @@ Phase 3 规划需考虑技术债，但不能为丰富技术栈而在一个任务
 冻结新管理面 API：`GET /api/applications/{applicationId}/invocations?limit=20`。复用 HTTP Basic，按 Application 存在性检查（404 APPLICATION_NOT_FOUND）、限量参数（1..100，默认20，非法为400 INVALID_REQUEST）执行 SQL `WHERE application_id=? ORDER BY id DESC LIMIT ?`，返回仅有六字段的 DTO 数组，无记录则 `[]`。必须测试跨 Application 隔离、排序和上限、401/404/400、安全响应与 P3-T03 回归。不做 FAILED 自动写入/保留清理。详细需求见 `docs/current-phase.md`。
 
 **Current: P3-T04 ACTIVE；P3-T05 NOT STARTED。**
+
+
+## P3-T04 Acceptance — 2026-10-18
+
+实现提交：`aae1546785e9daf7db3d40f989c2dfbaaede82ec`。
+
+新增 InvocationQueryController / InvocationQueryService / InvocationRecordResponse / InvalidInvocationQueryException，并在 GlobalExceptionHandler 处理安全固定 400 INVALID_REQUEST。
+
+已验收：管理 Basic 和 Runtime API Key 隔离，默认 limit=20/合法 1..100、非法 400，按 Application 过滤并 SQL ORDER BY id DESC LIMIT，存在但无记录返回 200 []、Application 不存在 404，固定六字段 DTO，测试涵盖跨 App、排序/限制与管理认证。
+
+代码/测试覆盖审查没有阻塞缺陷；本次 GitHub 无 CI status/workflow 或独立 Maven 汇总，沿用户提交前自行测试的工作约定接受，不虚构测试数。**P3-T04 DONE / ACCEPTED**。建议后续增强“仅六字段”的精确 JSON 属性集合断言；非阻塞。
+
+## 合并任务决策与当前 P3-T05
+
+用户反馈拆分过细增加协作和总控开销。总控将原 T05（失败记录）与原 T06（30 天清理、E2E）合并为 **P3-T05 — Invocation Record Completion（ACTIVE）**；原 T07 Closeout 改为 **P3-T06**。此调整是任务组织变更，不更换 Phase 3 业务目标或 ADR-003 架构。
+
+P3-T05 一次完成：Facade 保留原异常并记录安全 FAILED 码；写入异常不覆盖模型成功或失败；按 UTC 30 天边界做简单 Spring Scheduled 清理；Testcontainers/Mock Provider E2E 验证成功、失败、脱敏、管理查询、清理；Maven 全量回归提供结果。内部子任务无需逐个回总控验收。全部完成后统一 Code Review 并自动进入 P3-T06 Closeout。
+
+**当前 Phase 3 ACTIVE / P3-T05 ACTIVE；P3-T06 NOT STARTED。**
