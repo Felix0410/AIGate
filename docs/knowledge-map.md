@@ -998,3 +998,31 @@ Phase 1 结束后，应该能够独立解释：
 7. JVM / Java 基础继续加强
 ```
 
+
+
+---
+
+# Phase 2 — 按实际开发顺序的工程知识地图
+
+| Task | 实际实现 | 必须能解释的核心知识 |
+|---|---|---|
+| P2-T01 | Provider、Model、ModelDeployment 管理和 Flyway Schema | 逻辑模型、供应商与部署实例为何分开；FK/UNIQUE 的作用 |
+| P2-T02 | CredentialService AES-GCM | 加密与哈希区别；为什么上游凭证必须可逆；主密钥保护/轮换债务 |
+| P2-T03 | Application.defaultDeploymentId | 为什么由配置决定默认调用目标；动态调整与 FK RESTRICT |
+| P2-T04 | ApplicationApiKey 创建、查询、撤销 | 高熵密钥、仅创建时展示、SHA-256 校验、ACTIVE/REVOKED 生命周期 |
+| P2-T05 | /api 与 /v1 分离的 Spring SecurityFilterChain | Filter、Authentication、SecurityContext、ApplicationIdentity；管理认证与机器认证隔离 |
+| P2-T06 | InvokeRequest/InvokeResponse | DTO 与 Entity/Provider JSON 解耦；Jackson 3、Bean Validation |
+| P2-T07 | ProviderAdapter/Registry | 用轻量策略/适配器隔离 OpenAI-Compatible JSON，为什么 Adapter 不查 DB/发 HTTP |
+| P2-T08 | ModelProxyService + ProviderHttpClient + RestClient | 同步 Servlet 请求线程、出站连接/读取超时、两种 Bearer 凭证、无重试 |
+| P2-T09 | ProxyErrorType + ModelInvocationException + GlobalExceptionHandler | 本地配置错误 vs 上游 HTTP/超时/协议异常；Cause Chain；502/503/504 与安全脱敏 |
+| P2-T10 | MockMvc + Testcontainers MySQL + 本地 JDK HttpServer | 真实应用级 E2E；为什么只 Mock 外部 Provider、不 Mock 核心 Service；Key 撤销/Deployment 切换回归 |
+
+## Phase 2 必须能完整讲出的调用链
+
+`POST /v1/invoke` → Runtime API Key Filter → DB Key 校验 → SecurityContext/ApplicationIdentity → @Valid InvokeRequest → ModelProxyService 查询 Application/default Deployment(enabled)/Provider → ProviderAdapter.buildRequest → CredentialService.decrypt(如有) → RestClient POST `{endpointUrl}/chat/completions` → Provider 成功 JSON → Adapter.parseResponse → InvokeResponse。
+
+失败经 ProviderHttpClient/Adapter/Service 分类，再由 GlobalExceptionHandler 返回安全 ApiErrorResponse，**不做自动重试或隐式 fallback**。
+
+## 建议继续深化（不是已引入功能）
+
+Java/JVM：异常、线程池、阻塞与内存；Spring：Security FilterChain、MVC 调用栈、事务边界；MySQL：索引与事务；网络：DNS/TCP/TLS/HTTP 超时；安全：SSRF、密钥轮换；工程：CI、可观测性。Redis/MQ/微服务应等待真实场景出现。
