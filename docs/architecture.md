@@ -2,9 +2,11 @@
 
 ## 1. 当前阶段
 
-**Phase 2 — Model Registry & Single Model Proxy**
+**Phase 3 — Invocation Records & Basic Visibility（ACTIVE）**
 
-当前执行状态：
+以下为历史任务演进；当前状态以 `docs/current-phase.md` 为准。
+
+历史任务执行状态：
 
 ```text
 P2-T01 Model Registry Schema
@@ -36,7 +38,11 @@ P3-T02 Invocation Record Schema
 P3-T03 Successful Invocation Recording
 → COMPLETED / ACCEPTED
 P3-T04 Management Invocation History Query
-→ ACTIVE
+→ COMPLETED / ACCEPTED
+P3-T05 Invocation Record Completion
+→ 实现已提交，Code Review / 验收待完成
+P3-T06 Phase 3 Closeout
+→ NOT STARTED
 ```
 
 ---
@@ -740,3 +746,13 @@ P3-T03 提交 `ee38c95f20781de6aa219ea80b99ab590e7016bb` 已通过 Code Review�
 P3-T04 规划链路：Management HTTP Basic → InvocationQueryController → InvocationQueryService → ApplicationService.getApplicationById（404）→ InvocationRecordMapper（按 application_id 过滤、id 降序、LIMIT 1..100）→ 不暴露敏感数据的六字段 DTO 数组。
 
 采用已有 V7 复合索引 `(application_id,id)`，不新建表或缓存。HTTP 400 INVALID_REQUEST 包括 limit 数字转换异常与超界；200 [] 表示 Application 存在但记录为空；401 表示管理认证失败。查询保持数据库限量，不全表读取再内存截断。管理查询与 Runtime Bearer Key 认证边界独立。
+
+---
+
+## 29. P3-T05 当前代码事实及待验收项（2026-10-18）
+
+实现提交 `8262303df74598f6e76e68ad1f10ce40b096e2c6`：InvocationTrackingFacade 已支持 SUCCESS 与 FAILED 双路径 best-effort 写入；ModelInvocationException 使用既有 ProxyErrorType，InvalidProviderResponseException 写固定 PROVIDER_INVALID_RESPONSE，其他 RuntimeException 写 INTERNAL_SERVER_ERROR；FAILED 记录后 `throw original` 保留原异常。入站认证失败和 @Valid 失败不进入记录流程。durationMs 自 Facade 调用 ModelProxyService 前计时至其正常返回/抛异常，不包含记录保存耗时。
+
+InvocationRecordRetentionScheduler 使用 `@Scheduled(cron="0 0 3 * * *", zone="UTC")` 每日触发，删除早于 `Instant.now().minus(Duration.ofDays(30))` 的记录，等于边界的记录保留；清理失败只生成固定安全警告。当前为单实例、单条 DELETE；缺少 created_at 索引，未来真实数据规模扩大时评估批量删除和单列时间索引。
+
+状态：P3-T01～T04 DONE / ACCEPTED；P3-T05 功能已提交但仍为 ACTIVE，等待 Review 问题处理和总控验收；P3-T06 仅用于 Phase 3 Closeout，不提前启动。GitHub 无独立 CI 验证，依用户提交前测试通过的约定确认本地测试。
