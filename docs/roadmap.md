@@ -88,5 +88,26 @@ Phase 2 不包含 Redis、MQ、微服务、SSE、自动重试、多模型路由�
 ## Phase 3 正式关闭 — 2026-10-20
 P3-T01～T06 全部完成并经总控验收。最终业务交付与风险见 docs/phase-3-closeout.md。缺最终独立 Maven/CI 运行结果，不能使用较早的149项测试统计代替；TD-009仍开放。
 
-## Phase 4 — NOT STARTED（总控候选方向，待用户确认）
+## Phase 4 早期候选（历史，已被正式启动决策取代）
 候选核心业务：**Application 级请求速率保护**，阻止单个 Application 短时间过量请求占用网关/Provider 能力。优先现有模块化单体的最简单正确方案，只有出现实测跨实例一致性问题时才论证 Redis。计划按“一个完整限流业务交付包 + 统一集成回归与阶段收尾”组织，不再拆多个低复杂度微任务。具体算法、表/API、限流边界和验收在正式启动 Phase 4 前由总控冻结；本节尚非 Phase 4 启动指令。
+
+---
+
+## Phase 4 — Application Rate Limiting（ACTIVE，2026-10-20）
+
+**Business Goal：** 为每个 Application 配置独立的模型调用速率策略；网关在实际出站模型请求前原子消费令牌，超过额度返回本地 HTTP 429 APPLICATION_RATE_LIMITED（零 Provider 出站/零 InvocationRecord），保障单实例网关和上游资源。并不是精确配额或计费系统。
+
+**当前选择：** MySQL V8 `application.requests_per_minute INT NULL` 只存策略（NULL 不限流）；单 JVM `ConcurrentHashMap.compute` + `System.nanoTime` 的令牌桶存实时令牌；管理 Basic 的 GET/PUT `/api/applications/{id}/rate-limit`；拒绝响应 Retry-After。选择过程与代价见 ADR-004。
+
+**Frozen Tasks（按完整交付包，不拆微任务）：**
+
+| Task | 完整交付 | 状态 |
+|---|---|---|
+| **P4-T01 — End-to-End Application Rate Limiting** | V8 Schema、管理策略 GET/PUT、Java 令牌桶原子并发、Runtime 429、内存回收、MockMvc+MySQL+Provider E2E、回归 | **ACTIVE** |
+| **P4-T02 — E2E Hardening & Phase 4 Closeout** | 综合 Code Review、并发/测试稳定性修正、真实 Maven 回归、架构/技术债/文档/知识/面试总结、关闭结论 | NOT STARTED |
+
+本阶段保持单实例正确性，**不得宣称多实例全局限流**；不做 Redis/MQ/ES、计费账本、日报配额、流式、路由、Nacos、微服务。请求令牌状态不落库，重启将重置桶。Phase 3 的 SUCCESS/FAILED 记录仍只覆盖实际进入 ModelProxyService 的业务调用。
+
+正式实现合同见 `docs/current-phase.md`；**P4-T01 ACTIVE / P4-T02 NOT STARTED / Phase 5 NOT STARTED**。
+
+Phase 4 默认保留旧 Application 的不限流行为，管理员主动配置 N RPM 才触发限制；当前已设计未编码的 V8/接口/算法不应写成实现事实。
