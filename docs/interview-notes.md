@@ -915,3 +915,22 @@ E2E 通过管理 API 建配置和 Key，MockMvc 走真实认证/Controller/Servi
 ## 未完成事项如何诚实表达？
 
 生产化之前仍需要管理面权限强化、Provider Endpoint SSRF/出站目标防护、CI 测试门禁，以及按需求补充追踪与主密钥轮换。当前不是生产级多租户高并发平台，不宣称具备尚未开发的限流/计费/流式/多模型路由。
+
+
+# Phase 3 — 调用历史、失败隔离与数据生命周期（P3-T06 复盘）
+
+**一句话业务目标**：在现有同步 AI 网关上，为管理员提供可按 Application 查询的近期 SUCCESS/FAILED 状态、稳定错误码及代理耗时，用于基础排障，而非准确计费或严格审计。
+
+**Q1：为什么用 MySQL 而不是只有日志或直接上 MQ？** 已有 MySQL，可最小成本保存结构化元数据、提供管理 HTTP 查询；日志不便按业务主键稳定查询，MQ 增加 Broker、投递失败、重复消费和运维成本。当前同步写入允许失败丢记录（best-effort），延迟会有所增加；达到真实高吞吐瓶颈时再评估异步。
+
+**Q2：怎样在模型失败时记录又不改变原有 HTTP？** RuntimeInvokeController 调用 InvocationTrackingFacade；ModelProxyService 正常返回记 SUCCESS，抛 RuntimeException 时按 ProxyErrorType/异常类别记 FAILED、安全固定 errorCode；写入异常由单独 try-catch 隔离，然后 `throw original`。保持 Provider 400/401/429/超时对应现有 AIGate 502/503/504 等契约，不记录 Prompt/密钥/上游错误体。
+
+**Q3：为什么不能把记录写入放到代理调用的整个 try 内？** SUCCESS insert 失败若被外层 catch 捕获，会把真实成功误判为 FAILED，并可能将客户端响应从成功变成数据库 500；因此仅把 ModelProxyService 调用置于业务异常 catch 里，记录本身单独 best-effort。
+
+**Q4：为什么查询最近 N 条而非分页？** 已确认需求是近期排障，不是完整历史漫游；`WHERE application_id=? ORDER BY id DESC LIMIT 1..100` 与已有 `(application_id,id)` 索引契合；有连续浏览历史需求时优先评估基于 id 的游标分页，不为未出现需求设计 OFFSET/总数。
+
+**Q5：30 天清理为什么使用 UTC？** 规定 `Instant.now().minus(Duration.ofDays(30))`，SQL 严格 `created_at < cutoff`；每日至少尝试一次调度（UTC 03:00），并非精确满 30 天即时删除。MySQL TIMESTAMP 和 JDBC 时区必须用真实 MySQL 测试边界；大数据量时可能需要 created_at 索引、分批 DELETE。多实例 @Scheduled 可重复触发，当前单实例暂不引入分布式锁。
+
+**Q6：如何证明业务闭环？** 通过 MockMvc 认证/Controller/Facade/Service/Mapper，Testcontainers MySQL，真正 TCP 本地 Mock Provider 观察模型成功/失败后数据落库，再用管理 Basic 查询双状态。单位测试 `assertSame` 验证原异常 identity，集成测试验证非法 API Key 和无效入参不记录，时间清理测试验证早于/等于/晚于 cutoff。完整 CI Gate 仍属 TD-009，不能谎称 CI 已通过。
+
+**目前限制**：Best-effort 丢记录，未做费用/Token Usage、统计、Streaming、分布式锁或审计；HTTP Basic 管理认证、SSRF 出站限制、主密钥轮换、CI 属生产化技术债。Phase 3 Closeout 尚在进行，不宣称 CLOSED。
