@@ -1,5 +1,8 @@
 # AIGate Roadmap
 
+> **最新有效状态（2026-10-20）**：用户已批准 P4～P10 **顶层业务开发顺序**，但没有批准任一新 Phase 开始编码。下方早期 Application 级限流 P4 方案已暂停，仅为历史草案。以下“Enterprise AIGate Product Roadmap — DRAFT”章节所列七阶段正式改为 **APPROVED HIGH-LEVEL BUSINESS ORDER / NOT YET STARTED**；各 Phase 的 Scope、交付包、技术决策和验收尚未冻结。总控负责 docs，开发导师不得按旧 P4 执行。
+
+
 > 以实际交付为准。**已实现、已验收、计划/候选**必须明确区分。项目以业务问题驱动架构演进。
 
 ## Phase 1 — Foundation & Core Identity
@@ -133,3 +136,12 @@ Phase 4 默认保留旧 Application 的不限流行为，管理员主动配置 N
 目标流程：管理员纳管 Agent/模型与策略 → 员工使用双凭证经网关调用 → 权限/额度/服务档位 → 已选逻辑 Model 的 Deployment 路由 → Provider → 可确认 Token 计费与积分账务 → 通知、审批、监控与容量治理。
 
 在全部用户未确认的业务边界（保底总预算/耗尽行为、紧急任务归属与认证、未知用量对账、内部积分精度、不同部署价格与自动切换安全限制）定稿前，**不要启动 P4 或引导开发导师执行上述候选**。每 Phase 打通 Happy Path、测试验收与正式 Closeout 后再进入下一 Phase。
+
+
+## 2026-10-20 — User Approval of Enterprise Business Roadmap
+
+**正式决议：** 用户选择 approve，批准在保持 Phase 1~3 CLOSED 的前提下，按 **P4 可信员工身份/Agent 规则 → P5 模型计量与个人周额度 → P6 团队额度池/审批 → P7 保底与三级治理 → P8 同模型部署路由/监控 → P9 紧急任务保障 → P10 可靠性与必要演进** 的业务顺序推进产品规划。
+
+**执行区分：** 顶层路线 APPROVED ≠ P4 ACTIVE；**P4-T01 继续 PAUSED / NO CODING**。旧 V8 requests_per_minute、TokenBucket/ADR-004 不能当作当前 Phase 4 工作单。须完成剩余业务规则、由总控重写 phase scope / main flow / architecture / tasks / acceptance / knowledge，并经用户明确批准后才能重启。
+
+**尚未确认的产品规则：** 企业保底总池和每员工周保底都耗尽后的处理。已提供对照候选：付费模型硬停止 + 低/零外部 API 费的自托管模型有条件继续 + 紧急人工审批追加额度；这是**推荐候选，非用户已选方案**。不得把“低速率”视为无限免费计费许可。
