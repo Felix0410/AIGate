@@ -324,3 +324,28 @@ First perform 2-replica **modular monolith** load and failure tests to expose re
 4. Keep **Spring Cloud 2025.1.x and Gateway 5.0.x** as conditional options when extracted interfaces/service discovery/circuit breaking genuinely need them, not automatic Spring Cloud adoption.
 
 **P4–P12 business roadmap approved. Technology choices in this section recommended only, NOT implementation authorization; P4-T01 PAUSED / NO CODING.**
+
+
+## 14. 2026-10-20 — RabbitMQ vs Kafka; Explaining FinOps (EVALUATION, NO MQ DECISION)
+
+User asks whether RabbitMQ is appropriate and notes FinOps business is not yet well understood. This is **further analysis, not choosing RabbitMQ/Kafka and not permission to code**. Supersedes any earlier wording treating Kafka as a fixed default: Kafka is one proposal, **RabbitMQ is also a first-class candidate and may fit the current business better**.
+
+**FinOps explained concretely:** Quota & Billing maintains the correct financial-accounting *internal points* ledger and settlement; FinOps attributes separately the *estimated external Provider expense* (confirmed token usage multiplied by effective provider/deployment rates, preserved pricing version), per Team/Employee/Agent/Model/Deployment, trends, abnormal cost alerts and optimization/scale suggestions. Granting points from a team pool isn't itself a new Provider charge; never conflate allocated points, consumed points and cash invoice. FinOps eventually consistent view is derived from authoritative settled events and reconcilable against the ledger; external cost remains an **estimate** until verified against actual vendor billing.
+
+**First FinOps happy path:** settled invocation with reliable usage and effective price → record cost event/outbox → worker aggregates one daily Team+Agent+Model cost record → admin sees daily spend; basic threshold alert. Then extend anomaly, cost/performance comparison and operational recommendations; no need for Kafka or ClickHouse on day one.
+
+**RabbitMQ fit:** team extra points approval notifications, emergency application alerts, billing-completed events consumed asynchronously by analytics, retries and dead-letter queue. AMQP exchange routing supports task-oriented workflows. Reliable usage requires durable source event in same MySQL transaction, publisher confirms, persistent/quorum queue where suitable, consumer manual acks and business-idempotency on duplicate deliveries. RabbitMQ queues don't inherently preserve unlimited event replay after successful consumption, so the ledger/outbox provides durable source for rebuilds. DLX/queues/retry policies create added ops complexity. Official: https://docs.spring.io/spring-boot/reference/messaging/amqp.html , https://www.rabbitmq.com/docs/confirms , https://www.rabbitmq.com/docs/quorum-queues .
+
+**Kafka fit:** append retained partitioned streams, independent consumer groups, historical replay/recomputation and high sustained event-throughput by many downstream consumers; especially attractive if FinOps becomes a dedicated near-real-time multi-consumer analytics platform. Costs include partition/offset/consumer-group knowledge, operational state/retention configuration and lag monitoring. Official: https://kafka.apache.org/documentation/ .
+
+**Spring Boot 4.1 compatibility nuance:** Boot4.1 includes supported RabbitMQ via Spring AMQP / `spring-boot-starter-amqp` as documented; Rabbit/AMQP split proposed in 4.1 M3 was **reverted in M4**, moved to Boot4.2. Don't claim `spring-boot-starter-rabbitmq` is required for current 4.1.1. Official Boot M4: https://spring.io/blog/2026/03/26/spring-boot-4-1-0-M4-available-now ; official AMQP docs above. Spring Kafka4.1 remains a compatible option.
+
+**Decision guide:**
+- For moderate business events, notifications, reliable retries and a simple first FinOps aggregation: favor **RabbitMQ** as working default for review; source-of-truth MySQL allows rebuilding reports.
+- If sustained massive event streams, several independent analytics teams, consumer replay by offset, and advanced stream processing are explicit tested requirements: favor **Kafka**.
+- If no asynchronous needs yet: implement MySQL ledger + outbox/polling; introduce one broker only when it solves a clear problem. Do not include both RabbitMQ and Kafka solely for resume keywords.
+- No MQ directly authorizes points deduction; money ledger commits first, then asynchronous read projections.
+
+**Learning/implementation acceptance when selected:** one real event producer+consumer, durable outbox, duplicate consume idempotency, broker outage recovery, retry/DLQ, alert/analysis backfill, message format evolution, measured backlog and consumer lag. Do not claim production 10k employee scale without load evidence.
+
+**Phase relevance:** P6 can start with synchronous or outbox-worker notifications; P11 is the full FinOps reporting/alerts closure. Candidate MQ selection is **NOT FINALIZED**, P4-T01 stays **PAUSED / NO CODING**. References: FinOps Foundation https://www.finops.org/introduction/what-is-finops/ .
