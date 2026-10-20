@@ -78,3 +78,8 @@ Phase 2 不包含 Redis、MQ、微服务、SSE、自动重试、多模型路由�
 ### P3-T06 收尾复核进展（2026-10-20）
 
 `f3b0f94d6fbd79eb4305eeea7e2ec5fcd4c69c98` 已隔离 Provider timeout 测试并把 60s 临界竞态改为 1s read timeout / 3s Mock 延迟，Retention 测试已清理 Team/Application；提交仅涉及测试文件。剩余需修复 timeout 测试 Provider/Model/Deployment 的固定名称资源未释放问题，再形成最终 Phase 3 Closeout 报告。**P3-T06 ACTIVE；Phase 3 未 CLOSED；Phase 4 未启动。**
+
+
+### P3-T06 收尾审查完成，待总控关闭确认（2026-10-20）
+
+最终提交 `a2a68fe6b137aba78fdb359b7cd781c0fd228681` 解决独立超时测试在正常运行与断言失败后资源清理不全的问题：@AfterEach 按 Application→Deployment→Model→Provider→Team 删除并校验 HTTP 状态；原超时与记录断言保留。阶段报告见 `docs/phase-3-closeout.md`。功能/架构/测试代码静态评审无阻塞问题，CI 和精确本轮 Maven 汇总仍未独立取证。**P3-T06 待总控验收，Phase 3 暂未 CLOSED，Phase 4 NOT STARTED。**
