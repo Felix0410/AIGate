@@ -46,7 +46,7 @@ Spring Security Runtime FilterChain
 - P3-T03 `InvocationTrackingFacade`：**已实现并验收**；包装原 ModelProxyService，用单调时钟量取耗时，成功后 best-effort 写 SUCCESS，不接管 Provider HTTP。
 - P3-T04 `InvocationQueryService` / 管理 Controller：**DONE / ACCEPTED**；管理 Basic 查询指定 Application 最近记录，限制 limit 1..100。
 - P3-T05：**DONE / ACCEPTED**；Facade 记录失败安全码，继续抛出原始错误；RetentionService 和 Scheduler 实现 30 天自动清理。
-- P3-T06：Phase 3 Closeout（**ACTIVE**），阶段审查、测试稳定性与文档/面试整理，不额外增加清理功能。
+- P3-T06：Phase 3 Closeout（**DONE / ACCEPTED**），已完成阶段审查、测试稳定性与文档/面试整理。
 
 依赖方向：Runtime 调用边界 → Tracking → Invocation Mapper/MySQL；Provider Adapter 只负责协议，ProviderHttpClient 只负责网络；管理查询不读 Prompt/模型响应原文。不增加 MQ/Redis/ES 等额外基础设施。
 
@@ -74,3 +74,8 @@ Spring Security Runtime FilterChain
 - 项目级 @EnableScheduling，不重复启用。不引入 Quartz/Redis 锁/MQ。
 
 **总控验收更新：** P3-T05 生产代码和测试覆盖检查通过；后续只做集中阶段收尾和测试稳健性检查。模块职责继续保持 Tracking Facade / Query Service / Retention Scheduler 分离，严禁改造成通用消息驱动体系。
+
+
+## Phase 3 已正式关闭（2026-10-20）
+
+当前实际模块职责：Runtime Controller → InvocationTrackingFacade → ModelProxyService/Adapter/HTTP，Facade 记录 SUCCESS/FAILED 且失败不覆盖原结果；管理 QueryController/Service 按 App 最近 N 条查询；RetentionService/Scheduler 负责定时清理。P3-T06 测试可靠性修复已验收，Phase 4 NOT STARTED。
