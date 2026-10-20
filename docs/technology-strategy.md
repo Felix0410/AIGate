@@ -182,3 +182,70 @@ Examples of ownership discipline:
 **Recommendation to discuss**: two backend services are not "too few". With AIGate's approved business complexity, an **optional 3-service end-state** (Gateway Runtime / Control-Policy / Quota-Billing) and a workload-triggered **4th Worker** are more convincing than an arbitrary 5–8 microservices. In a resume, clearly differentiate independently deployed service, worker, support infrastructure, multiple replicas, and a merely conceptual design. A 10k-employee corporate scenario is plausible motivation for capacity planning, **not evidence of actual production scale, concurrent usage or proof microservices are necessary**.
 
 **No change to current authorization:** P4-T01 PAUSED / NO CODING; no new runtime services, dependencies, data partition, MQ, or source changes. Business phase order remains approved; microservices topology is a research option pending explicit user choice and proof.
+
+
+## 10. 2026-10-20 — Candidate Business Extensions to Justify Additional Domain Services (NOT USER APPROVED)
+
+User asks whether additional BUSINESS capabilities could naturally support deeper resume-worthy service architecture. The following is a research/discussion proposal only, not a product change or permission to start a Phase. Business scope was previously confirmed as **external Agent traffic governance, never Agent authoring/orchestration/execution**.
+
+### Relevant production references
+
+- LiteLLM Enterprise: team/project model policies, per-key budgets and spend, short-lived budget increase, audit log, guardrails. https://docs.litellm.ai/docs/enterprise
+- Kong AI Gateway: provider proxy, model routing, prompt safety/data governance, analytics, cache and billing. https://developer.konghq.com/ai-gateway/ ; https://docs.konghq.com/gateway/latest/ai-gateway/
+- Kong AI Prompt Guard: rule-based allow/deny matching, illustrating an approachable FIRST safety implementation rather than a speculative semantic classifier. https://docs.konghq.com/hub/kong-inc/ai-prompt-guard/
+- Kong AI Semantic Cache: optional opt-in caching with explicit `no-store` policy, not universally correct for user-private or contextual prompts. https://developer.konghq.com/plugins/ai-semantic-cache/
+
+### Proposed additional independent business domains
+
+**A. AI Security & Compliance Governance — high value**
+
+- Business: company has sensitive customer/employee/sourcecode/credential information; teams may only send approved data classifications to approved model/providers. Create data-classification→Agent/Employee/Model/Provider policy matrix, change approval and immutable policy version, sensitive-content protection (basic deterministic rules, secret fingerprints, PII), blocking/redacting, safe metadata-only security audit. No Agent building.
+- Happy path: admin publishes restricted-rule version → employee/Agent Model request checked against policy → allowed goes upstream, denied returns safe classified reason and metadata-only audit.
+- Benefits: domain-specific security rule engine, risk decisions, policy snapshot/cache + TTL invalidation, tracing of decision ID, governance vs runtime separation, streaming preflight and fail-closed handling; later optional separate **AI Governance Service**, authoritative for published safety policies and audit decisions; gateway enforces policy in the hot path using bounded-local policy snapshot where safe.
+- Cost/tradeoffs: rule precision/false positives, data privacy, PII scope, streaming response moderation delays (cannot guarantee full output blocked without buffering), bypass risks; **never persist raw prompts/responses by default**.
+- Start as module. Extract only if security-policy change cadence/ownership, independent rule execution resource cost or isolation requirements are demonstrated.
+
+**B. Cost Analytics & FinOps — high value**
+
+- Business: company procurement/finance sees *real provider cost* separately from employee *internal points*, per team/Agent/Model/Deployment daily/weekly/monthly spend, budget burn, anomaly alerts, cost/performance comparison and capacity optimization recommendation.
+- Happy path: authoritative Quota final settlement commits → durable outbox usage/cost event → async aggregation by team/Agent/Model/Deployment → query trend/anomaly report and alert, with reconciliation.
+- Benefits: natural MQ + reliable outbox + at least once idempotent workers, materialized views/OLAP, monitoring, asynchronous backpressure, billing-vs-report consistency and eventual consistency.
+- Costs: dual source of truth hazard; events lost/duplicated, analytics delay, sparse sample/price changes; **MySQL ledger remains the money truth**, Redis/Prometheus do not replace finance records, no fabricated external cloud provider invoices.
+- Start as module + scheduled MySQL aggregates; separate **Analytics/FinOps Service or Worker** if real write throughput and expensive reports contend with OLTP/other services. ClickHouse/ES optional only if measured analytical query needs require it.
+
+**C. Model Capacity & Deployment Operations — conditional**
+
+- Business: admin governs Provider agreements and model deployments, active health, vendor limits, cost tiers, provider outage, price changes, safe capacity expansion/contraction. Autoscale is only feasible for *self-hosted deployments the company controls*, not for external black-box Provider GPU.
+- Happy path: collect Deployment health/latency/cost → detect overload → recommend/approve change (weight/health/capacity) → Gateway applies versioned routing policy and reports outcome.
+- Benefits: active health checks, weighted adaptive routing, circuit breaking, hysteresis, time-series statistics, concurrency/load shedding, capacity SLO testing.
+- Tradeoff: health checker and metrics service might start as background tasks/config module, not automatically its own microservice. Separate **Resource & Routing Control Service** only if independent monitoring/control workload or deployment operations appear; gateway's per-request route execution remains local or a quick policy snapshot to avoid a synchronous bottleneck.
+
+**D. Unified Approval & Audit Center — lower extraction priority**
+
+- Business already exists in Team extra grants, emergency tasks, model/security policy exception and deployment capacity changes; unify approver, expiry, rollback, time-boxing and administrative audit where meaningful.
+- Keep initially inside domain-specific modules; avoid "Workflow Service" just to add a service. If real multiple approvals plus independent business consumers grow, consider a central workflow process coordinator with clear state ownership, never having it silently mutate multiple authoritative ledgers.
+
+**Avoid invented Agent business:** creating Agent execution engines, tool plugins, RAG ingestion, prompt-workflow designer, organization-wide semantic caching of private prompts, or external Provider auto GPU scaling are **not natural additions** to the agreed gateway-governance boundary.
+
+### Candidate 5-service final topology (discussion)
+
+| Service (provisional) | Domain ownership | Why independent runtime could be justified |
+|---|---|---|
+| 1 Gateway Runtime | SSE ingress and upstream I/O, local allowed Model routing, rate/priority admission | high long-lived network connections and independently scalable traffic |
+| 2 Identity & Control Plane | Employees/Teams/Agent/Application identities, access grants, model registry, config publishing | low-QPS, strong administrative policy governance and separate rollout |
+| 3 Quota & Billing | authoritative weekly/Team/fallback/emergency ledgers, reservation/settlement/grants, idempotency | strong ACID correctness, fault domain and hot balance contention |
+| 4 AI Governance & Risk | sensitive data classification policy, policy publishing, rejection/audit metadata | policy lifecycle/special audit and protected enforcement independently owned; optional if organization needs it |
+| 5 Cost Analytics / FinOps | aggregate projections, real provider cost estimates, trends, abnormal spend and recommendations | async compute and read load separate from OLTP; can deploy as worker + API |
+| 6 OPTIONAL Resource Capacity Control | deployment health probes, routing policy versions, capacity recommendation/self-hosted deployment decisions | distinct ops workload if independently scaled/operated; otherwise remains Gateway/Control Plane module |
+
+**IMPORTANT**: 5 services are a design hypothesis, not a requirement or implied actual deployment. The same functionality can be built and validated first in **one module-monolith** with well-defined packages and a single authoritative MySQL transaction owner. Splitting 5 service DBs too early creates unplanned distributed authorization and business transactions. Async Workers are not always independent business domain microservices; Redis, MQ broker, MySQL and Prometheus are *not* counted.
+
+### Suggested controlled path to interview evidence
+
+1. User confirms which **new business** truly belongs in AIGate (A security, B FinOps, C capacity, D approval). Update requirements/roadmap/architecture and ADR once accepted.
+2. Each new domain gets distinct Business Goal, Main Flow, persisted authoritative data, API, E2E and failure cases within existing modular monolith first; start with smallest Happy Path.
+3. Deploy 2 identical monolith replicas, load test SSE and cross-instance quota/rate invariants. Record baseline.
+4. Only then compare extraction from 3 to 5 services on independent scale/isolation, operational ownership and transaction complexity. Verify Quota RPC outage no unpaid external calls, stale policy propagation safe, MQ duplicate/lag analytics reconciliation, model disconnect handling and trace propagation.
+5. Claim microservices on resume only after independently deployable, tested, documented service topology with measurements. Simulation of 10k employees must be labeled synthetic; employees != concurrency.
+
+**Decision gate**: these additions remain **PROPOSED / NOT CONFIRMED**. P4-T01 remains **PAUSED / NO CODING**. The approved P4–P10 BUSINESS ORDER is intact; any additional scope or Phase insertion requires user review, not autonomous restructuring.
