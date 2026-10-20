@@ -1,5 +1,8 @@
 # AIGate Current Phase — P4 ROADMAP ALIGNMENT / DEVELOPMENT PAUSED
 
+**最新阶段编号确认（2026-10-20）**：用户已正式批准 **P4～P12 的业务开发路线**：P10 新增企业 AI 安全合规治理、P11 新增企业 FinOps 成本分析、原 P10 顺延为 P12 生产可靠性/架构演进。下方历史“新增阶段待批准”文字视为历史决策过程，**不再是当前状态**。现在的工作是技术栈/技术演进路线审查，**P4 没有开发授权，旧 P4-T01 PAUSED / NO CODING**；不修改代码、依赖、迁移脚本或架构部署。
+
+
 > **当前最新决议（2026-10-20）**：P4～P10 的业务开发顺序已获用户 approve，仅代表**高层路线 APPROVED**，**不代表 P4 已重新启动**。P4-T01 PAUSED / NO CODING；下方先前的 P4 Application RPM 任务合同是历史草案。企业保底预算二次耗尽后的处理已 **APPROVED**：付费请求硬停、经授权自部署基础能力有条件继续、紧急任务从独立受控预算审批恢复。详见 docs/product-business-rules.md 第 6 节。开发导师禁止继续编码。
 
 
@@ -333,3 +336,19 @@ App ID 只能来自已认证的 `ApplicationIdentity`；多把 ACTIVE Key 共享
 **暂拟 Phase 插入（未获用户批准）**：保持已批准 P4～P9 相对顺序，新增 P10 安全合规治理、P11 成本分析 FinOps，原 P10 生产与架构演进顺延到 P12；P4 继续完成基本 Model/Agent 授权，不能把 P10 才做的内容检测说成已实现。建议见 docs/roadmap.md。
 
 候选五业务责任域 ≠ 已确定五微服务。先模块化单体实现可验证业务，之后对多副本 SSE/账本压测与服务故障演练形成证据，再决定是否抽取 Gateway、Identity-Control、Quota-Billing、Governance、FinOps；暂无微服务上线/拆分许可。**P4-T01 PAUSED / NO CODING；技术栈路线整体亦尚待用户最终批准**。
+
+
+### Product Roadmap Decision #14 — P4–P12 Phase Numbering ACCEPTED（2026-10-20）
+
+用户回复“接受”，正式批准按以下顺序进行未来业务规划：
+P4 员工/Agent 双重身份与权限；
+P5 Token 用量+员工每周积分/结算；
+P6 团队额度池与审批发放；
+P7 企业保底及三档治理；
+P8 SSE/同模型部署路由/运行压力监控；
+P9 紧急任务容量调度；
+**P10 AI 安全合规治理**；
+**P11 FinOps 成本分析优化**；
+**P12 生产可靠性与条件式微服务演进**。
+
+这只是**顶层 Phase 业务目标/相对顺序 APPROVED**；未冻结单个 Phase 技术、范围细则、接口、数据库、验收或代码任务。技术栈讨论仍在进行，候选五领域服务不是强制的五微服务架构。下一项工作：用户与总控先定核心/候选技术、MQ 选型、SSE 落地方案、多副本压测及架构演进评审门槛；总控独立维护 docs/。旧 ADR-004 和原 P4-T01 均保持 ON HOLD；**P4-T01 PAUSED / NO CODING**。
