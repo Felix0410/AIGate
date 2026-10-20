@@ -259,4 +259,13 @@ User asks whether additional BUSINESS capabilities could naturally support deepe
 
 **Candidate technical depth and real acceptance:** (1) Safety policy versions + deterministic preflight detection, metadata-only audit, policy change/invalidation tests; (2) cost events emitted only after authoritative settle, durable outbox/retry/replay and idempotent async projection where required, Finance-vs-points reconciliation; (3) SSE streaming and QoS safe failure behavior while policy/ledger/analytics services are partially unavailable. Never transmit untrusted raw prompts through message broker/monitoring solely to display a technology.
 
-**Proposed updated Phase renumbering**: Keep P4–P9 core approved business sequence; insert P10 safety/compliance, P11 analytics/FinOps; move previously approved production/reliability P10 to P12. Basic Model authorization in P4 and minimal security best-practices earlier; full P10 is distinct content/risk governance. Exact remap proposal is in docs/roadmap.md and **not yet approved**. P4-T01 remains PAUSED / NO CODING.
+**Phase numbering now APPROVED by the user (2026-10-20):** Keep P4–P9 core sequence; P10 security/compliance; P11 analytics/FinOps; former P10 production/reliability becomes P12. Basic Model authorization remains in P4 and security basics appear earlier; full P10 covers content/data risk governance. **Service count, infrastructure choices and code start are not approved; P4-T01 PAUSED / NO CODING.**
+
+
+## 12. 2026-10-20 — Approved P4–P12 Business Sequence; Technology Selection Still Open
+
+User accepted P4 through P12 Phase numbering. The two new business domains are approved additions, not decorations: **P10 corporate AI Governance** and **P11 FinOps**; **P12** is the former production/architecture evolution stage. The baseline P4–P9 relative sequence is unchanged.
+
+For any new technology, next sign-off must answer: what it is, business issue, why AIGate needs it now, consequence without it, alternatives, chosen benefit, introduced operating failure modes, which Phase integrates it, tests/benchmarks proving merit. Top-level candidate stack includes MySQL authoritative ledger, Redis+Lua when multi-replica traffic needs, one of RocketMQ/Kafka where reliable asynchronous delivery improves confirmed business, Spring MVC SSE, Micrometer/Prometheus/Grafana and appropriate tracing, Testcontainers/Docker/CI. None of Redis/MQ/WebFlux/Spring Cloud/Nacos/Elasticsearch or 5-service extraction is automatically green-lit by accepting Phase numbers.
+
+**Current state:** product scope & Phase roadmap APPROVED; technical architecture / mandatory component list NOT YET APPROVED; **P4-T01 PAUSED / NO CODING**, no Maven dependencies/SQL/scripts/services added.
