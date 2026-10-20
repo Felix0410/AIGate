@@ -167,3 +167,12 @@ P3-T05 一次完成：Facade 保留原异常并记录安全 FAILED 码；写入�
 集中测试修复提交 `f3b0f94d6fbd79eb4305eeea7e2ec5fcd4c69c98` 已静态审查：独立 RuntimeInvokeTimeoutRecordingIntegrationTest 使用真实 RestClientConfig 配置 `aigate.provider.read-timeout-seconds=1`、本地 Provider 3 秒延迟，验证 504/PROVIDER_TIMEOUT、一条 FAILED 及无重试；移除了旧 60s 对 60s 的竞态测试。RetentionIntegrationTest 已在 AfterEach 按 Application→Team 顺序删除并核对 HTTP 200；Scheduler 测试纠正过度表述的方法名。没有改动生产代码或文档。
 
 **待关闭缺口（测试资源可重复性）**：独立 timeout 测试新建 Provider、Model、ModelDeployment 使用固定名称，仅删除 Application 和 Team，未删除其他三个依赖实体。需要在测试中记录全部创建的 ID，以 Application→ModelDeployment→Model/Provider→Team 顺序清理，并在测试异常时仍执行；否则共享 Testcontainers DB 重复运行可能遭遇名称唯一冲突。P3-T06 仍 ACTIVE，不宣布 Phase 3 CLOSED。完整 Maven 本地统计尚未作为本轮独立证据提供；遵循提交前测试通过约定，不虚构 CI。
+
+
+## P3-T06 最终代码复审完成（2026-10-20）
+
+最终测试资源清理提交 `a2a68fe6b137aba78fdb359b7cd781c0fd228681` 已审查：`RuntimeInvokeTimeoutRecordingIntegrationTest` 增加 @AfterEach，完整保留 appId、providerId、modelId、deploymentId、teamId，依 Application → Deployment → Model → Provider → Team 外键依赖顺序，通过管理接口逐项删除且断言 HTTP 200。504/PROVIDER_TIMEOUT、单条 FAILED、无自动重试等断言保持；只修改测试文件。P3-T06 集中代码复审无已知阻塞生产缺陷。
+
+边界说明：测试 setup 中途失败且 TimeoutSetup 尚未返回时，可能留下部分夹具资源，记录为非阻塞测试债。按“已提交”协作约定默认用户本地测试通过，但本轮未提供可引用的全量 Tests run/BUILD SUCCESS 数字，也无 GitHub CI status；不得引用 P3-T02 的 149 项作为当前统计。
+
+已形成 `docs/phase-3-closeout.md` 候验收报告。**P3-T06 审查完毕、建议总控验收；Phase 3 是否 CLOSED 尚需总控确认。Phase 4 未启动。**
