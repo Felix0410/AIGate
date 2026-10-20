@@ -72,6 +72,8 @@ class RuntimeInvokeTimeoutRecordingIntegrationTest extends IntegrationTestBase {
     @Autowired
     private InvocationRecordMapper invocationRecordMapper;
 
+    private TimeoutSetup currentSetup;
+
     @BeforeAll
     static void startMockProvider() throws IOException {
         mockProvider = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
@@ -118,14 +120,21 @@ class RuntimeInvokeTimeoutRecordingIntegrationTest extends IntegrationTestBase {
         }
     }
 
+    @AfterEach
+    void cleanupTestResources() throws Exception {
+        if (currentSetup != null) {
+            cleanupTimeoutSetup(currentSetup);
+        }
+    }
+
     @Test
     @DisplayName("Provider 超时 -> 504 PROVIDER_TIMEOUT，恰好一条 FAILED/PROVIDER_TIMEOUT 记录，无重试")
     void providerTimeoutShouldRecordFailed() throws Exception {
 
-        TimeoutSetup setup = setupApplicationWithKeyAndSlowDeployment("timeout-rec");
+        currentSetup = setupApplicationWithKeyAndSlowDeployment("timeout-rec");
 
         mockMvc.perform(post("/v1/invoke")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + setup.apiKey())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + currentSetup.apiKey())
                         .contentType(APPLICATION_JSON)
                         .content("""
                                 {"messages":[{"role":"user","content":"hi"}]}
@@ -138,11 +147,11 @@ class RuntimeInvokeTimeoutRecordingIntegrationTest extends IntegrationTestBase {
 
         List<InvocationRecord> records = invocationRecordMapper.selectList(
                 new LambdaQueryWrapper<InvocationRecord>()
-                        .eq(InvocationRecord::getApplicationId, setup.appId()));
+                        .eq(InvocationRecord::getApplicationId, currentSetup.appId()));
         assertEquals(1, records.size());
 
         InvocationRecord record = records.get(0);
-        assertEquals(setup.appId(), record.getApplicationId());
+        assertEquals(currentSetup.appId(), record.getApplicationId());
         assertEquals(InvocationStatus.FAILED, record.getStatus());
         assertEquals("PROVIDER_TIMEOUT", record.getErrorCode());
         assertNotNull(record.getDurationMs());
@@ -150,13 +159,18 @@ class RuntimeInvokeTimeoutRecordingIntegrationTest extends IntegrationTestBase {
         assertTrue(record.getDurationMs() >= 0 && record.getDurationMs() < PROVIDER_DELAY_MS,
                 "durationMs " + record.getDurationMs() + " should be under " + PROVIDER_DELAY_MS);
         assertNotNull(record.getCreatedAt());
-
-        cleanupTimeoutSetup(setup);
     }
 
     // ---- helpers ----
 
-    private record TimeoutSetup(long appId, String apiKey, long teamId) {
+    private record TimeoutSetup(
+            long appId,
+            String apiKey,
+            long teamId,
+            long providerId,
+            long modelId,
+            long deploymentId
+    ) {
     }
 
     private TimeoutSetup setupApplicationWithKeyAndSlowDeployment(String prefix) throws Exception {
@@ -174,13 +188,22 @@ class RuntimeInvokeTimeoutRecordingIntegrationTest extends IntegrationTestBase {
         String apiKey = createViaBasic(post("/api/applications/" + appId + "/api-keys"), keyRequest)
                 .get("apiKey").asText();
 
-        return new TimeoutSetup(appId, apiKey, teamId);
+        return new TimeoutSetup(appId, apiKey, teamId, providerId, modelId, deploymentId);
     }
 
-    /** 只清理当前测试创建的资源：先删 Application（引用 Team），再删 Team。 */
+    /**
+     * 按依赖顺序清理当前测试创建的五类资源：
+     * Application -> Deployment -> Model -> Provider -> Team。
+     */
     private void cleanupTimeoutSetup(TimeoutSetup setup) throws Exception {
 
         mockMvc.perform(authed(delete("/api/applications/" + setup.appId())))
+                .andExpect(status().isOk());
+        mockMvc.perform(authed(delete("/api/model-deployments/" + setup.deploymentId())))
+                .andExpect(status().isOk());
+        mockMvc.perform(authed(delete("/api/models/" + setup.modelId())))
+                .andExpect(status().isOk());
+        mockMvc.perform(authed(delete("/api/providers/" + setup.providerId())))
                 .andExpect(status().isOk());
         mockMvc.perform(authed(delete("/api/teams/" + setup.teamId())))
                 .andExpect(status().isOk());
