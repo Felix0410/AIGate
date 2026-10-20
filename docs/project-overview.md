@@ -96,3 +96,12 @@ Phase 1 解决 Team/Employee/Application 归属与基础管理；Phase 2 建立�
 用户已明确将模型 SSE 增量流式响应纳入 AIGate 最终能力，须经过统一网关并兼容 Agent+员工认证、费用预留/实际结算、连接超时与断开处理。原先简单同步代理是当前 P1–P3 真实实现基线，流式尚未实施。
 
 企业上万员工是业务覆盖规模，不直接意味着高峰并发等于上万人。先按模块化单体多实例水平扩容、Redis 共享治理、权威 MySQL 积分账本与模型压力监控验证 SLO；仅当 Gateway 长连接流量与后台管理/账务出现被实测的独立伸缩、独立部署、故障隔离问题时，按清晰数据归属考虑拆分 Gateway Runtime 和 Management/Policy，Quota/Billing 单独拆与否另行审查。微服务是**有证据才启用的候选**，不是已批准或已实现的技术。当前仍 P4 PAUSED / NO CODING，技术选择详见 docs/technology-strategy.md 第 8 节。
+
+
+## Confirmed Expansion — Enterprise AI Safety & Cost Operations（2026-10-20）
+
+用户正式确认两项扩展纳入 AIGate 业务目标：
+1. **AI 安全合规治理**：公司按数据类型与员工/Agent/模型/Provider 管理安全策略、执行敏感数据保护并保留最少安全决策审计；不开发 Agent/任务引擎，不默认存储 Prompt 原文。
+2. **企业成本分析和优化（FinOps）**：区分员工内部积分、团队额度发放与公司对 Provider 的真实模型消耗/成本估算，通过 Agent/Team/Model/Deployment 趋势与异常告警辅助成本/容量管理；统计不能取代权威 MySQL 额度账本。
+
+AIGate 的目标定位扩展为 **企业 AI 统一接入、安全治理、额度计费与资源运营平台**。在业务领域上可评估五个独立责任域：Gateway / Identity-Control / Quota-Billing / Governance / Analytics-FinOps；服务拆分的数量及边界仍需经过压测和 ADR，不承诺“必须五个微服务”。具体阶段插入/重编号尚未审批，原 P4～P10 业务方向仍有效；**P4 继续 PAUSED / NO CODING**。
