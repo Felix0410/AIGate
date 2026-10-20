@@ -105,3 +105,10 @@ Phase 1 解决 Team/Employee/Application 归属与基础管理；Phase 2 建立�
 2. **企业成本分析和优化（FinOps）**：区分员工内部积分、团队额度发放与公司对 Provider 的真实模型消耗/成本估算，通过 Agent/Team/Model/Deployment 趋势与异常告警辅助成本/容量管理；统计不能取代权威 MySQL 额度账本。
 
 AIGate 的目标定位扩展为 **企业 AI 统一接入、安全治理、额度计费与资源运营平台**。在业务领域上可评估五个独立责任域：Gateway / Identity-Control / Quota-Billing / Governance / Analytics-FinOps；服务拆分的数量及边界仍需经过压测和 ADR，不承诺“必须五个微服务”。具体阶段插入/重编号尚未审批，原 P4～P10 业务方向仍有效；**P4 继续 PAUSED / NO CODING**。
+
+
+### Approved Phase Sequence — P4 through P12（2026-10-20）
+
+用户接受 P4～P12 的整体业务阶段重排：P10 增企业 AI 安全合规治理；P11 增企业 FinOps 成本分析；原 P10 生产可靠性/架构演进顺延至 P12。P4～P9 原业务顺序保留。最终目标为**企业 AI 统一接入、安全治理、额度计费与资源运营平台**，但新能力尚未实施。对应文档：docs/roadmap.md 当前正式路线、docs/product-business-rules.md 累计业务规则、docs/technology-strategy.md 技术候选。
+
+**业务阶段编号得到确认≠微服务终态得到确认≠ P4 已启动**。P1～P3 CLOSED；P4 实际开发保持 PAUSED / NO CODING，先审查真实需求驱动的 Java/Redis/MQ/监控/SSE/可选微服务技术方案。
