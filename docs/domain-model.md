@@ -127,3 +127,27 @@ Employee/Agent 普通积分（Agent 周免费 → Employee 周基础 → Team �
 **再耗尽时**：Paid Provider Invocation 无有效、已预留资金来源则硬停止；如果拥有独立成本/容量边界且被允许的 Self-hosted Base Model 可保持受控的有限基本服务；Emergency Budget 是另一个公司明确预留且有限额的资金来源，必须基于已审批紧急任务+有效期+使用者等授权才能释放。没有批准资金或合规容量时不可无限调用。团队发放、模型实际成本、企业保底和应急消费应各自有可追溯账目，不把 P3 best-effort 调用记录当财务余额事实。
 
 **本节为批准的业务规则，不指定数据表、外键、锁、队列或微服务结构。** P4 仍是设计审查前准备，旧限流 P4-T01 PAUSED。
+
+
+## Enterprise Governance and FinOps Domain Extensions — Approved Business Boundaries（2026-10-20，目标未实现）
+
+新增的两项用户确认领域概念，**不代表已创建这些 Entity 或数据库表**：
+
+```text
+Employee + Agent(Application) + Allowed Model + Request Context
+  ├─ Agent/Model Authorization: may this identity call the model? (P4)
+  └─ GovernancePolicy (policyId, version, dataClass, scope)
+       ├─ SafetyDecision (ALLOW / BLOCK / REDACT candidate)
+       └─ SecurityAudit (decisionId, traceRef, ruleVersion, safeMetadataOnly)
+
+ModelUsage + ActualTokenUsage + PriceVersion
+  ├─ QuotaLedger / Reservation / Settlement: authoritative points movement
+  └─ CostAnalytics Projection: per Team/Agent/Model/Deployment aggregation
+       ├─ ProviderCostEstimate (cost currency, price source/version)
+       ├─ BudgetBurn / CostTrend
+       └─ AnomalyAlert
+```
+
+**所有权边界**：Identity/Control 决定身份和基础 Agent/Model 授权；AI Governance 为企业数据和模型风险规则的发布/审批与审计责任域；Gateway 执行最小必要安全策略，默认不跨服务传原始 Prompt；Quota/Billing 单独负责员工积分和真实 Token 最终结算；FinOps 只从权威已确认数据维护允许延迟的聚合投影，不回写积分余额。供应商侧成本初期是计价估算，不等于供应商发票。
+
+**微服务拆分仅是候选**：这些稳定的代码/数据责任可以先放在一个模块化单体里，真实需要独立扩容、规则发布、故障隔离/异步分析时才提出 ADR 并抽取。P4-T01 PAUSED，不开始新安全/财务 schema。
