@@ -88,3 +88,20 @@ Weekly allowances (target; not tables yet):
 ```
 
 Agent 由管理员纳管但不由 AIGate 开发/构建；自动任务可以专用账号独立归属。关键安全设计：现有 Application Bearer Key 只能证明 Agent/Application 身份，**不能自动证明具体 Employee 身份**；未确认可靠的员工认证/委托方式前，不允许直接相信调用者随意提交 employeeId 进行扣费。额度、参与团队与结算单位尚需继续确认；不提前增加 Schema 或假定 Employee 是登录 User。详细事实：`docs/product-business-rules.md`。
+
+
+## Confirmed Weekly Points Account Ownership（2026-10-20，业务概念，未建表）
+
+```text
+Employee Identity (independent personal credential)
+ + Managed Agent / Application Identity (Application API Key)
+     -> allow model call only after both are authenticated and authorized
+
+Employee x Authorized Agent -> independent free weekly points
+Employee -> personal basic weekly points
+Employee -> temporary extra grant(s) from Team pool
+Team -> grant record (on request or proactive, own expiry)
+Model -> per-token price converted to internal points
+```
+
+消费顺序是 Agent 免费点数→个人本周基础点数→员工已获发放的有效补充点数。**团队在“发放额度”时承担资源调配责任，正常模型扣减只需面对员工可用额度，不再次请求每次调用的团队费用承担人。** 来源和发放交易仍须可追溯与防重复扣账。周起点/有效期未用返还/并发消耗预留、员工账号鉴权机制尚待下一层决定。Agent/Application 一对一，当前 API Key 只鉴别 Agent，员工个人凭证需后续开发。无生产 schema 更改，P4 PAUSED。
