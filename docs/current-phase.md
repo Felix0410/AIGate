@@ -352,3 +352,10 @@ P9 紧急任务容量调度；
 **P12 生产可靠性与条件式微服务演进**。
 
 这只是**顶层 Phase 业务目标/相对顺序 APPROVED**；未冻结单个 Phase 技术、范围细则、接口、数据库、验收或代码任务。技术栈讨论仍在进行，候选五领域服务不是强制的五微服务架构。下一项工作：用户与总控先定核心/候选技术、MQ 选型、SSE 落地方案、多副本压测及架构演进评审门槛；总控独立维护 docs/。旧 ADR-004 和原 P4-T01 均保持 ON HOLD；**P4-T01 PAUSED / NO CODING**。
+
+
+### Technology Review #15 — Spring Boot 4.1 Integration & Recommended MQ Choice（2026-10-20）
+
+用户同意讨论最终技术架构，但**尚未批准具体中间件选型或任何代码**。总控核对了官方项目兼容性：现有 Boot4.1.1 对应 Spring Cloud 2025.1.x（选择已支持 Boot4.1 的补丁版本）、Spring Kafka4.1.x；Cloud Gateway 5.0.x 同时存在 Web MVC/WebFlux 方案。RocketMQ-Spring 2.3.6 有公开发行，但尚无明确 Boot4.1 兼容性承诺，不能假设不能用或直接引入。**建议 Kafka 作为 FinOps 可靠异步成本事件首选 MQ 候选，RocketMQ 可在单独验证兼容后重选。**
+
+总控在 docs/technology-strategy.md §13 记录逐项对比：Redis+Lua 仅多副本共享限流验证后加入、MySQL 是积分权威账本、SSE 先用 MVC、Kafka/outbox+幂等负责结算后的异步统计、Actuator/Micrometer+Prometheus/Grafana 及 OTel 分阶段接入、Docker/CI/Testcontainers 和有证据的五领域微服务拆分。**技术方案尚未获得用户确认，继续 P4-T01 PAUSED / NO CODING**。
