@@ -216,3 +216,17 @@ P3-T01 需回答：
 用户确认安全合规治理与 FinOps 正式加入需求，并接受新 Phase 编号：**P10 企业安全合规治理** 负责数据分类、请求内容风险策略、版本/安全决策审计；**P11 FinOps** 负责可信 Token 及计价来源的内部积分/Provider 成本估算差异、趋势/异常和优化参考。原 P10 生产可靠性/演进移至 **P12**。原 P4～P9 业务顺序保持不变，参见 docs/roadmap.md 最新正式表。
 
 这些属于 **APPROVED FUTURE REQUIREMENTS / NOT IMPLEMENTED**。基本身份/Agent/Model 授权仍在 P4，不可宣称只有到 P10 才开始基础安全检查。阶段细节、技术组件、微服务边界和开发授权均需另外确认；P4-T01 PAUSED / NO CODING。
+
+
+## User-Confirmed FinOps Ownership and Recommended Non-Double-Count Reporting（2026-10-20）
+
+**确认**：实际模型调用成本追溯至使用 Employee（“谁用归谁”），跨团队使用时无须任务 Team 作为调用成本归属主体；Team 向任意 Employee 发放补充积分的**发放金额/积分数，在发放成功时一次性计入发放 Team 的内部额度支出**，并从发放 Team Pool 立即划扣。过期未用不返还。
+
+**P5/P6/P11 后续实现需求**：
+- 单次用量完成实际 Token→当次模型内部积分定价→Employee 结算归属，失败/超时用量未知仍待核对，不假造实际成本。
+- Team grant 的唯一发放业务标识、发放 Team、接收 Employee、有效期、积分数量和扣池/发放流水一致性；与实际使用保持可关联但不得重复扣发放 Team。
+- FinOps 分别查询（a）Employee/Employee 所属 Team 的**实际消费积分**，（b）Grant issuer Team 的**已发放积分/内部预算支出**，（c）Provider/Deployment 的**外部采购成本估算**；三类金额/积分不可直接混加作“企业总成本”。主 Team 的历史归属快照是待确认实现设计。
+- 若提出统一 Team 综合成本，需独立冻结如何避免已发放 Grant 与后续同源积分消费在 Team 账重复计费；默认先做分口径报表。
+- Provider 支出仅由确认的 Token × 生效 Provider 采购价格按币种统计，估算不冒充供应商发票。
+
+**计价及报表精度、团队总成本合计公式为总控建议而非用户已批准的技术合同。** P4-T01 PAUSED / NO CODING。
