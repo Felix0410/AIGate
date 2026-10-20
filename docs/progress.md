@@ -274,3 +274,10 @@ P3-T05 一次完成：Facade 保留原异常并记录安全 FAILED 码；写入�
 ## Technology Review #15 — 2026-10-20
 
 在正式批准 P4–P12 业务路线之后，用户同意进入 Redis/MQ/Spring Cloud/五服务架构**技术讨论**。本轮官方兼容性查验发现：Spring Cloud 2025.1.x 对应 Boot4.1；Spring Kafka4.1.x 与 Boot4.1.x 明确匹配，当前更推荐 Kafka 作为 P11 FinOps/成本事件 MQ；RocketMQ 2.3.6 仍可选但尚缺 Boot4.1 的官方明确承诺，需技术试验。Cloud Gateway 是通用 API 网关组件，不自动替代自研 SSE Provider 路由与结算。已更新 docs/technology-strategy.md §13 的候选技术组合、事件出站一致性与五领域拆分前证据要求，尚待用户正式同意。无代码依赖变化，**P4-T01 PAUSED / NO CODING**。
+
+
+## Business Decision #16 — FinOps Attribution Confirmed / Calculation Proposed（2026-10-20）
+
+用户确认：“谁用就属于谁，不同团队分配出去的额度可以直接加入成本中。” 业务上将**实际模型消费归属真实 Employee**、**任意团队发放额在发放成功时归发放 Team 的内部预算支出**。本次总控进一步建议三本口径：员工实际积分用量、团队授额资源支出、公司 Provider Token 实际费用估算；前两项不可相加作为公司现金成本，也不可在 Grant 消费后第二次扣发放 Team。
+
+总控已同步 docs/product-business-rules.md、requirements.md、domain-model.md、technology-strategy.md；具体总成本报表公式、积分精度/价格版本、历史员工主 Team 归属快照需逐 Phase 确认，未把建议视为用户最终批准；本轮没有生产代码或 DB 改动。P4–P12 业务路线不变，**P4-T01 PAUSED / NO CODING**。
