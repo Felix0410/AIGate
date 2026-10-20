@@ -77,3 +77,23 @@ P3-T01 需回答：
 ## Phase 3 Final Requirements Acceptance — 2026-10-20
 
 **R3-01～R3-07 已落实，Phase 3 CLOSED / ACCEPTED。** 正式交付：Flyway V7 的 InvocationRecord、成功/失败的安全元数据尽力入库（不覆盖模型调用结果）、Basic 管理端按 Application 最近 N 条查询（默认20，上限100）、每天 UTC03:00 清理30天前历史。记录表不存 Prompt、回复正文、Client/Provider 密钥或上游原始错误；不是计费/合规审计账本。P3-T06 已完成超时测试可靠性与夹具生命周期检查。历史前文旧的 ACTIVE/NOT STARTED 段落只代表当时进度，以 docs/current-phase.md 和 docs/phase-3-closeout.md 为准。**Phase 4 NOT STARTED。**
+
+
+---
+
+## Phase 4 已冻结需求 — Application Rate Limiting（PLANNED，2026-10-20）
+
+**Phase 4 ACTIVE / P4-T01 ACTIVE；下列为已批准但尚未实现的业务需求。**
+
+- **R4-01：** 管理员可按 Application 启用、设置、更改、关闭模型请求速率策略。默认不限流，保留已有接口行为。请求独立于旧 Application CRUD。
+- **R4-02：** 策略 RPM 允许整数 1..10000；`enabled=false` 对应 DB NULL，`enabled=true` 需要有效 RPM。非法值 HTTP 400 `INVALID_RATE_LIMIT_POLICY`（非 JSON 请求按现有 INVALID_REQUEST），App 不存在404，管理 Basic 认证缺失401。
+- **R4-03：** 经 Runtime API Key 认证和请求校验后，以 Authentication 中的 ApplicationIdentity.applicationId 限流；同 App 多个 Key 共享额度、不同 App 独立。
+- **R4-04：** 单 JVM 内令牌桶容量 RPM、平均每分钟补 RPM tokens，原子消费1 token/有效调用，支持有限突发；不得宣传任何连续60秒绝对限制 RPM 次。
+- **R4-05：** 平台拒绝 HTTP 429 `APPLICATION_RATE_LIMITED` + 整数秒 Retry-After；必须在 Provider 出站前返回，不得写 Phase 3 invocation_record；与上游 Provider 429→503 PROVIDER_RATE_LIMITED 严格区别。
+- **R4-06：** 限流禁用时完全放行；策略更新在下一新请求生效，重复同值 PUT 不重置桶；桶状态重启丢失，不保存到 MySQL，10分钟无访问回收。
+- **R4-07：** 保持 Phase 2/3 Security、模型 HTTP、SUCCESS/FAILED 记录及管理历史查询契约不变；非法 API Key 401/DTO 非法400 不消耗令牌；DB 策略读取失败不能默默 fail-open。
+- **R4-08：** MySQL V8 修改 application 表增加 nullable requests_per_minute+CHECK，不修改 Flyway V1–V7；用 MockMvc+真实 MySQL Testcontainers+本地 Provider 和假时钟/并发测试覆盖。
+- **R4-09：** 单实例、无 Redis/MQ/外部 RateLimiter 依赖，不实现精确配额/费用账本/多节点全局限流；未来实际跨实例问题出现后单独做技术选型。
+- **R4-10：** 一个完整业务功能包 P4-T01 后统一验收，P4-T02 集中 E2E/质量/阶段 Closeout；不再拆低复杂度微任务。
+
+原先 Phase 4 在早期文档中的“未来候选”现在已正式由总控批准启动；完整冻结执行合同见 `docs/current-phase.md`，重大架构取舍见 `docs/adr/ADR-004-application-rate-limiting.md`。
