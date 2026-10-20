@@ -252,3 +252,8 @@ P3-T05 一次完成：Facade 保留原异常并记录安全 FAILED 码；写入�
 用户明确同意加入 **SSE**，并要求评估企业万人员工场景下微服务是否合理。已确认 SSE 是最终目标（原同步主流程暂不改变），未来需涵盖 SSE 端到端透传、断连/超时、流式计费、长连接监控。微服务**没有得到必须采用的授权**，并非按员工人数决定；先验证模块化单体的水平多副本能力，再根据实际测量的网关高连接压力、管理/账务独立扩容与故障隔离需求决定是否拆分 Gateway Runtime 和 Control Plane。若单体多副本足够则保持原架构；P10 可做有证据的架构评估与 ADR。
 
 已更新 docs/technology-strategy.md、roadmap 与 current-phase。完整技术栈仍需后续统一批准，**P4-T01 PAUSED / NO CODING**。本轮无源代码依赖或数据库变更。
+
+
+## Technical Research #12 — 2026-10-20
+
+用户表示可以考虑合理增加业务以拓宽架构与技术展示，但**尚未选择要新增的具体业务**。参考 LiteLLM Enterprise/Kong AI Gateway 后，总控在 docs/technology-strategy.md 第 10 节提出企业敏感数据/模型准入治理、真实 Provider 成本 FinOps、Deployment 容量运营和跨业务审批的可选领域；给出 5 核心服务、可选容量控制服务的**讨论架构**。明示工作负载驱动才拆，不为数量硬拆；不开发 Agent 引擎。用户确认前不改正式 requirements/approved roadmap 的业务范围，**P4-T01 继续 PAUSED / NO CODING**。
