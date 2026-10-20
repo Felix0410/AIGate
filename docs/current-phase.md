@@ -207,3 +207,8 @@ App ID 只能来自已认证的 `ApplicationIdentity`；多把 ACTIVE Key 共享
 **未决问题：** Agent 与现有 Application/API Key 的关系、User 和 Employee 身份、员工/团队/Agent 额度归属与扣减，以及外部 Agent 的任务/员工身份如何可信关联。不得假设这些已经定案。
 
 **执行状态不变：P4-T01 PAUSED / NO CODING。** 原 V8 RPM/令牌桶方案和 ADR-004 不作为当前编码指令。只有用户确认全局业务流程后，由总控重写 Phase/Tasks 并解除暂停。
+
+
+### Product Discovery Decision #2 — Unified Model Gateway（2026-10-20）
+
+用户确认**所有纳入管理的 Agent 对模型的调用必须统一经过 AIGate**；AIGate 是资源使用的治理入口，而不是 Agent 执行引擎。终端员工身份如何安全绑定 Agent 请求、员工/团队/Agent 额度如何扣除、模型权限与优先级如何配置均尚未确认。**P4-T01 继续 PAUSED / NO CODING**，旧 V8 + token bucket 只是历史候选方案。
