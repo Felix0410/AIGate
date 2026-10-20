@@ -939,3 +939,19 @@ E2E 通过管理 API 建配置和 Key，MockMvc 走真实认证/Controller/Servi
 ## Phase 3 阶段最终面试结论 — 2026-10-20
 
 **Phase 3 CLOSED / ACCEPTED。** 可以围绕“为什么纯日志不足 → 用现有 MySQL 保存最少的调用元数据 → Facade 同步 best-effort 成功/失败 → 按 App 最新20条查询 → UTC30天保留 → MockMvc/Testcontainers/真实 Mock Provider 验证”讲清整个演进。必须承认局限：记录可能丢失、同步多一次 DB 写、清理大表缺 created_at 索引、多实例任务可能重复触发；不能把本记录表说成计费账本或严格审计。TD-001/009/010/011 仍开放。Git 提交不等于 CI 自动验证，P3-T02 的149项结果不是 P3-T06 的测试统计。
+
+
+---
+
+## Phase 4 预定面试表达主题（2026-10-20，设计已批准、尚未实现）
+
+**当前 P4-T01 ACTIVE，以下仅是应随实际开发验证的问题，不可在面试中将其描述成已经上线。**
+
+1. 业务：为什么 AIGate 已经有 Application API Key 和 Provider 429，仍需要自己的应用级限流？保护的是何种上游与线程资源？
+2. 选择：为什么 MySQL 持久策略 + JVM 令牌桶，而不是 MySQL 热行计数、固定窗口、Redis Lua 或 MQ？
+3. 原理：N RPM 容量和按速率补令牌如何同时允许突发与限制平均速率？为什么不等于准确60秒配额？
+4. Java 并发：同 App 多线程并发时，如何用 ConcurrentHashMap.compute 避免非原子“剩余令牌”超卖？
+5. HTTP：客户端本地429/Retry-After 与 Provider429→503 如何区分？被拒绝为何不能计入 invocation_record？
+6. 演进：服务重启、多实例部署、策略更新与 MySQL 读取成本的限制，以及什么真实业务量会推动 Redis 分布式令牌桶。
+
+在 P4 实际验收以后，改写为“代码事实→执行流程→实测证据→设计代价→演进”，而不是背框架定义。已有 Phase 3 的 best-effort 记录、MockMvc/真实 MySQL/Provider 测试需要回归。
