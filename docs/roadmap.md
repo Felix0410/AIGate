@@ -154,3 +154,10 @@ Phase 4 默认保留旧 Application 的不限流行为，管理员主动配置 N
 **规划执行状态**：P4 仅允许进行需求、领域关系、风险、流程、任务与验收草案的逐层设计。P4-T01 旧限流编码任务仍然 PAUSED，不自动切换 ACTIVE；原 V8 Application RPM/ADR-004 保持历史备选。完整的企业身份与 Agent 权限 P4 合同需要用户另行审核批准后才允许本地 AI 开发。
 
 **下一步设计顺序（非本轮开发授权）**：确认 Employee 凭证如何被 AIGate 独立认证、Application Key 与员工凭证如何在一次 Runtime 请求中共同验证、员工是否有该 Agent 与 Model 的使用权、现有 Team/Employee/Application 结构的最低影响演进方案；先跑通一个真实员工调用指定 Agent 允许的逻辑 Model 这一条 Happy Path，再扩展测试与安全细节。
+
+
+## 2026-10-20 — Technology-First Review Gate (after product scope approval)
+
+用户提出将项目用于 Java 后端求职简历，要求**落实技术路线后才可启动 P4 或后续开发**。顶层业务 Phase 顺序依然 APPROVED，但详细技术引入计划**尚待讨论/批准**。总控创建 docs/technology-strategy.md，依据仓库真实 pom.xml 与已确认业务，提出 MySQL 并发准确计费、Spring Security 双身份、按实测多副本引 Redis Lua、真实异步事件后选 RocketMQ/Kafka 之一、Micrometer/Prometheus/Grafana、Docker/CI/Testcontainers/压力测试等候选。
+
+原则：不是简历堆砌，而是每个新技术都有 AIGate 真实业务问题、最简替代、性能/正确性验证和 ADR；模块化单体优先，不预设 Nacos/Spring Cloud/ES/微服务必上。**P4-T01 继续 PAUSED / NO CODING；不可因本候选草案自动新增依赖或实现。**
