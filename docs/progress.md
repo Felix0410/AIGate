@@ -198,3 +198,8 @@ P3-T05 一次完成：Facade 保留原异常并记录安全 FAILED 码；写入�
 **本阶段仅两个整包任务：** P4-T01 完整业务代码+E2E（ACTIVE）；P4-T02 集中回归及阶段收尾（NOT STARTED）。由总控维护文档并按每个交付包验收，不把每个小类/表/API 拆成独立开发任务。
 
 **ADR-004 已接受设计决策，未实施的 V8/管理 API/Token Bucket 仍属 PLANNED。** TD-001/009/010/011 继续保留，Phase 5 NOT STARTED。
+
+
+## 2026-10-20 — 暂停 P4 编码，重新核对产品主线
+
+用户要求在进一步开发前，先从最上层确认 AIGate 最终产品流程，再逐层核对业务主体、用户/Team/Application 权属、额度归属、使用流程、功能优先级。**P4-T01 STATUS = PAUSED / NO CODING**；原“ACTIVE”和 V8/令牌桶/管理 API 仅是此前已批准但目前暂停的设计，不再是开发导师执行授权。Phase 1～3 CLOSED 的已实现事实保持。由总控在用户逐层确认后修改规划、ADR 和 current-phase，再决定 P4 是否继续做速率限制或优先补用户/额度闭环。
