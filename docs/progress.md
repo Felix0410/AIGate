@@ -208,3 +208,8 @@ P3-T05 一次完成：Facade 保留原异常并记录安全 FAILED 码；写入�
 ## Product Scope Decision — 2026-10-20
 
 用户明确 AIGate 是**公司内部已有 AI Agent 的统一接入、资源与模型流量治理平台**，不开发 Agent/编排器/执行引擎。目标包括员工与团队差异化额度、团队额度池和审批、紧急任务资源优先、Agent 可用模型安全策略、模型成本和可见压力监测；确切的用户/Team/Agent/Application 关系、额度归属及实现顺序尚待逐层确认。已由总控写入 project-overview、requirements、current-phase。**P4-T01 持续 PAUSED；旧 Application 限流设计仅为候选，不能继续编码。**
+
+
+## Product Discovery Decision #3 — 2026-10-20
+
+已正式整理 `docs/product-business-rules.md`：员工主团队/临时跨团队任务、管理员纳管而不开发 Agent、Agent=Application 1:1、按真实员工扣费（无人值守可独立专用账号）、**按周的授权 Agent 免费额度→员工个人额度→团队额外申请**、紧急任务临时额度和优先权、员工选择 Agent 可用模型/同模型多部署路由。业务方向已确认，**按周细则、可信员工归属、跨团队谁出额度、费用和异常结算尚未确认**。旧 P4-T01 仍 PAUSED；文档由总控维护，不授权开发导师编码。
