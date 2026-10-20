@@ -47,3 +47,23 @@ InvocationRecord 是**管理排障历史元数据**，不是 Prompt Conversation
 
 
 InvocationRecord 仅是 Application 下属的排障元数据，写入为同步 best-effort，允许丢失历史、不会改变原模型响应。既不是 Prompt 对话记录，也不是可用于收费的审计账本。
+
+---
+
+## Phase 4 Planned Domain — ApplicationRateLimitPolicy（2026-10-20，未实现）
+
+```text
+Application (existing)
+ ├── id / name / teamId / defaultDeploymentId
+ ├── requestsPerMinute: Integer?  [P4 V8 PLANNED]
+ │      ├── null        → unlimited
+ │      └── 1..10000    → TokenBucket policy
+ └── multiple ACTIVE ApplicationApiKeys → same Application bucket
+
+InMemoryTokenBucket (transient single-JVM execution state, NOT DB entity)
+ └── applicationId → capacity / tokens / lastRefillNanos / lastAccessNanos
+```
+
+业务身份是 **Application**，不是 API Key：同一 Application 的多把 Key 共享请求额度。持久化的是管理员配置而不是消费数据；服务重启桶被重新填满，多实例各自计数。被429拒绝的请求未进入 ModelProxyService，不产生 Phase 3 InvocationRecord。既有 Application CRUD / P3 Invoke 记录语义不变。
+
+**设计已批准但代码未实施，P4-T01 ACTIVE。** 不创建 Quota/Usage/Billing/RateLimitCounter 域对象。完整 ADR：`docs/adr/ADR-004-application-rate-limiting.md`。
