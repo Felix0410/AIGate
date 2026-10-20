@@ -97,3 +97,18 @@ P3-T01 需回答：
 - **R4-10：** 一个完整业务功能包 P4-T01 后统一验收，P4-T02 集中 E2E/质量/阶段 Closeout；不再拆低复杂度微任务。
 
 原先 Phase 4 在早期文档中的“未来候选”现在已正式由总控批准启动；完整冻结执行合同见 `docs/current-phase.md`，重大架构取舍见 `docs/adr/ADR-004-application-rate-limiting.md`。
+
+
+---
+
+## Enterprise Agent Governance — Product Scope Confirmation（2026-10-20）
+
+**本节为已确认的顶层产品定位；不是已经实现的接口或立即启动的开发任务。**
+
+**In scope（最终产品目标）：** 管理企业已有 Agent 的登记/配置/启用/停用、接入身份、员工与团队使用权限；管理 Agent 可用的模型、安全准入策略、统一 Provider 流量；员工个人额度、团队额度池、按员工/团队/Agent 区分可用额度、临时额度申请审批；重要/紧急任务的预算与资源优先策略；模型用量、成本、请求压力及异常监控、必要管理操作审计。
+
+**Out of scope（当前明确不做）：** Agent 业务逻辑开发、Agent 可视化工作流编排器、Agent 自身执行引擎、Agent 工具调用业务代码、模型训练/推理引擎开发。网页对话可视为一种外部 Agent/接入形态，但当前不据此要求在 AIGate 内建设聊天产品。
+
+**能力边界：** 网关只能保证管理与观测经过 AIGate 的模型调用；若要关联一次外部 Agent 任务的多次调用，需要外部 Agent 提供受信任的任务/用户归属信息。第三方 Provider 的物理算力/GPU 实时负载并非网关天然可知。
+
+**待确认（不可先行设计实现）：** User、Employee、Team、Application、Agent 的对应关系及具体调用身份；预算归属与扣减（个人/团队/Agent）、额度单位、申请审批、紧急任务优先级语义与接入协议；原 Phase 4 限流是否应先于这些业务能力开发。**P4-T01 PAUSED，ADR-004 ON HOLD。**
