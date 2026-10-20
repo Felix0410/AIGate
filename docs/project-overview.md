@@ -58,3 +58,8 @@ Phase 1 解决 Team/Employee/Application 归属与基础管理；Phase 2 建立�
 ### Unified AI Model Entry — Confirmed Product Principle（2026-10-20）
 
 用户确认：**所有纳入公司 AIGate 管理的 Agent，模型调用统一经过 AIGate**，作为认证、模型准入、额度/成本归属、流量策略与网关可观测性的统一执行入口。Agent 本身的开发和执行仍由外部系统负责。平台不能仅靠接口约定物理阻止旁路调用；后续需要结合 Provider 凭证集中保管、外部网络出口规则与接入治理来确保覆盖，具体机制待后续层级确认。
+
+
+## Product Rule Confirmation — Enterprise Agent Governance（2026-10-20）
+
+用户确认：员工有主团队且可临时参与其他团队任务；Agent 由平台管理员统一纳管（不做 Agent 开发/注册流程）；网关 Application 与受管 Agent 1:1；调用必须识别实际员工，自动任务可设专用账号；**周额度**按授权 Agent 免费额度→员工个人额度→团队申请额外额度；紧急任务提供经申请的临时额外额度和优先处理；员工选 Agent 已获授权的模型，AIGate 在**相同模型的不同 Deployment** 间进行路由。细节与待决规则见 `docs/product-business-rules.md`。这些是目标业务定义，不代表现有生产功能已实现；P4 仍暂停编码。
