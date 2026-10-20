@@ -118,3 +118,12 @@ Model -> per-token price converted to internal points
 **余额耗尽**：EmployeeQuotaStatus 将转入最低速率/最低优先级并提醒，不能简单拒绝所有已授权调用；**保底资金是谁提供、保底池总量和模型/并发限制仍待业务决策**，暂不建余额或调度 Schema。
 
 这些是已确认产品规则及待决边界，不是当前已实现领域实体或表。Agent/Application 1:1 和 Employee 双身份凭证原则不变。P4 PAUSED。
+
+
+## Confirmed Budget Exhaustion Decision（2026-10-20，目标领域语义、未建表）
+
+Employee/Agent 普通积分（Agent 周免费 → Employee 周基础 → Team 已发放有效补充）耗尽后由 Corporation Fallback Budget 在员工周/公司池双重上限内承担，使用 Agent 已获准的保底逻辑模型并进入最低速率/优先级档。
+
+**再耗尽时**：Paid Provider Invocation 无有效、已预留资金来源则硬停止；如果拥有独立成本/容量边界且被允许的 Self-hosted Base Model 可保持受控的有限基本服务；Emergency Budget 是另一个公司明确预留且有限额的资金来源，必须基于已审批紧急任务+有效期+使用者等授权才能释放。没有批准资金或合规容量时不可无限调用。团队发放、模型实际成本、企业保底和应急消费应各自有可追溯账目，不把 P3 best-effort 调用记录当财务余额事实。
+
+**本节为批准的业务规则，不指定数据表、外键、锁、队列或微服务结构。** P4 仍是设计审查前准备，旧限流 P4-T01 PAUSED。
