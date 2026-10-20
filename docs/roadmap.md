@@ -170,3 +170,32 @@ Phase 4 默认保留旧 Application 的不限流行为，管理员主动配置 N
 企业上万人**仅是员工总量背景**，不足以直接触发微服务。技术演进按：模块化单体→单体水平多副本+共享限流/权威 MySQL 账本→实测流式连接、网关流量与管理账务存在明显不同资源需求/故障隔离问题时，再**条件式**拆 Gateway Runtime（SSE/Provider/routing）与 Management/Control Plane；账务是否独立服务二次评估，不能让多个服务任意写同一个积分表。把“需要拆分”的负载/SLO/隔离证据写入 ADR 与压测报告，若多副本单体足够则不拆，亦是合理决定。潜在微服务试验最早在 P10 可靠性/容量演进审查；**不是 P10 必交微服务**。
 
 技术事实与依据见 docs/technology-strategy.md 第 8 节。产品 Phase 顺序不改，详细技术采用依然 DRAFT / NOT APPROVED；**旧 P4-T01 继续 PAUSED / NO CODING**。
+
+
+## 2026-10-20 — Two Business Extensions Confirmed; Phase Renumbering Proposal (PENDING APPROVAL)
+
+User has **approved in-scope**:
+- Enterprise AI Governance: classification/PII/secret protective rules, employee/Agent/Model/Provider compliance policy and versioned decision audit; keep prompts/responses out of persistent audit by default.
+- Enterprise Analytics & FinOps: provider usage and true provider-cost **estimation** (distinct from employee internal points and issued Team allowance); Team/Agent/Model/Deployment trends, anomalies/alerts and cost optimization suggestions; authoritative billing remains transactional source of truth.
+
+This is **product scope approval, not unconditional microservice approval**. Propose preserving already approved **P4→P9 order**, adding two complete business Phases and moving original reliability phase:
+
+| Candidate Phase | Business goal / scope | Technology evidence (not auto-authorized) |
+|---|---|---|
+| **P4** | Employee + Agent double authentication, employee-Agent/Model authorization, basic approved Provider/Model allowlist | Security chains, authenticated principal binding, permission tests |
+| **P5** | Authoritative Token usage + internal points, weekly basic/Agent allowance, reservation/settlement, unknown-cost reconciliation | MySQL ACID, idempotency, concurrency testing |
+| **P6** | Team grants, Team pool, proactive issuance, approval and expiry audit | DB transaction & state-machine invariants; async notifications optional |
+| **P7** | Fallback corporate budget, rate/normal/emergency service-tier foundations, cap/priority/fairness | JVM concurrency first, Redis Lua if multi-instance data shows need |
+| **P8** | Same-Model Deployment routing, SSE response passthrough, gateway/deployment live pressure, alerts and capacity trends | MVC async/SSE, model-aware routing, Micrometer, Prometheus/Grafana |
+| **P9** | Time-boxed emergency task priority and corporate emergency pool authorization | Verified task context, fairness, queue, atomic pool reservation |
+| **P10 NEW** | Enterprise AI Safety & Compliance Governance: publish data classification/secret rules; enforce before external Provider call; safe metadata audit, authorization exception workflow | rule/policy versioning, cache invalidation, security test cases; Sse content moderation scope carefully limited |
+| **P11 NEW** | Enterprise AI Cost Analytics & FinOps: per Team/Agent/Model/Deployment aggregated usage, external Provider expense estimation and burn rate, threshold anomaly alerts | ledger-originated reliable event/outbox → MQ/worker when needed, idempotent projections, trend/reporting |
+| **P12 (formerly P10)** | Production readiness & architecture evolution: Docker/CI, load testing, reliable observability/SSRF/security hardening; evaluate modular monolith replicas vs 3–5 service decomposition | realistic peak SSE tests, exact billing concurrency, service outage/trace, ADR on actual service boundaries |
+
+**Security staging caveat**: P4 baseline already enforces authenticated identity + basic permitted Model/Provider policy. Full P10 content-security and corporate compliance cannot be retroactively claimed in earlier Phases; do not expose unprotected intermediate demo as "safe for company-wide production". Simple preflight rules can be integrated earlier if business demands, P10 completes governed lifecycle and audit.
+
+**Analytics staging caveat**: foundational P3/P5 usage, P8 traffic metrics are not FinOps full cost reporting. P11 develops derived projections from reliable ledger/price source, never recalculates spend as the debit authority.
+
+**Service decomposition remains conditional:** 5 proposed domain owners (Gateway / Identity-Control / Quota-Billing / Governance / Analytics-FinOps). Start each as modules; measure multi-instance resource/failure differences, and then independently extract only justified boundaries in P12 with dedicated ADR. Additional Resource Operations service is NOT approved; capacity control stays inside P8/Control unless measured otherwise.
+
+**Pending decision:** User approved the two extra businesses, but **has not yet specifically approved the P10/P11 insertion and P12 renumbering**. Previous P4–P10 sequence remains last approved formal phase numbering until user says yes. P4-T01 PAUSED / NO CODING.
