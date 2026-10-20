@@ -796,3 +796,36 @@ Phase 3 业务架构仍为模块化单体 + MySQL：TrackingFacade 的 SUCCESS/F
 ## 33. Phase 3 Final Architecture — 2026-10-20
 
 **Phase 3 CLOSED / ACCEPTED**。P3-T06 核验模块化单体/MySQL V1–V7 完成同步 best-effort SUCCESS/FAILED 分类记录、管理历史查询、UTC 30 天清理；测试超时由旧60s/60s改成独立1s/3s且清理测试夹具。技术风险：缺本轮独立 Maven/CI 证据、TD-001/009/010/011、created_at 清理缺索引及未来多实例调度问题。没有新增重大 ADR。参见 docs/phase-3-closeout.md。前文 ACTIVE/PLANNED 为历史快照。
+
+---
+
+## 34. Phase 4 Approved Design — Application Rate Limiting（2026-10-20，PLANNED）
+
+**Phase 4 / P4-T01 ACTIVE**，此节是正式冻结的架构而非已经提交的生产代码。Phase 3 业务闭环继续存在。
+
+```text
+Management /api/applications/{id}/rate-limit [PLANNED]
+HTTP Basic → PolicyController → ApplicationRateLimitPolicyService
+                                → ApplicationMapper → MySQL application.requests_per_minute(V8)
+
+Runtime POST /v1/invoke
+→ existing ApplicationKey Security FilterChain → ApplicationIdentity
+→ existing @Valid InvokeRequest
+→ NEW ApplicationRateLimitService.checkAndConsume(applicationId) [PLANNED]
+   ├─ ApplicationMapper 查策略（NULL=unlimited）
+   └─ ConcurrentHashMap<Long,TokenBucket>（单 JVM、System.nanoTime）
+         ├─ allowed → existing InvocationTrackingFacade → ModelProxyService/Adapter/HTTP
+         └─ rejected → 429 APPLICATION_RATE_LIMITED + Retry-After（零 Provider/InvocationRecord）
+```
+
+**技术选择：**
+- MySQL 只存管理员设置的 RPM 策略，不承担请求的实时计数；同 Key 不同 App 隔离、同 App 不同 Key 共享桶。
+- 令牌桶初始容量 RPM，平均每分钟补 RPM 个 token；同 App 并发采用 ConcurrentHashMap.compute 原子更新。限流只是平均速率+有界突发，不保证严格滚动60秒。
+- 配置变更时 reset 对应 App bucket；同值重复 PUT 不重置。空闲状态按10分钟 TTL 清理，重启令牌重新初始化。
+- 管理控制面继续 Basic，Runtime 继续 Bearer Application Key；Controller 在身份验证和 BeanValidation 后显式调用 guard，**不新增 AOP/Servlet Filter**。
+- 本地429与上游 Provider 429→503 是两种不同的业务来源；被限流拒绝的请求不算“已进入模型业务执行”的 P3 InvocationRecord。
+- 请求多一次 Application DB 查询，若 DB 不可读，不默默放行；未来依据实际性能再优化，不能提前引入缓存依赖。
+
+**不支持多实例共享配额，不能宣称分布式全局限流。** 多实例需求真实出现后再评估 Redis Lua、集中入口限流或其他方案并做新 ADR。当前架构决定详见 `docs/adr/ADR-004-application-rate-limiting.md`。
+
+任务粒度：P4-T01 完整 V8 + 管理 API + 原子算法 + Runtime/E2E；P4-T02 完整测试/Code Review/知识/技术债/Phase Closeout。**未实现状态需要持续标记 PLANNED**。
