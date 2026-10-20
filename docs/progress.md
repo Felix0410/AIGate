@@ -240,3 +240,8 @@ P3-T05 一次完成：Facade 保留原异常并记录安全 FAILED 码；写入�
 用户正式采纳最终企业兜底策略：员工额度不足先进入有限的企业保底限流档；企业/员工保底上限耗尽后**停止无额外授权的新第三方付费调用**；若安全批准的自部署基础模型存在，则在单独容量/并发范围内继续受限服务；紧急任务可审批动用独立预留应急预算，必须有任务/员工/有效期/金额边界并遵守公司总授权上限。若两种继续服务方式都不可用则明确拒绝新付费调用并提醒，自部署算力仍有成本。
 
 **顶层产品业务规则与 P4～P10 顺序已 APPROVED**，进入 P4 需求/架构设计审查准备，但**并未批准 P4 具体编码**，历史 P4-T01 继续 **PAUSED / NO CODING**。本轮无产品代码或数据库更改；完整业务事实：docs/product-business-rules.md 第 6 节，进度/路线见 current-phase 与 roadmap。
+
+
+## Product Discovery Decision #9 — Resume-Oriented Technology Review（2026-10-20）
+
+用户在顶层产品和阶段路线确认后，明确要求**技术栈先落实，保证足够的 Java 后端实习/校招简历深度，P4 仍不启动**。已检查 GitHub pom.xml 实际现状：Java21、Spring Boot4.1.1、Spring Security、MyBatis-Plus/MySQL/Flyway、RestClient、Testcontainers；Redis、MQ、监控链路、完整 Docker/CI 尚无已实现证据。已新增 docs/technology-strategy.md 为**候选而非批准**，推荐以 MySQL 并发账本、Redis+Lua 共享限流、MQ 可重试幂等异步、Micrometer/Prometheus/Grafana/OTel、Docker CI/压测的可验证业务方案为目标，Spring Cloud/ES/Nacos 等按真正需求决定。尚待用户确认最终技术组合与引入阶段；**P4-T01 PAUSED / NO CODING，绝不擅自实施技术**。
