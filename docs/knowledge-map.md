@@ -1043,3 +1043,22 @@ Java/JVM：异常、线程池、阻塞与内存；Spring：Security FilterChain�
 ## Phase 3 学习路线验收 — 2026-10-20
 
 **Phase 3 CLOSED / ACCEPTED**：P3-T01 从可查询调用历史业务问题出发选 ADR-003 最简 MySQL；P3-T02 V7/FK/CHECK/复合索引；P3-T03 Facade/单调时钟/成功记录；P3-T04 HTTP Basic 管理查询/SQL LIMIT；P3-T05 原异常透传/失败记录/UTC30天清理；P3-T06 真实超时测试1s/3s与 Testcontainers fixture 清理、阶段架构/技术债核查。每个知识点对应实际开发，不代表有准确计费、分布式追踪、Redis 或 MQ。缺 CI Gate 和最终独立 Maven 统计应如实表达。
+
+
+---
+
+## Phase 4 计划学习点（2026-10-20，尚未完成实现）
+
+**Phase 4 ACTIVE / P4-T01 ACTIVE。本节为后续实际编码要学习的知识点，并非已经掌握或已经实现。**
+
+开发将按“Application 需要在 Provider 之前被限速”这一业务演进重点学习：
+
+- Application 身份认证成功后的速率治理与 P3 模型执行记录区别；为何本地拒绝 429 不写 invocation_record。
+- 令牌桶的补令牌、burst、Retry-After、与固定窗口/精确配额的差异。
+- Java ConcurrentHashMap.compute 的 per-key 原子更新和并发条件竞态；同 App 多 Key 共享桶。
+- System.nanoTime 测量时间差，如何用假时钟验证补令牌而不是 sleep 60 秒。
+- MySQL V8 nullable RPM 策略与 JVM 临时桶状态；MyBatis-Plus 显式更新 NULL、旧 Application PUT 不误清配置。
+- 单 JVM 与 Redis 多节点共享速率语义差异；为何当下不增加 Redis。
+- 429 本地限流 vs Provider 429 被代理映射503，如何用 E2E 验证零出站与零记录。
+
+P4-T01/P4-T02 完成后总控再根据实际代码与测试补充知识掌握/技术债状态。
