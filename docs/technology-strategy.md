@@ -142,3 +142,43 @@ User asked whether a platform for an enterprise with 10,000+ employees **needs**
 **Status:** SSE target inclusion = USER CONFIRMED; microservice split = EVALUATION OPTION, **NOT APPROVED / NOT IMPLEMENTED**; P4-T01 remains PAUSED / NO CODING.
 
 **Verification references:** Spring Framework MVC async/SseEmitter official reference https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-ann-async.html ; Microsoft Azure Architecture Center Microservices readiness https://learn.microsoft.com/en-us/azure/architecture/guide/architecture-styles/microservices ; AWS/Microsoft common app architectures note monolith replicas can scale without decomposition https://learn.microsoft.com/en-us/dotnet/standard/modern-web-apps-azure-architecture/common-web-application-architectures
+
+
+## 9. 2026-10-20 — Related Systems and 2-vs-3/4-Service Boundary Review (RESEARCH, NOT APPROVED)
+
+The user asked whether two services would be too few for resume credibility, whether AIGate is too shallow, and what scale warrants microservices. This section records verified reference designs and an **evaluation proposal**, not a user-approved requirement.
+
+### Reference evidence (official projects / dated retrieval 2026-10-20)
+
+- **LiteLLM Production Deployment**: monolithic proxy option or microservices with gateway (LLM traffic), backend (management API) and separate UI. Postgres/Redis are supporting infrastructure. Official: https://docs.litellm.ai/docs/proxy/deploy . It proves two core backend services plus UI can be an appropriate production deployment even for mature AI Gateway products.
+- **Kong AI Gateway Architecture**: configurable control plane separate from independent, horizontally replicated proxy data-plane nodes; a major AI gateway demonstrates that CP/DP split is a first-class architectural boundary. Official: https://developer.konghq.com/ai-gateway/architecture/ .
+- **Langfuse Architecture**: two application containers (Web/API and Worker) plus separate Postgres (transactions), ClickHouse (analytics), Redis and blob storage. Demonstrates splitting hot-path APIs from asynchronous high-volume event processing instead of decomposing each CRUD object. Official: https://langfuse.com/handbook/product-engineering/architecture .
+- **Dify docker-compose**: API, worker, worker_beat, plugin_daemon, agent_backend, sandbox and others. This larger runtime exists because Dify additionally handles Agent execution/plugin sandbox and tasks, which **AIGate explicitly does not build**. Official: https://github.com/langgenius/dify/blob/main/docker/docker-compose.yaml .
+- **Microsoft microservice boundary guide**: independently deployable services and minimizing cross-service consistency concerns, recommend coarse-grained boundary first. Official: https://learn.microsoft.com/zh-cn/azure/architecture/microservices/model/microservice-boundaries .
+
+### Candidate AIGate topology with a meaningful third service
+
+**Minimal independent services if real needs emerge (3 business backends):**
+1. **AI Gateway Runtime** owns authenticated SSE ingress/upstream proxy, ModelDeployment runtime selection, entry flow-tier admission and operational request metrics. Horizontal replication is natural; no direct write to authoritative balance tables.
+2. **Identity & Policy/Control Plane** owns Employee/Team relationships, Agent/Application access permissions, Provider/Model/Deployment configuration and policy versions, and administrative API. Keeps most low-QPS CRUD/control concerns grouped. Avoid creating separate "employee/agent/model" tiny services just for class-level separation.
+3. **Quota & Billing** owns weekly employee-Agent free points, employee basic points, Team grant pool and grant ledger, reservation→settlement, fallback/emergency budgets, idempotency and exception reconciliation. **One authoritative ledger owner**; team approvals can be exposed through control-plane facade/UI but final grant and debit must obey Quota's transactional boundary. Cross-service employee authentication proof/context must be reliable.
+
+**Fourth independently runnable component only when event processing warrants it:**
+4. **Usage & Notification Worker** (asynchronous consumer, not necessarily independent domain microservice) processes committed outbox usage/grant notifications, alert fanout, trend aggregation and replayable audit projection. Own separate projection/read model if used; cannot become the authoritative billing source.
+
+Examples of ownership discipline:
+- Gateway runtime obtains trusted request identity and selected Model policy from Control Plane or verified policy snapshot, reserves cost with Quota BEFORE paid Provider request, settles confirmed actual usage afterward, releases unused holds and reconciles unknown provider-timeout usage. Avoid one RPC per SSE chunk; per-request transaction boundaries must be explicit.
+- Failure scenarios: Quota unavailable? paid request fail-closed or use bounded preauthorization with strict correctness, not uncharged pass-through; Control Plane unavailable? signed/TTL policy snapshot if security semantics allow and tested stale-policy revocation; MQ unavailable? authoritative MySQL ledger complete, outbox pending rather than losing billing.
+- **Tricky:** Central Quota RPC adds network latency/hotspot/cascading failure. If measured requirements are satisfied in the modular monolith, keeping Quota as a module is preferable. "Four containers" != "four microservices"; replicas and storage do not count as separate business services.
+
+### AIGate's natural triggers for splitting (no arbitrary employee count)
+
+- **Measured independent scaling:** SSE Gateway connection/network/CPU memory demand requires multiple replicas, while Control Plane remains quiet; scaling the monolith replicas increases database connections/memory/admin replicas wastefully. First test monolith horizontal replication; only if genuine resource mismatch remains should split.
+- **Measured isolation need:** proxy spike, Provider outage or SSE thread/resource saturation endangers critical team-approval/admin endpoints or quota reliability, and thread pools/bulkheads/process isolation in replicated monolith are insufficient.
+- **Domain ownership:** quota ledger grows to own substantial transactional state/reservation/reconciliation SLA and independently deployed fault/recovery paths; multiple code teams/independent release cadence when actual.
+- **Async read/write separation:** immutable usage/log events and analytics materially outgrow OLTP transaction processing; independently scale an async worker without making main billing eventually consistent.
+- **Complexity cost gate:** inter-service auth, policy snapshot invalidation, consistent pricing versions, exactly-once business charging despite retry, network failure, tracing, rollout rollback, separate schema ownership, CI/CD and operations must be demonstrable.
+
+**Recommendation to discuss**: two backend services are not "too few". With AIGate's approved business complexity, an **optional 3-service end-state** (Gateway Runtime / Control-Policy / Quota-Billing) and a workload-triggered **4th Worker** are more convincing than an arbitrary 5–8 microservices. In a resume, clearly differentiate independently deployed service, worker, support infrastructure, multiple replicas, and a merely conceptual design. A 10k-employee corporate scenario is plausible motivation for capacity planning, **not evidence of actual production scale, concurrent usage or proof microservices are necessary**.
+
+**No change to current authorization:** P4-T01 PAUSED / NO CODING; no new runtime services, dependencies, data partition, MQ, or source changes. Business phase order remains approved; microservices topology is a research option pending explicit user choice and proof.
