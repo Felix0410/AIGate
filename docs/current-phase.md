@@ -212,3 +212,10 @@ App ID 只能来自已认证的 `ApplicationIdentity`；多把 ACTIVE Key 共享
 ### Product Discovery Decision #2 — Unified Model Gateway（2026-10-20）
 
 用户确认**所有纳入管理的 Agent 对模型的调用必须统一经过 AIGate**；AIGate 是资源使用的治理入口，而不是 Agent 执行引擎。终端员工身份如何安全绑定 Agent 请求、员工/团队/Agent 额度如何扣除、模型权限与优先级如何配置均尚未确认。**P4-T01 继续 PAUSED / NO CODING**，旧 V8 + token bucket 只是历史候选方案。
+
+
+### Product Discovery Decision #3 — Enterprise employee/team/Agent weekly quota (2026-10-20)
+
+用户一次确认七项规则，唯一完整业务事实来源：`docs/product-business-rules.md`。**员工有主团队且可参与其他团队任务；Agent 由管理员统一纳管、开发/注册细节不在本平台；受管 Agent 与现有 Application 按 1:1；实际调用必须可信识别员工，无人值守任务可单独管理专用账号；按周管理，授权 Agent 先享免费额度，再扣员工个人额度，个人不足向团队申请；紧急任务需单任务临时增加额度+优先级；员工可从 Agent 允许的模型中选择，自动路由只在同一逻辑模型多个 Deployment 内进行。**
+
+以上确认的是**业务规则而非编码授权**：周额度重置、费用归属、借调团队扣谁的额度、可信员工身份如何传递和模型定价仍待讨论。**P4-T01 PAUSED / NO CODING**。此前 Application RPM token bucket 与 V8 方案继续视为历史候选，不得自行执行。
