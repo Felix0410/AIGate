@@ -269,3 +269,8 @@ P3-T05 一次完成：Facade 保留原异常并记录安全 FAILED 码；写入�
 ## Product Roadmap Decision #14 — P4～P12 正式批准（2026-10-20）
 
 用户确认“接受”：正式将**企业 AI 安全合规治理**设为 P10、**企业 FinOps 成本分析与优化**设为 P11，原 P10 生产可靠性和架构演进顺延至 **P12**。P4 员工与 Agent 权限 → P5 Token/周积分与账本 → P6 团队额度 → P7 企业保底/三级流控 → P8 SSE/智能 Deployment 路由/监控 → P9 紧急任务调度 的原顺序不变。业务方向已批准；**技术栈最终组合、引入时机和是否拆五服务仍未批准**。Phase 1～3 仍 CLOSED，无源代码、数据库或依赖变更；**P4 未启动，旧 P4-T01 PAUSED / NO CODING**。
+
+
+## Technology Review #15 — 2026-10-20
+
+在正式批准 P4–P12 业务路线之后，用户同意进入 Redis/MQ/Spring Cloud/五服务架构**技术讨论**。本轮官方兼容性查验发现：Spring Cloud 2025.1.x 对应 Boot4.1；Spring Kafka4.1.x 与 Boot4.1.x 明确匹配，当前更推荐 Kafka 作为 P11 FinOps/成本事件 MQ；RocketMQ 2.3.6 仍可选但尚缺 Boot4.1 的官方明确承诺，需技术试验。Cloud Gateway 是通用 API 网关组件，不自动替代自研 SSE Provider 路由与结算。已更新 docs/technology-strategy.md §13 的候选技术组合、事件出站一致性与五领域拆分前证据要求，尚待用户正式同意。无代码依赖变化，**P4-T01 PAUSED / NO CODING**。
