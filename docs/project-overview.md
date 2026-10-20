@@ -73,3 +73,10 @@ Phase 1 解决 Team/Employee/Application 归属与基础管理；Phase 2 建立�
 ### Confirmed Weekly Settlement & Degraded Service — 2026-10-20
 
 企业内部积分采用按 Token 输入/输出等分类定价；公司统一时区每周一 00:00 重置 Agent 专属免费额度与员工基础额度。团队发放员工额外积分时即扣团队池，过期未用不返还；模型调用前预留、完成后按实际确认用量结算，无法确认的失败/超时使用待核对状态。**员工正常额度耗尽后不是立刻禁止调用，而是进入最低速率、最低优先级并提醒的受限服务**。保底服务的成本出资方和最终成本上限尚未决定，不能解释成无限免费调用或无条件服务保证。P4 仍 PAUSED，实际架构决策留待后续。业务详情：docs/product-business-rules.md。
+
+
+### Product Development Order Approved; Budget Exhaustion Still Open（2026-10-20）
+
+用户已批准企业治理版 **P4～P10 顶层业务交付顺序**：员工身份/Agent 访问控制 → 实际用量/个人周积分 → 团队额度池/发放审批 → 三级流量档位与企业保底 → 同模型多 Deployment 智能路由及可观测性 → 紧急任务资源保障 → 生产可靠性与必要架构演进。此批准是顶层开发顺序确认，**不是任何新的 Phase 编码授权，P4-T01 仍 PAUSED**。唯一集中业务事实：docs/product-business-rules.md，路线详见 docs/roadmap.md。
+
+员工周保底及企业保底预算都耗尽时的行为**尚未由用户确认**。参考预算硬顶、低/零外部 API 收费的自部署模型受控回退以及紧急额外拨款审批作为候选；不能宣称“慢响应就完全不产生成本”，也不允许隐式无限透支公司预算。
