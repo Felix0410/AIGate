@@ -161,3 +161,12 @@ Phase 4 默认保留旧 Application 的不限流行为，管理员主动配置 N
 用户提出将项目用于 Java 后端求职简历，要求**落实技术路线后才可启动 P4 或后续开发**。顶层业务 Phase 顺序依然 APPROVED，但详细技术引入计划**尚待讨论/批准**。总控创建 docs/technology-strategy.md，依据仓库真实 pom.xml 与已确认业务，提出 MySQL 并发准确计费、Spring Security 双身份、按实测多副本引 Redis Lua、真实异步事件后选 RocketMQ/Kafka 之一、Micrometer/Prometheus/Grafana、Docker/CI/Testcontainers/压力测试等候选。
 
 原则：不是简历堆砌，而是每个新技术都有 AIGate 真实业务问题、最简替代、性能/正确性验证和 ADR；模块化单体优先，不预设 Nacos/Spring Cloud/ES/微服务必上。**P4-T01 继续 PAUSED / NO CODING；不可因本候选草案自动新增依赖或实现。**
+
+
+## 2026-10-20 — SSE Target Confirmed / Microservices Conditional Only
+
+用户明确将 **SSE 流式模型响应**加入目标技术能力，真实使用场景为企业 Agent 网页对话与逐 Token 输出，由 AIGate 在 Provider → Agent 之间流式透传。关键验收包括断连取消、超时、连接并发、流式用量/积分最终结算与无法确认用量时对账。P4 双身份完成后安排具体的流式代理交付包，候选在 P8 模型代理/路由能力中落实，最终 Phase 归属待细化；并不意味着要立即引入 WebFlux。
+
+企业上万人**仅是员工总量背景**，不足以直接触发微服务。技术演进按：模块化单体→单体水平多副本+共享限流/权威 MySQL 账本→实测流式连接、网关流量与管理账务存在明显不同资源需求/故障隔离问题时，再**条件式**拆 Gateway Runtime（SSE/Provider/routing）与 Management/Control Plane；账务是否独立服务二次评估，不能让多个服务任意写同一个积分表。把“需要拆分”的负载/SLO/隔离证据写入 ADR 与压测报告，若多副本单体足够则不拆，亦是合理决定。潜在微服务试验最早在 P10 可靠性/容量演进审查；**不是 P10 必交微服务**。
+
+技术事实与依据见 docs/technology-strategy.md 第 8 节。产品 Phase 顺序不改，详细技术采用依然 DRAFT / NOT APPROVED；**旧 P4-T01 继续 PAUSED / NO CODING**。
