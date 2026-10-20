@@ -257,3 +257,10 @@ P3-T05 一次完成：Facade 保留原异常并记录安全 FAILED 码；写入�
 ## Technical Research #12 — 2026-10-20
 
 用户表示可以考虑合理增加业务以拓宽架构与技术展示，但**尚未选择要新增的具体业务**。参考 LiteLLM Enterprise/Kong AI Gateway 后，总控在 docs/technology-strategy.md 第 10 节提出企业敏感数据/模型准入治理、真实 Provider 成本 FinOps、Deployment 容量运营和跨业务审批的可选领域；给出 5 核心服务、可选容量控制服务的**讨论架构**。明示工作负载驱动才拆，不为数量硬拆；不开发 Agent 引擎。用户确认前不改正式 requirements/approved roadmap 的业务范围，**P4-T01 继续 PAUSED / NO CODING**。
+
+
+## Product Scope Decision #13 — 2026-10-20
+
+用户认可正式新增两项业务：**AI 安全与合规治理（内容/敏感数据策略、版本、最小元数据审计）** 与 **企业成本分析 FinOps（实际 Token 和外部 Provider 成本估算、内部积分对账、Team/Agent/Model/Deployment 趋势、异常告警）**。这不是“必须拆五个微服务”的授权，核心账务仍是 MySQL 权威来源、异步统计只能提供派生数据，默认不记录敏感 Prompt 原文。
+
+已同步 docs/product-business-rules.md、requirements.md、domain-model.md、project-overview.md、technology-strategy.md、architecture.md，路线插入的**提案**见 roadmap.md：保留 P4～P9 相对顺序，P10 新增 AI Governance、P11 新增 FinOps、原 P10 Production & Evolution 后移 P12；**尚待用户确认重编号**。本次未修改生产代码、pom.xml、DB Migration 或部署，P4-T01 仍 **PAUSED / NO CODING**。
