@@ -130,3 +130,24 @@
 8. **文档与路线**：完整业务方向已成形，但 docs/roadmap.md 中 P4～P10 仍是**待用户确认的阶段候选**；旧 P4 Application-only 令牌桶设计不执行。
 
 **当前执行门禁：Phase 1～3 CLOSED / ACCEPTED；Phase 4 P4-T01 PAUSED / NO CODING。** 必须先确认业务与阶段排序，由总控重新冻结任务和 ADR 后方可交开发导师。
+
+
+## 5. Product Discovery #7 — Roadmap Confirmed / Exhausted Fallback Still Undecided（2026-10-20）
+
+**用户确认顶层开发顺序（APPROVED HIGH-LEVEL ORDER）：** P4 员工身份与 Agent 使用权限；P5 模型 Token 计量/积分与周个人额度；P6 团队池/发放审批；P7 限流/普通/紧急三档、企业保底基础能力；P8 同逻辑模型 Deployment 智能路由/指标/告警/容量趋势；P9 紧急任务资源保障；P10 生产可靠性及实际必要的架构演进。**这不代表 P4 进入实施，旧 P4-T01 继续 PAUSED**。
+
+**用户未最终决定**：当“个人正常额度 + 每员工周保底上限 + 公司公共保底池”均耗尽时应该如何处理。用户明确选择 OTHER，要求先了解业界实践，不得将任何推荐当成既定需求。
+
+**参考的现有产品机制（非所有公司统一政策）：**
+- LiteLLM 有密钥/用户/团队预算硬限额、超额阻断及预算重置；另有预算回退到明确标记零外部 API 计费或自托管模型、并发成本预留功能。https://docs.litellm.ai/docs/proxy/users 与 https://docs.litellm.ai/docs/proxy/budget_fallbacks
+- AWS Budgets 支持预算阈值触发限制动作与人工审批。https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-controls.html
+- 企业模型容量可将延迟和成本分级；不能把网关侧最低优先级当作第三方服务商的实际 SLA。https://learn.microsoft.com/en-us/azure/foundry/openai/concepts/provisioned-throughput
+
+**总控推荐但待用户采纳的混合机制：**
+1. 正常额度用完 → 使用每员工及全公司均受限的企业付费保底预算，切 Agent 预设保底模型，限流档/低优先/基本并发/通知。
+2. 企业付费保底上限亦耗尽 → **禁止新增有实际第三方 API 成本的未授权请求**，不能只降到更低 RPM 就继续无限付费。
+3. 若企业有管理员明确批准、无需按次向第三方付费但仍消耗自有硬件/能耗的自部署模型，且该 Agent 的安全权限允许，仍可在更严格的并发/使用边界下提供受控基础服务；否则等待下周期或者通知。
+4. 紧急任务可以走负责人/管理员额外拨款审批，但必须有明确数量、有效期、审计记录及企业总控上限，不能私下透支；受影响的请求在审批前不得继续产生不受控的付费成本。
+5. 这仅为行业参考加 AIGate 候选，员工/公司池耗尽时是否允许自部署模型、请求该等模型是否进入同一个限流档、审批权限与真正最后停止的规则都需用户最终确认。
+
+**持续执行门禁：Phase 1～3 CLOSED；企业 P4～P10 顶层路线 APPROVED；P4 具体 Scope/Tasks NOT AUTHORIZED，历史 P4-T01 PAUSED / NO CODING。**
