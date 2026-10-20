@@ -6,8 +6,8 @@
 
 - **Phase 1 — CLOSED**
 - **Phase 2 — CLOSED / ACCEPTED（2026-10-18）**
-- **Phase 3 — ACTIVE**
-- **Current Task：P3-T06 — Phase 3 Closeout（ACTIVE）**
+- **Phase 3 — CLOSED / ACCEPTED（2026-10-20）**
+- **Current Task：None（Phase 3 已关闭）**
 - **Next: Phase 4 — 未冻结业务范围；Phase 3 Closeout 完成后再决定**
 
 Phase 2 的关闭已通过完整十项检查：功能、Code Review、测试、架构、技术债、progress、architecture、必要 ADR、知识点和面试表达。
@@ -69,7 +69,7 @@ Flyway V1–V6，MySQL 8.4；无新增 Usage/Quota/InvocationRecord 表。Key �
 | P3-T03 | 成功调用记录、写入失败隔离 | **DONE / ACCEPTED** |
 | P3-T04 | HTTP Basic 管理查询最近历史、limit 1..100 | **DONE / ACCEPTED** |
 | P3-T05 | FAILED 记录 + 30 天保留清理 + 完整 E2E（合并） | **DONE / ACCEPTED** |
-| P3-T06 | Phase 3 Closeout（原 T07） | **ACTIVE** |
+| P3-T06 | Phase 3 Closeout（原 T07） | **DONE / ACCEPTED** |
 
 计划数据：`invocation_record(id,application_id,status,error_code,duration_ms,created_at)`，index(application_id,id)，FK application_id CASCADE。**P3-T02 已实现并验收 V7，当前数据库代码 schema 为 V1–V7。**
 
@@ -176,3 +176,7 @@ P3-T05 一次完成：Facade 保留原异常并记录安全 FAILED 码；写入�
 边界说明：测试 setup 中途失败且 TimeoutSetup 尚未返回时，可能留下部分夹具资源，记录为非阻塞测试债。按“已提交”协作约定默认用户本地测试通过，但本轮未提供可引用的全量 Tests run/BUILD SUCCESS 数字，也无 GitHub CI status；不得引用 P3-T02 的 149 项作为当前统计。
 
 已形成 `docs/phase-3-closeout.md` 候验收报告。**P3-T06 审查完毕、建议总控验收；Phase 3 是否 CLOSED 尚需总控确认。Phase 4 未启动。**
+
+
+## Phase 3 Final Closeout（2026-10-20）
+总控复核 P3-T01～T06，验收通过，**Phase 3 CLOSED / ACCEPTED**。用户的“Git 提交代表本地测试通过”约定不等于 CI 运行证据；本轮无独立 Maven 数字/CI workflow。历史149/0/0/0仅为 P3-T02 基线。测试超时1s/3s竞态修复与夹具清理已审查。TD-001/009/010/011仍开放。完整收尾报告：docs/phase-3-closeout.md。**Phase 4 NOT STARTED。**
