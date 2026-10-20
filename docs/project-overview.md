@@ -68,3 +68,8 @@ Phase 1 解决 Team/Employee/Application 归属与基础管理；Phase 2 建立�
 ### Enterprise Weekly Points Model — Confirmed Direction（2026-10-20）
 
 每个有使用权限的员工，在每个 Agent 上拥有独立的免费周额度；员工还有个人基础周额度，每周固定周期刷新。用超后可向团队申请额外额度，团队也可主动发放有独立有效期的补充额度，发放后由员工使用，不在每次调用重新确定团队费用承担。不同模型按 Token 价格兑换企业内部积分。每次调用同时需要 Agent 自身 Key 与员工个人认证凭证，不能相信无认证的 employeeId。具体价格/时间/补充发放入账尚待确认。这是未来业务蓝图而非现有功能；**P4 继续暂停开发**。参见 `docs/product-business-rules.md`。
+
+
+### Confirmed Weekly Settlement & Degraded Service — 2026-10-20
+
+企业内部积分采用按 Token 输入/输出等分类定价；公司统一时区每周一 00:00 重置 Agent 专属免费额度与员工基础额度。团队发放员工额外积分时即扣团队池，过期未用不返还；模型调用前预留、完成后按实际确认用量结算，无法确认的失败/超时使用待核对状态。**员工正常额度耗尽后不是立刻禁止调用，而是进入最低速率、最低优先级并提醒的受限服务**。保底服务的成本出资方和最终成本上限尚未决定，不能解释成无限免费调用或无条件服务保证。P4 仍 PAUSED，实际架构决策留待后续。业务详情：docs/product-business-rules.md。
