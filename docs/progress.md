@@ -160,3 +160,10 @@ P3-T05 一次完成：Facade 保留原异常并记录安全 FAILED 码；写入�
 **非阻塞测试债与 P3-T06 集中处理**：60 秒 Mock HTTP 延迟恰等于读取超时可能发生时序竞态；RetentionIntegrationTest 需加强清理后状态断言及测试 Team 清理；onlyOneEnableScheduling 单测并未证明整个项目注解唯一。数据库 created_at 暂无高效清理索引/批次，仅作为日后真实规模增长时的性能风险记录。
 
 **当前 P3-T06 Phase Closeout ACTIVE；Phase 3 未关闭；Phase 4 未启动。** 核心执行清单见 docs/current-phase.md。
+
+
+## P3-T06 阶段收尾代码复审（2026-10-20）
+
+集中测试修复提交 `f3b0f94d6fbd79eb4305eeea7e2ec5fcd4c69c98` 已静态审查：独立 RuntimeInvokeTimeoutRecordingIntegrationTest 使用真实 RestClientConfig 配置 `aigate.provider.read-timeout-seconds=1`、本地 Provider 3 秒延迟，验证 504/PROVIDER_TIMEOUT、一条 FAILED 及无重试；移除了旧 60s 对 60s 的竞态测试。RetentionIntegrationTest 已在 AfterEach 按 Application→Team 顺序删除并核对 HTTP 200；Scheduler 测试纠正过度表述的方法名。没有改动生产代码或文档。
+
+**待关闭缺口（测试资源可重复性）**：独立 timeout 测试新建 Provider、Model、ModelDeployment 使用固定名称，仅删除 Application 和 Team，未删除其他三个依赖实体。需要在测试中记录全部创建的 ID，以 Application→ModelDeployment→Model/Provider→Team 顺序清理，并在测试异常时仍执行；否则共享 Testcontainers DB 重复运行可能遭遇名称唯一冲突。P3-T06 仍 ACTIVE，不宣布 Phase 3 CLOSED。完整 Maven 本地统计尚未作为本轮独立证据提供；遵循提交前测试通过约定，不虚构 CI。
