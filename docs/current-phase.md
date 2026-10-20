@@ -1,6 +1,6 @@
 # AIGate Current Phase — P4 ROADMAP ALIGNMENT / DEVELOPMENT PAUSED
 
-> **当前最新决议（2026-10-20）**：P4～P10 的业务开发顺序已获用户 approve，仅代表**高层路线 APPROVED**，**不代表 P4 已重新启动**。P4-T01 PAUSED / NO CODING；下方先前的 P4 Application RPM 任务合同是历史草案。企业保底预算二次耗尽后的处理目前为 **PENDING USER DECISION**；总控会参考行业硬停止、降级、紧急审批机制提出候选。开发导师禁止继续编码。
+> **当前最新决议（2026-10-20）**：P4～P10 的业务开发顺序已获用户 approve，仅代表**高层路线 APPROVED**，**不代表 P4 已重新启动**。P4-T01 PAUSED / NO CODING；下方先前的 P4 Application RPM 任务合同是历史草案。企业保底预算二次耗尽后的处理已 **APPROVED**：付费请求硬停、经授权自部署基础能力有条件继续、紧急任务从独立受控预算审批恢复。详见 docs/product-business-rules.md 第 6 节。开发导师禁止继续编码。
 
 
 > **2026-10-20 总控临时暂停开发（最高优先级）**：用户要求在继续任何新功能前先从最上层重新确认 AIGate 的最终产品目标、用户/Team/Application 关系、额度归属与开发顺序。**P4-T01 暂停执行，禁止开发导师基于下方旧的已冻结 P4 限流合同继续编码；ADR-004 作为待复核候选方案，非当前执行授权。** Phase 1～3 已验收的代码事实不变。确认整体路线后由总控重新冻结执行合同。下方 P4 细节全部是历史设计草案，暂不代表最终需求。
@@ -266,3 +266,17 @@ App ID 只能来自已认证的 `ApplicationIdentity`；多把 ACTIVE Key 共享
 用户已批准顶层业务开发顺序 **P4 员工与 Agent 身份/权限、P5 计量/周额度、P6 团队发放/审批、P7 三档/保底、P8 多部署路由与容量监控、P9 紧急任务、P10 可靠性演进**；仍未批准任何一项开发任务，P4-T01 PAUSED。
 
 当每员工及企业统一保底额度全部耗尽，用户选择 other 并询问企业常见做法，**没有确认最终策略**。根据行业产品公开机制，候选为“硬预算上限 + 预算告警 + 可用自托管/零外部 API 费用模型的受限回退 + 紧急审批补充预算”；模型没有外部计费不等于没有基础设施成本。正式用户答复前不可编入已经确认业务规则。
+
+
+### Product Discovery Decision #8 — Complete Product Scope Confirmed（2026-10-20）
+
+用户确认了“员工正常额度→企业有限付费保底限流档→付费硬上限；如果有经授权合规模型可使用自部署基础服务；紧急任务走独立预算审批”的企业最终兜底策略。无自部署模型或可批准的资金时，不得无成本来源调用付费 Provider；自部署也受算力/运营成本及容量限制。全量规则在 docs/product-business-rules.md 第 6 节，历史待决文字以此节为最新决议。
+
+**现已确认**完整顶层业务闭环与 P4～P10 业务建设顺序。**还没有确认 P4 的具体业务合同、接口/数据库/认证方式与执行任务；因此旧 P4-T01 继续 PAUSED / NO CODING，禁止使用历史 V8/Application token-bucket 草案施工。**
+
+**接下来仅开展 Phase 4 — Employee Identity and Agent Access 的设计审查**：
+- Business Goal：现有 Application Key 只能认证 Agent，不能证明真实员工，也缺少 Agent 允许员工/Model 的控制。
+- 最小闭环候选：一个具备个人凭证、被 Agent 授权的 Employee，经受管 Agent 的 Application Key 调用其允许的逻辑 Model，网关识别双身份、拒绝未经授权的组合，再走现有 Provider 同步代理。
+- 范围待确认：Employee / 登录 User 关系，用户凭证的发行与撤销，单个 Agent 对应 Application 的安全身份，Agent–Employee、Agent–Model 权限与请求模型选择方式。
+- 当前不碰：周积分、团队池、保底、三档调度、多部署智能路由、紧急任务审批与新基础设施；这些将在后续 Phase 落地。
+- 用户批准 Phase4 执行合同前，不创建 P4 新编码任务，不更新 V8/旧 ADR 为实施状态。
