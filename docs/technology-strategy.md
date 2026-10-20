@@ -269,3 +269,58 @@ User accepted P4 through P12 Phase numbering. The two new business domains are a
 For any new technology, next sign-off must answer: what it is, business issue, why AIGate needs it now, consequence without it, alternatives, chosen benefit, introduced operating failure modes, which Phase integrates it, tests/benchmarks proving merit. Top-level candidate stack includes MySQL authoritative ledger, Redis+Lua when multi-replica traffic needs, one of RocketMQ/Kafka where reliable asynchronous delivery improves confirmed business, Spring MVC SSE, Micrometer/Prometheus/Grafana and appropriate tracing, Testcontainers/Docker/CI. None of Redis/MQ/WebFlux/Spring Cloud/Nacos/Elasticsearch or 5-service extraction is automatically green-lit by accepting Phase numbers.
 
 **Current state:** product scope & Phase roadmap APPROVED; technical architecture / mandatory component list NOT YET APPROVED; **P4-T01 PAUSED / NO CODING**, no Maven dependencies/SQL/scripts/services added.
+
+
+## 13. 2026-10-20 — Stack Review: Boot 4.1 Compatibility, Message Broker and Conditional Five-Service Path (PROPOSAL, NOT APPROVED)
+
+**User requested technical architecture discussion only; code remains frozen.** Root `pom.xml` currently uses Java 21 / Spring Boot **4.1.1** / MySQL/MyBatis-Plus/Security/RestClient/Testcontainers; do not downgrade or add dependencies before Phase contract.
+
+### Up-to-date compatibility findings (official vendor pages accessed 2026-10-20)
+
+- **Spring Cloud 2025.1.x** is the Spring Boot 4.1.x release train (support for 4.1.x starting with a suitable 2025.1.x patch version). Official compatibility matrix: https://spring.io/projects/spring-cloud/ and https://spring.io/projects/generations/ .
+- **Spring Cloud Gateway 5.0.x** supports Boot 4 and both WebFlux and Web MVC variants. It is **not a drop-in replacement for AI Gateway Runtime's Provider-specific SSE streaming, policy enforcement, reservation and settlement**. Official: https://docs.spring.io/spring-cloud-gateway/reference/intro.html .
+- **Spring Kafka 4.1.x ↔ Boot 4.1.x** is directly documented and Boot BOM-managed. Official: https://spring.io/projects/spring-kafka/ and https://spring.io/blog/2026/06/09/spring-kafka-4/ .
+- **RocketMQ Spring Starter** stable 2.3.6 is published, with Spring Boot 3.x support described in historical release notes, but its public documentation does **not clearly guarantee Boot 4.1** compatibility. It is **not proven incompatible**; must pass an independent integration spike if selected. Official: https://github.com/apache/rocketmq-spring and https://central.sonatype.com/artifact/org.apache.rocketmq/rocketmq-spring-boot-starter .
+- **MVC SSE** is officially supported via `SseEmitter`, yet Servlet response writes remain blocking; async executor, active streams, disconnect, downstream backpressure and settlement on cancellation must be verified. Official: https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-ann-async.html .
+- **Actuator/Micrometer** exports Prometheus metrics; Spring Boot tracing integrates OTel and can propagate correlation across future RPCs. Official: https://docs.spring.io/spring-boot/reference/actuator/metrics.html and https://docs.spring.io/spring-boot/reference/actuator/tracing.html .
+
+### Recommended stack (discussion defaults)
+
+| Decision | Recommended default | Business reason / if not used / cost |
+|---|---|---|
+| Java app | Keep Java21 + Spring Boot4.1.x + Spring MVC/Security/MyBatis-Plus | existing working P1–P3 base, no migration without measurable benefit |
+| Accurate ledger | MySQL as single-authority ACID reservation & settlement | no Redis-only financial balances; locking/idempotency/deadlocks need tests |
+| Redis | Redis+Lua introduced after demonstrable 2+ gateway replica shared limiting/control | without it JVM bucket is fine for 1 replica, but fails global limit; adds shared outage/fail-mode and hot keys |
+| MQ | **Prefer Kafka** for durable finalized usage/cost events → FinOps projections/alerts; RocketMQ remains alternative only after verified Boot 4.1 compatibility | without MQ use transactional outbox+scheduled worker first; with MQ need dedupe, versioning, replay and retry, no claiming exactly-once across MySQL |
+| Service RPC | Start in-process module calls, then coarse-grained HTTP internal APIs if extracted; Spring Cloud Gateway/LoadBalancer/CircuitBreaker only where justified | HTTP network hop and auth context risk, never call Billing or Governance per streamed token |
+| Discovery/config | Docker Compose named services / stable endpoints first, not mandatory Nacos; add discovery/config after real fleet rollout need | fewer control-plane failure dependencies |
+| SSE | Spring MVC SseEmitter first, compare WebFlux only if measured blocked writes/threads | streaming backpressure, client cancellation & partial unknown usage |
+| Metrics | Actuator/Micrometer + Prometheus/Grafana progressively from early Phases; OTel as needed before multi-service extraction | observable per Model/Deployment pressure; avoid high-cardinality employee labels |
+| Delivery | Docker Compose + Testcontainers + CI + concurrent load/fault benchmarks | necessary evidence, not just packaging |
+
+### Event correctness boundary (FinOps)
+
+1. Billing commits reservation/actual settlement + **durable outbox event in the same MySQL transaction**; outbox contains only safe immutable IDs, cost and pricing provenance, not raw prompts.
+2. Publisher forwards to Kafka later with retry. If Kafka unavailable, billing money state remains committed and outbox stays pending.
+3. FinOps consumes with a unique event/business identifier, deduplicates and maintains eventually consistent projections; replay/backfill from ledger is possible.
+4. One successful event delivery is NOT sufficient evidence of 'exactly once' deduction. Per-invocation accounting idempotency remains in Quota/Billing.
+
+### Service extraction decision gate (5 business domains, not 5 services mandatory)
+
+- AI Gateway Runtime: owns long-lived SSE proxy, per-request routing and local policy enforcement; scales with connections and network I/O.
+- Identity & Control: employees/teams/Agent/Model policy administration and version publishing.
+- Quota & Billing: only mutable authority for weekly personal, Team, corporate fallback and emergency funding; sync reservation/settlement boundaries.
+- AI Governance: security policy definition/publication/metadata-only audit; enforcement must not pass raw prompt unnecessarily over RPC; use controlled local snapshots where safe.
+- Analytics & FinOps: idempotent async projection of settled usage/provider-cost estimation; eventual consistency okay.
+- Worker may be independent deployable process, but does not become a sixth domain service just by running in a container.
+
+First perform 2-replica **modular monolith** load and failure tests to expose real SSE / quota / policy problems. Only extract Gateway/Control and then Billing/Governance/FinOps when independent scaling/failure ownership outweighs RPC/data consistency costs. Even if all five are ultimately extracted, keep authoritative ownership crisp; accept that some snapshots and reports are eventual and define permission revocation and security fail-closed handling. Do not pre-choose Nacos or k8s for Docker Compose demo.
+
+### Current decision request (NOT answered by user yet)
+
+1. Is **Kafka** accepted as primary MQ candidate over RocketMQ on demonstrated Boot 4.1 integration grounds?
+2. Is **Redis+Lua, Actuator/Micrometer/Prometheus/Grafana, Docker+CI+Testcontainers** approved as target eventual capabilities, introduced only when phase need is confirmed?
+3. Is five-domain decomposition a **P12 evidence-gated architectural objective** rather than a mandatory service-count milestone?
+4. Keep **Spring Cloud 2025.1.x and Gateway 5.0.x** as conditional options when extracted interfaces/service discovery/circuit breaking genuinely need them, not automatic Spring Cloud adoption.
+
+**P4–P12 business roadmap approved. Technology choices in this section recommended only, NOT implementation authorization; P4-T01 PAUSED / NO CODING.**
