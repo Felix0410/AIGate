@@ -1,6 +1,6 @@
 # AIGate Current Phase — P4-T01 ACTIVE
 
-> **总控冻结执行合同（2026-10-20）。** 由总控制定业务、接口、算法、数据库、任务边界和验收标准；开发导师只负责“业务关联讲解 → 实现 → 测试 → Code Review”。不要重新选题，不要自行引入 Redis/MQ/微服务。历史 Phase 3 详见 `docs/phase-3-closeout.md`。
+> **总控冻结执行合同（2026-10-20）。** 由总控制定业务、接口、算法、数据库、任务边界和验收标准，并**独立负责 docs/ 维护**；开发导师只负责“业务关联讲解 → 实现代码 → 测试 → Code Review → 向总控报告结果”。不要重新选题，不要自行引入 Redis/MQ/微服务。历史 Phase 3 详见 `docs/phase-3-closeout.md`。
 
 ## 1. Phase & Task Status
 
@@ -152,7 +152,7 @@ App ID 只能来自已认证的 `ApplicationIdentity`；多把 ACTIVE Key 共享
 1. V8 / Application Entity 和管理 GET/PUT；验证旧 Application CRUD 兼容及 null 禁用。
 2. 纯内存令牌桶与可控纳秒时钟；先单测令牌/补充/并发/重置，再连策略 Service。
 3. Runtime Controller 显式接入，429 和 Retry-After，保证零出站、零调用历史、现有 Provider 429 契约不变。
-4. TTL 清理 + 用量边界 + 完整 HTTP Testcontainers E2E 与回归；更新真正实施的 API/DB 文档。
+4. TTL 清理 + 用量边界 + 完整 HTTP Testcontainers E2E 与回归；**文档由总控在验收时更新，开发导师不修改 docs/**。
 5. 跑完整 `./mvnw test`（Java21+Docker），提供 run/failures/errors/skipped/BUILD 及 Code Review。整个 P4-T01 **一次回总控验收**；中途可多次本地提交，不再开微任务。
 
 ### P4-T01 Acceptance Criteria
