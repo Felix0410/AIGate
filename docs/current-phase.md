@@ -298,3 +298,12 @@ App ID 只能来自已认证的 `ApplicationIdentity`；多把 ACTIVE Key 共享
 用户询问上万人企业的微服务合理性。技术决策**尚未确认必须拆微服务**：先多副本部署**同一个模块化单体**、Redis 共享限流、MySQL 权威账本与 SSE 实测；若高并发长连接网关与后台额度/管理间确有独立扩容、发布/故障隔离诉求，再评估拆 Gateway Runtime 与 Management/Policy 等稳定边界。P10 可作为条件式架构演进实验，并经独立 ADR 审核；不能以“10k员工”代替并发测量证据。
 
 总控方案和教学取舍见 docs/technology-strategy.md 第 8 节（全技术路线仍 DRAFT，SSE 产品技术目标已确认）。**P4-T01 继续 PAUSED / NO CODING**。
+
+
+### Technical Research #11 — Service Count and Comparable AI Products（2026-10-20）
+
+用户提出：两个微服务是否不足、万人员工是否意味着必须拆、同类项目有哪些边界可参考。本轮查验官方 LiteLLM（gateway/backend/UI 两个主要后端加 UI）、Kong AI Gateway（Control Plane / Data Plane）、Langfuse（Web/Worker 两种应用容器）、Dify（额外 Agent 后端、插件/沙箱/worker，职责超出 AIGate）和 Microsoft 微服务边界指南。研究结论及官方链接见 docs/technology-strategy.md 第 9 节。
+
+**仅供架构决策讨论**：AIGate 有自然的 3 个后端候选边界——运行时流量网关、员工/Agent/模型管理策略面、权威积分账务；异步指标/通知 Worker 可在实际需要时作为独立可扩展进程（不强行算成一个领域服务）。更细拆分会扩大通信、授权和财务一致性成本。“一万员工”不能替代 SSE 同时连接数、峰值 RPS、p95/p99、积分钱包热点和故障隔离压测。保持先模块化单体、多副本，再按证据判断的顺序。
+
+**本轮无用户对服务数量或微服务必选的最终确认，无编码授权；P4-T01 继续 PAUSED / NO CODING。**
