@@ -151,3 +151,24 @@ ModelUsage + ActualTokenUsage + PriceVersion
 **所有权边界**：Identity/Control 决定身份和基础 Agent/Model 授权；AI Governance 为企业数据和模型风险规则的发布/审批与审计责任域；Gateway 执行最小必要安全策略，默认不跨服务传原始 Prompt；Quota/Billing 单独负责员工积分和真实 Token 最终结算；FinOps 只从权威已确认数据维护允许延迟的聚合投影，不回写积分余额。供应商侧成本初期是计价估算，不等于供应商发票。
 
 **微服务拆分仅是候选**：这些稳定的代码/数据责任可以先放在一个模块化单体里，真实需要独立扩容、规则发布、故障隔离/异步分析时才提出 ADR 并抽取。P4-T01 PAUSED，不开始新安全/财务 schema。
+
+
+## User-Confirmed Usage Attribution vs Team Issuance Expense（2026-10-20，未实现）
+
+**业务账目关联而不混合**：
+```text
+Confirmed UsageSettlement → trusted Employee (actual consumer)
+   ├─ Token Usage × Model Internal Points Price Version → consumed points
+   └─ Token Usage × Deployment/Provider Purchase Price Version → external cost estimate
+
+TeamQuotaPool → successful TeamExtraGrant(issuerTeam,recipientEmployee,issuedPoints,expiry)
+   ├─ debit issuing Team Pool once
+   ├─ create Employee extra grant balance once
+   └─ recognize Team internal quota-allocation expense once
+
+Subsequent invocation using Employee's grant:
+   ├─ decreases grant usable balance; contributes to Employee Usage report
+   └─ does NOT again recognize issuer Team grant allocation expense
+```
+
+调用实际发生归 Employee；任何 Team 跨团队发放的积分在发放时就属于 issuer Team 的资源预算支出。员工消费、团队发放、Provider 外部费用为**不同维度**，不能加总成同一个公司现金成本。员工主 Team 汇总、历史快照、唯一团队总成本是否另设（且如何防双计）后续逐 Phase 定义。没有创建新的实体/数据库字段。P4 暂停。
