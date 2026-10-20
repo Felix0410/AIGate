@@ -72,3 +72,8 @@ P3-T01 需回答：
 ## Phase 3 Current Execution Update — 2026-10-18
 
 **P3-T04 管理历史查询已实现并验收**：Basic 管理 GET /api/applications/{applicationId}/invocations，默认20/最大100，按 App 过滤排序，严格只返回六字段，错误/空记录合同明确。**P3-T05 ACTIVE**：一次开发失败调用记录、30 天自动清理和全链路 E2E。原 T06 清理任务并入 T05，原 T07 阶段收尾调整为 T06。此次变更只调整工作包和验收频率，R3-01～R3-07 业务要求、ADR-003 MySQL best-effort 方案不变。
+
+
+## Phase 3 Final Requirements Acceptance — 2026-10-20
+
+**R3-01～R3-07 已落实，Phase 3 CLOSED / ACCEPTED。** 正式交付：Flyway V7 的 InvocationRecord、成功/失败的安全元数据尽力入库（不覆盖模型调用结果）、Basic 管理端按 Application 最近 N 条查询（默认20，上限100）、每天 UTC03:00 清理30天前历史。记录表不存 Prompt、回复正文、Client/Provider 密钥或上游原始错误；不是计费/合规审计账本。P3-T06 已完成超时测试可靠性与夹具生命周期检查。历史前文旧的 ACTIVE/NOT STARTED 段落只代表当时进度，以 docs/current-phase.md 和 docs/phase-3-closeout.md 为准。**Phase 4 NOT STARTED。**
