@@ -1,7 +1,7 @@
 # ADR-004 — Application Rate Limiting: MySQL Policy + In-Memory Token Bucket
 
 - **Date:** 2026-10-20
-- **Status:** ACCEPTED / DESIGN FROZEN（尚未实现）
+- **Status:** ON HOLD / PROVISIONAL（先确认产品路线；该方案尚未实现，也非当前执行授权）
 - **Phase:** 4 — Application Rate Limiting
 - **Decision owner:** AIGate 总控
 
@@ -68,3 +68,8 @@ AIGate 已实现 Application Bearer Key → 同步模型代理 → SUCCESS/FAILE
 **必须验证**：默认无限制；按 App 限流与多 Key 共享；N 次消费和第 N+1 次 429；单调假时钟补令牌；并发原子性；配置修改/关闭；未认证401/BeanValidation400优先；429零 Provider HTTP和零InvocationRecord；Provider429仍503；旧 API/Phase 3 回归；完整 Maven 运行。
 
 **本 ADR 仅冻结 Phase 4 方案。V8、API、桶算法均尚未实现。**
+
+
+## 2026-10-20 Decision Gate Update
+
+用户要求重新核对 AIGate 的最终端到端产品目标，特别是用户级额度与 Application 级速率限制的业务优先级。**此 ADR 暂停执行，保留为候选设计**。原方案的技术取舍与数字参数暂不作为实际开发指令。必须先由总控与用户逐层确认产品主线、额度主体与治理顺序，之后若确定确实需要单实例 App 速率限制，再重新评估/接受本 ADR 与 P4 执行合同。已完成 Phase 1～3 不受此暂停影响。
