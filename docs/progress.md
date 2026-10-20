@@ -213,3 +213,8 @@ P3-T05 一次完成：Facade 保留原异常并记录安全 FAILED 码；写入�
 ## Product Discovery Decision #3 — 2026-10-20
 
 已正式整理 `docs/product-business-rules.md`：员工主团队/临时跨团队任务、管理员纳管而不开发 Agent、Agent=Application 1:1、按真实员工扣费（无人值守可独立专用账号）、**按周的授权 Agent 免费额度→员工个人额度→团队额外申请**、紧急任务临时额度和优先权、员工选择 Agent 可用模型/同模型多部署路由。业务方向已确认，**按周细则、可信员工归属、跨团队谁出额度、费用和异常结算尚未确认**。旧 P4-T01 仍 PAUSED；文档由总控维护，不授权开发导师编码。
+
+
+## Product Discovery Decision #4 — 2026-10-20
+
+用户正式确认：每员工×已授权 Agent 具有独立**周免费额度**；每周固定时间刷新，员工基础额度亦按周刷新；团队可审批申请或**主动向员工发放**独立数量/有效期的额外额度（不在每次请求判断承担团队）；各种模型按 Token 价格换算**内部积分**。每次调用需要 Agent 自身 Application Key + **员工独立个人凭证**同时证明身份。调用顺序 Agent免费→个人基础→有效团队补充。尚未确定周起点/时区、团队池在发放时的扣减与未用返还、精确计费、并发预留/失败结算、个人凭证发行/撤销。已更新 product-business-rules、requirements、domain-model/current-phase；**P4-T01 PAUSED / NO CODING**。
