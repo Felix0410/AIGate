@@ -2,7 +2,7 @@
 
 ## 1. 当前阶段
 
-**Phase 3 — Invocation Records & Basic Visibility（ACTIVE）**
+**Phase 3 — Invocation Records & Basic Visibility（CLOSED / ACCEPTED，2026-10-20）**
 
 以下为历史任务演进；当前状态以 `docs/current-phase.md` 为准。
 
@@ -791,3 +791,8 @@ P3-T06 优先检查测试稳定性：RuntimeInvokeRecordingIntegrationTest 的�
 Phase 3 业务架构仍为模块化单体 + MySQL：TrackingFacade 的 SUCCESS/FAILED best-effort metadata 写入、Basic 管理面按 Application 最近 N 条查询、UTC 每日定期清理。确认记录写库可能失败或增加少量响应延迟，不能作为计费/不可丢审计记录。记录表缺少 created_at 清理索引，未来大表应评估分批 DELETE/索引；多实例调度协调未来再决策。ADR-003 有效，不新增架构方案。
 
 阶段评审详情在 `docs/phase-3-closeout.md`。本轮尚无独立 CI 或全量 Maven 数字证据；P3-T06 可交总控判断是否 ACCEPTED，**不得在总控确认前标记 Phase 3 CLOSED**。
+
+
+## 33. Phase 3 Final Architecture — 2026-10-20
+
+**Phase 3 CLOSED / ACCEPTED**。P3-T06 核验模块化单体/MySQL V1–V7 完成同步 best-effort SUCCESS/FAILED 分类记录、管理历史查询、UTC 30 天清理；测试超时由旧60s/60s改成独立1s/3s且清理测试夹具。技术风险：缺本轮独立 Maven/CI 证据、TD-001/009/010/011、created_at 清理缺索引及未来多实例调度问题。没有新增重大 ADR。参见 docs/phase-3-closeout.md。前文 ACTIVE/PLANNED 为历史快照。
