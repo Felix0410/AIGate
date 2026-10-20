@@ -105,3 +105,16 @@ Model -> per-token price converted to internal points
 ```
 
 消费顺序是 Agent 免费点数→个人本周基础点数→员工已获发放的有效补充点数。**团队在“发放额度”时承担资源调配责任，正常模型扣减只需面对员工可用额度，不再次请求每次调用的团队费用承担人。** 来源和发放交易仍须可追溯与防重复扣账。周起点/有效期未用返还/并发消耗预留、员工账号鉴权机制尚待下一层决定。Agent/Application 一对一，当前 API Key 只鉴别 Agent，员工个人凭证需后续开发。无生产 schema 更改，P4 PAUSED。
+
+
+## Quota Ownership and Billing Rules Update — 2026-10-20 (Target Only)
+
+**周刷新**：公司统一时区每周一 00:00；每员工×Agent 免费额度和员工个人基础额度周重置、不结转。公司具体时区待定。
+
+**额度发放**：TeamQuotaPool → EmployeeExtraGrant，是团队发放时立即划扣团队积分与员工获得额外有有效期积分的一次业务交易。到期未用积分失效、**不返还**团队池；团队支出与员工实际消费分别展示，不能重复记作模型成本。
+
+**计价**：ModelPrice 具备输入/输出等 Token 价差，最终换算内部 Points；UsageSettlement 目标状态包括预留、确认结算、未知用量待核对，而非仅 P3 SUCCESS/FAILED。
+
+**余额耗尽**：EmployeeQuotaStatus 将转入最低速率/最低优先级并提醒，不能简单拒绝所有已授权调用；**保底资金是谁提供、保底池总量和模型/并发限制仍待业务决策**，暂不建余额或调度 Schema。
+
+这些是已确认产品规则及待决边界，不是当前已实现领域实体或表。Agent/Application 1:1 和 Employee 双身份凭证原则不变。P4 PAUSED。
