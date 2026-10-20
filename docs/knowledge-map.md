@@ -1026,3 +1026,15 @@ Phase 1 结束后，应该能够独立解释：
 ## 建议继续深化（不是已引入功能）
 
 Java/JVM：异常、线程池、阻塞与内存；Spring：Security FilterChain、MVC 调用栈、事务边界；MySQL：索引与事务；网络：DNS/TCP/TLS/HTTP 超时；安全：SSRF、密钥轮换；工程：CI、可观测性。Redis/MQ/微服务应等待真实场景出现。
+
+
+## Phase 3 — 按实际开发顺序的知识与业务回顾（P3-T06 Closeout）
+
+- **P3-T01 业务决策**：已有 Runtime 模型调用，却无法按 Application 检索近期成功/失败历史。选择 MySQL 同步 best-effort 保存最小元数据，比较普通日志、结构化日志与 MQ 后采用现有基础设施，记录 ADR-003；不将数据当计费或严格审计。
+- **P3-T02 数据模型**：Flyway V7 `invocation_record(id, application_id, status, error_code, duration_ms, created_at)`；CHECK 限定 SUCCESS/FAILED 和非负耗时，Application FK CASCADE，复合索引 `(application_id,id)` 支持最新记录查询。
+- **P3-T03 成功记录**：Runtime Controller 调用 TrackingFacade，正常返回后使用 `System.nanoTime()` 量取 ModelProxyService 执行耗时，best-effort 保存 SUCCESS/null errorCode；保存失败只告警、原响应不变。
+- **P3-T04 查询**：管理 HTTP Basic GET `/api/applications/{applicationId}/invocations?limit=20`；默认20/合法1～100；验证 Application 是否存在；SQL 按 application_id 过滤且 id DESC LIMIT；DTO 仅六字段，无分页/统计。
+- **P3-T05 失败与生命周期**：Facade 捕获 ModelInvocationException 等 RuntimeException，写 FAILED 与既有安全码，并 `throw original` 保持原对象；数据库写入异常局部隔离，既不吞原错误也不误记 SUCCESS。Spring @Scheduled 每日 UTC 03:00 删除 `created_at < now - 30×24h`，边界等于 cutoff 保留。真实 MySQL 时间边界、HTTP 错误与混合查询 E2E 已有测试。
+- **P3-T06 阶段收尾**：审查同步写入额外延迟、记录可能丢失、MySQL created_at 缺索引的清理成本、定时任务多实例可能重复运行；测试需排除 60s 等于 60s 的超时竞态、补齐 Team 资源清理和可复现的本地全量测试证据。无实际分布式问题前不引入 MQ/分布式锁/新 Migration。
+
+本知识图对应代码事实，不代表 Phase 3 已关闭。详细验收门槛及状态见 `docs/current-phase.md`。
