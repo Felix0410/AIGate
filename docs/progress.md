@@ -218,3 +218,8 @@ P3-T05 一次完成：Facade 保留原异常并记录安全 FAILED 码；写入�
 ## Product Discovery Decision #4 — 2026-10-20
 
 用户正式确认：每员工×已授权 Agent 具有独立**周免费额度**；每周固定时间刷新，员工基础额度亦按周刷新；团队可审批申请或**主动向员工发放**独立数量/有效期的额外额度（不在每次请求判断承担团队）；各种模型按 Token 价格换算**内部积分**。每次调用需要 Agent 自身 Application Key + **员工独立个人凭证**同时证明身份。调用顺序 Agent免费→个人基础→有效团队补充。尚未确定周起点/时区、团队池在发放时的扣减与未用返还、精确计费、并发预留/失败结算、个人凭证发行/撤销。已更新 product-business-rules、requirements、domain-model/current-phase；**P4-T01 PAUSED / NO CODING**。
+
+
+## Product Discovery Decision #5 — 2026-10-20
+
+已确认计费/额度规则：公司统一时区**周一 00:00**重置 Agent 免费周额度与个人基础周额度；团队批准/主动发放积分时**立即扣团队池**，员工增加独立有效期补充额度，过期未用不返还；不同模型按输入/输出等 Token 实际价格换**内部积分**；用量确定才结算，未知失败用量标记待核对；调用前预留、结束按实际结算释放差额。用户明确覆盖了原 insufficient=A 拒绝选项：**员工额度归零只降低速率与优先级、提醒并提供基本可用性，不一律拒绝**。这一规则与准确预留及企业成本控制之间缺少保底出资/预算上限，当前未定，下一层必须确认。已同步 product-business-rules、requirements、domain-model、current-phase；**P4-T01 PAUSED / NO CODING**。
