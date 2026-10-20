@@ -79,3 +79,21 @@ Spring Security Runtime FilterChain
 ## Phase 3 已正式关闭（2026-10-20）
 
 当前实际模块职责：Runtime Controller → InvocationTrackingFacade → ModelProxyService/Adapter/HTTP，Facade 记录 SUCCESS/FAILED 且失败不覆盖原结果；管理 QueryController/Service 按 App 最近 N 条查询；RetentionService/Scheduler 负责定时清理。P3-T06 测试可靠性修复已验收，Phase 4 NOT STARTED。
+
+---
+
+## Phase 4 — Application Rate Limiting 计划模块（2026-10-20，PLANNED）
+
+**Phase 4 P4-T01 ACTIVE，本节仅已冻结的职责设计，尚无生产实现。**
+
+推荐在 `com.felix.aigate.ratelimit` 下实现：
+
+- **PolicyController / ApplicationRateLimitPolicyService**：管理 GET/PUT、enabled/rpm 配对校验、持久化到 `Application.requestsPerMinute`、值变更时桶 reset；复用现有 ApplicationService 检查 404。
+- **ApplicationRateLimitService**：按已认证 Application ID 查当前策略并决定是否消费令牌；策略读取失败不能 silently fail-open。
+- **InMemoryTokenBucketLimiter**：ConcurrentHashMap per App 原子扣令牌、单调时钟补充；10分钟闲置清理及假纳秒时钟单测。只管理内存状态，不调用 Provider。
+- **RateLimitExceededException + GlobalExceptionHandler**：专门生成本地 HTTP429 APPLICATION_RATE_LIMITED、固定安全消息和 Retry-After。
+- **RuntimeInvokeController**：先通过 Runtime Security 和 @Valid，调用 guard 成功后调用原 InvocationTrackingFacade；不改变 P3 的 SUCCESS/FAILED 记录职责。
+
+不引入 AOP、Filter、MQ、Redis、额外数据库表或计费算法。管理服务与限流引擎分离，ProviderAdapter/HttpClient 保持 P2 职责。
+
+任务按完整业务闭环交付：P4-T01 完整开发与测试、一次总控验收；P4-T02 集中质量审查和 Closeout。开发导师不负责 docs/ 维护，由总控在验收后更新。
