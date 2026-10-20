@@ -67,3 +67,24 @@ InMemoryTokenBucket (transient single-JVM execution state, NOT DB entity)
 业务身份是 **Application**，不是 API Key：同一 Application 的多把 Key 共享请求额度。持久化的是管理员配置而不是消费数据；服务重启桶被重新填满，多实例各自计数。被429拒绝的请求未进入 ModelProxyService，不产生 Phase 3 InvocationRecord。既有 Application CRUD / P3 Invoke 记录语义不变。
 
 **设计已批准但代码未实施，P4-T01 ACTIVE。** 不创建 Quota/Usage/Billing/RateLimitCounter 域对象。完整 ADR：`docs/adr/ADR-004-application-rate-limiting.md`。
+
+
+## Enterprise Domain Mapping — User Confirmed Direction（2026-10-20，尚未编码）
+
+```text
+Employee ── primary Team
+         └─ participates temporarily in other Team tasks (details pending)
+
+Existing Application 1:1 Managed Agent (logical target)
+  └─ Application API Key authenticates Agent, NOT end employee
+
+Invocation: trusted Employee identity + Agent identity + optional Task/Team context
+  └─ selected logical Model → route among deployments of SAME Model
+
+Weekly allowances (target; not tables yet):
+  Employee authorized Agent free allowance
+  → Employee personal allowance
+  → approved Team extra allocation
+```
+
+Agent 由管理员纳管但不由 AIGate 开发/构建；自动任务可以专用账号独立归属。关键安全设计：现有 Application Bearer Key 只能证明 Agent/Application 身份，**不能自动证明具体 Employee 身份**；未确认可靠的员工认证/委托方式前，不允许直接相信调用者随意提交 employeeId 进行扣费。额度、参与团队与结算单位尚需继续确认；不提前增加 Schema 或假定 Employee 是登录 User。详细事实：`docs/product-business-rules.md`。
