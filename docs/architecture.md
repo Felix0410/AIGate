@@ -829,3 +829,37 @@ Runtime POST /v1/invoke
 **不支持多实例共享配额，不能宣称分布式全局限流。** 多实例需求真实出现后再评估 Redis Lua、集中入口限流或其他方案并做新 ADR。当前架构决定详见 `docs/adr/ADR-004-application-rate-limiting.md`。
 
 任务粒度：P4-T01 完整 V8 + 管理 API + 原子算法 + Runtime/E2E；P4-T02 完整测试/Code Review/知识/技术债/Phase Closeout。**未实现状态需要持续标记 PLANNED**。
+
+
+## 35. 2026-10-20 — Future Domain Boundaries: Safety Governance and FinOps (Approved Business / Architecture Only Provisional)
+
+The user formally approved two additional **business domains** (not a microservice extraction mandate):
+
+```text
+External Agents (including existing web-chat Agents)
+  → AIGate Gateway Runtime boundary (future)
+       → verify authenticated Employee + Application/Agent and allowed Model
+       → enforce released Governance Policy on REQUEST before paid Provider egress
+       → reserve authoritative Employee/Team/Fallback/Emergency points
+       → logical Model selection, same-Model Deployment route, SSE/HTTP passthrough
+       → settle confirmed usage or mark unknown + safe call metadata
+           → ledger-originated durable usage event
+               → asynchronous FinOps projections / alerts
+```
+
+Five candidate **domain code owners**:
+1. Gateway Runtime: SSE upstream proxy, connection resources, ingress traffic tier and Deployment selection; no independent financial writes.
+2. Identity & Control: Employee/Team/Application/Model registry and Agent/Model permissions; trusted employee credential and policy bindings.
+3. Quota & Billing: one authoritative account/ledger, holds/settlements/grants/company fallback/emergency funding; avoid casual shared writing across services.
+4. AI Governance: security rule configuration, scoped data classification, published policy version, decision/exception audit. Gateway enforces approved policy with safe local snapshots where possible; no default raw Prompt logging or mandatory hot-path RPC with raw secret content.
+5. Analytics & FinOps: derived Provider cost estimate / employee points / Team budget views, anomaly alerts and cost optimization reports; events may be at-least-once, projection idempotent, no authority to debit funds.
+
+**Critical separations**:
+- Identity/Model permission checks ≠ sensitive-data content governance. Model selection permission does not prove a prompt is safe for external transmission.
+- Internal points and Team grant allocation ≠ actual external Provider cash spend. FinOps must retain price source/version, origin and estimated-vs-verified provenance.
+- Reliable database ledger must not depend on MQ availability; outbox event retry is a possible later delivery mechanism, not already selected.
+- SSE content has already begun streaming once emitted; full response moderation cannot claim retroactive blocking without buffering/latency tradeoff.
+
+**Architecture upgrade remains evidence-gated:** existing single MySQL modular monolith → multiple identical monolith instances where measured → separate Gateway/Control/Quota/Governance/FinOps **only for demonstrated independent scaling, failure isolation, ownership or operational requirements**. Adding business domains does not authorize switching to five service repos / five databases / cross-service distributed transactions today.
+
+**Status:** This is a TARGET DOMAIN VIEW; P1–P3 physical architecture remains modular monolith + MySQL. Previous Section 34 P4 Application RPM contract is historical ON HOLD; current-phase.md supersedes it. No schema, code, infrastructure or service deployment changes. Phase renumbering proposed in docs/roadmap.md, pending explicit user confirmation. **P4-T01 PAUSED / NO CODING**.
