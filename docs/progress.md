@@ -179,4 +179,22 @@ P3-T05 一次完成：Facade 保留原异常并记录安全 FAILED 码；写入�
 
 
 ## Phase 3 Final Closeout（2026-10-20）
-总控复核 P3-T01～T06，验收通过，**Phase 3 CLOSED / ACCEPTED**。用户的“Git 提交代表本地测试通过”约定不等于 CI 运行证据；本轮无独立 Maven 数字/CI workflow。历史149/0/0/0仅为 P3-T02 基线。测试超时1s/3s竞态修复与夹具清理已审查。TD-001/009/010/011仍开放。完整收尾报告：docs/phase-3-closeout.md。**Phase 4 NOT STARTED。**
+总控复核 P3-T01～T06，验收通过，**Phase 3 CLOSED / ACCEPTED**。用户的“Git 提交代表本地测试通过”约定不等于 CI 运行证据；本轮无独立 Maven 数字/CI workflow。历史149/0/0/0仅为 P3-T02 基线。测试超时1s/3s竞态修复与夹具清理已审查。TD-001/009/010/011仍开放。完整收尾报告：docs/phase-3-closeout.md。**Phase 4 当时尚未启动；最新状态见下文正式启动记录。**
+
+---
+
+## Phase 4 Official Start — 2026-10-20
+
+**Phase 3 CLOSED / ACCEPTED；Phase 4 ACTIVE；Current Task P4-T01 — End-to-End Application Rate Limiting。**
+
+这是总控确认过的业务扩展，尚未修改生产代码。冻结方案：
+
+- V8 在 application 增 `requests_per_minute`（NULL=不限流，1..10000）。
+- 管理面 Basic 的 GET/PUT `/api/applications/{id}/rate-limit`，enabled true/false 与 RPM 配对，单独返回策略 DTO；旧 Application CRUD 行为保持。
+- 入站正常认证和参数校验之后、TrackingFacade 之前使用按 ApplicationId 的单 JVM 令牌桶，`System.nanoTime` 定速补充，`ConcurrentHashMap.compute` 原子扣减，多个 Key 共享桶。
+- 本地超限返回 429 APPLICATION_RATE_LIMITED + Retry-After，既不向上游出站也不写入 InvocationRecord；Provider 429 原样保留 503 PROVIDER_RATE_LIMITED。
+- 10分钟闲置桶清理，所有算法使用可控时钟做确定性/并发测试。
+
+**本阶段仅两个整包任务：** P4-T01 完整业务代码+E2E（ACTIVE）；P4-T02 集中回归及阶段收尾（NOT STARTED）。由总控维护文档并按每个交付包验收，不把每个小类/表/API 拆成独立开发任务。
+
+**ADR-004 已接受设计决策，未实施的 V8/管理 API/Token Bucket 仍属 PLANNED。** TD-001/009/010/011 继续保留，Phase 5 NOT STARTED。
