@@ -863,3 +863,10 @@ Five candidate **domain code owners**:
 **Architecture upgrade remains evidence-gated:** existing single MySQL modular monolith → multiple identical monolith instances where measured → separate Gateway/Control/Quota/Governance/FinOps **only for demonstrated independent scaling, failure isolation, ownership or operational requirements**. Adding business domains does not authorize switching to five service repos / five databases / cross-service distributed transactions today.
 
 **Status:** This is a TARGET DOMAIN VIEW; P1–P3 physical architecture remains modular monolith + MySQL. Previous Section 34 P4 Application RPM contract is historical ON HOLD; current-phase.md supersedes it. No schema, code, infrastructure or service deployment changes. Phase renumbering proposed in docs/roadmap.md, pending explicit user confirmation. **P4-T01 PAUSED / NO CODING**.
+
+
+## 36. 2026-10-20 — Approved Phase Index, Architecture Extraction Still Conditional
+
+User approved P4–P12 top-level phase sequence after adding **P10 corporate AI Governance** and **P11 FinOps**, shifting prior P10 production/performance/evolution to **P12**. Detailed order and accepted/unimplemented distinction are canonical in docs/roadmap.md.
+
+**This is a business-roadmap decision, not an Architecture Decision Record authorizing microservice decomposition.** Current baseline remains single-app modular monolith + one MySQL; Gateway Runtime / Identity-Control / Quota-Billing / AI Governance / FinOps are candidate domain boundaries. Security audit must avoid raw prompts by default; usage projections must not debit or change the authoritative points ledger. Extracting independent processes/data owners must be justified by independent scaling, reliability/operational needs and load/fault evidence. Redis, MQ, SSE and observability introduction need Phase-scoped design and tests. Old Section 34 Application RPM P4 design is historical ON HOLD; **P4-T01 PAUSED / NO CODING**.
