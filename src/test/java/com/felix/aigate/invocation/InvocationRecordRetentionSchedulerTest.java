@@ -49,8 +49,8 @@ class InvocationRecordRetentionSchedulerTest {
     }
 
     @Test
-    @DisplayName("项目仅有一处 @EnableScheduling")
-    void onlyOneEnableScheduling() {
+    @DisplayName("InvocationSchedulingConfig 正确启用 Spring Scheduling")
+    void invocationSchedulingConfigShouldEnableScheduling() {
 
         Configuration annotation = InvocationSchedulingConfig.class
                 .getAnnotation(Configuration.class);

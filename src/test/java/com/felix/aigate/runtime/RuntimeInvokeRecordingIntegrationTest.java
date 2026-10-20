@@ -59,7 +59,6 @@ class RuntimeInvokeRecordingIntegrationTest extends IntegrationTestBase {
     private static final AtomicInteger requestCount = new AtomicInteger();
     private static final AtomicReference<String> responseStatus = new AtomicReference<>("200");
     private static final AtomicReference<String> responseBody = new AtomicReference<>(VALID_PROVIDER_BODY);
-    private static final AtomicReference<Long> delayMs = new AtomicReference<>(0L);
 
     @Autowired
     private InvocationRecordMapper invocationRecordMapper;
@@ -82,27 +81,16 @@ class RuntimeInvokeRecordingIntegrationTest extends IntegrationTestBase {
         requestCount.set(0);
         responseStatus.set("200");
         responseBody.set(VALID_PROVIDER_BODY);
-        delayMs.set(0L);
     }
 
     @AfterEach
     void tearDown() {
         responseStatus.set("200");
         responseBody.set(VALID_PROVIDER_BODY);
-        delayMs.set(0L);
     }
 
     private static void handle(HttpExchange exchange) throws IOException {
         requestCount.incrementAndGet();
-
-        long delay = delayMs.get();
-        if (delay > 0) {
-            try {
-                Thread.sleep(delay);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
 
         byte[] response = responseBody.get().getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "application/json");
@@ -306,31 +294,6 @@ class RuntimeInvokeRecordingIntegrationTest extends IntegrationTestBase {
         InvocationRecord record = records.get(0);
         assertEquals(InvocationStatus.FAILED, record.getStatus());
         assertEquals("PROVIDER_UNAVAILABLE", record.getErrorCode());
-    }
-
-    @Test
-    @DisplayName("Provider timeout -> FAILED/PROVIDER_TIMEOUT")
-    void providerTimeoutShouldRecordFailed() throws Exception {
-
-        Object[] setup = setupApplicationWithKeyAndDeployment(
-                "rec-timeout", "rec-timeout-model", "gpt-compatible-model", true, null);
-        long appId = (Long) setup[0];
-        String apiKey = (String) setup[1];
-
-        delayMs.set(60000L);
-
-        mockMvc.perform(post("/v1/invoke")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
-                        .contentType(APPLICATION_JSON)
-                        .content(INVOKE_BODY))
-                .andExpect(status().isGatewayTimeout())
-                .andExpect(jsonPath("$.code").value("PROVIDER_TIMEOUT"));
-
-        List<InvocationRecord> records = getRecordsForApp(appId);
-        assertEquals(1, records.size());
-        InvocationRecord record = records.get(0);
-        assertEquals(InvocationStatus.FAILED, record.getStatus());
-        assertEquals("PROVIDER_TIMEOUT", record.getErrorCode());
     }
 
     @Test

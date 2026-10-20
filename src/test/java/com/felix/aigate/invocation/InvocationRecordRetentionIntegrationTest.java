@@ -43,25 +43,34 @@ class InvocationRecordRetentionIntegrationTest extends IntegrationTestBase {
 
     private Long app1;
     private Long app2;
+    private Long teamId;
 
     @BeforeEach
     void createRealApplications() throws Exception {
 
         String suffix = String.valueOf(System.nanoTime());
 
-        long teamId = createTeam("rett-" + suffix);
+        teamId = createTeam("rett-" + suffix);
         app1 = createApplication("reta1-" + suffix, teamId);
         app2 = createApplication("reta2-" + suffix, teamId);
     }
 
     @AfterEach
-    void removeApplications() throws Exception {
+    void removeTestResources() throws Exception {
 
+        // Application 引用 Team，先删 app1、app2，最后删 teamId；
+        // 只清理当前测试创建的资源，不做全表 DELETE。
         if (app1 != null) {
-            mockMvc.perform(authed(delete("/api/applications/" + app1)));
+            mockMvc.perform(authed(delete("/api/applications/" + app1)))
+                    .andExpect(status().isOk());
         }
         if (app2 != null) {
-            mockMvc.perform(authed(delete("/api/applications/" + app2)));
+            mockMvc.perform(authed(delete("/api/applications/" + app2)))
+                    .andExpect(status().isOk());
+        }
+        if (teamId != null) {
+            mockMvc.perform(authed(delete("/api/teams/" + teamId)))
+                    .andExpect(status().isOk());
         }
     }
 
