@@ -73,3 +73,8 @@ Phase 2 不包含 Redis、MQ、微服务、SSE、自动重试、多模型路由�
 ### P3-T05 验收与阶段推进（2026-10-18）
 
 8262303 实现 FAILED 记录及 UTC 03:00 的 30 天清理，dfcc70a 补充修复测试。静态代码与测试设计审查通过；P3-T05 DONE / ACCEPTED。GitHub 无 CI 记录，本次无新增 Maven 总量统计，待 P3-T06 Closeout 复核。阶段收尾统一检查功能、测试可靠性、架构、风险、文档、知识点与面试表达，**Phase 3 尚未 CLOSED，Phase 4 尚未冻结/启动**。
+
+
+### P3-T06 收尾复核进展（2026-10-20）
+
+`f3b0f94d6fbd79eb4305eeea7e2ec5fcd4c69c98` 已隔离 Provider timeout 测试并把 60s 临界竞态改为 1s read timeout / 3s Mock 延迟，Retention 测试已清理 Team/Application；提交仅涉及测试文件。剩余需修复 timeout 测试 Provider/Model/Deployment 的固定名称资源未释放问题，再形成最终 Phase 3 Closeout 报告。**P3-T06 ACTIVE；Phase 3 未 CLOSED；Phase 4 未启动。**
