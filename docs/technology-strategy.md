@@ -249,3 +249,14 @@ User asks whether additional BUSINESS capabilities could naturally support deepe
 5. Claim microservices on resume only after independently deployable, tested, documented service topology with measurements. Simulation of 10k employees must be labeled synthetic; employees != concurrency.
 
 **Decision gate**: these additions remain **PROPOSED / NOT CONFIRMED**. P4-T01 remains **PAUSED / NO CODING**. The approved P4–P10 BUSINESS ORDER is intact; any additional scope or Phase insertion requires user review, not autonomous restructuring.
+
+
+## 11. 2026-10-20 — Approved Product Additions; Service Topology Remains a Hypothesis
+
+**Decision by user**: Business extension A (**AI safety & compliance governance**) and B (**enterprise usage/cost analytics FinOps**) from section 10 are now formally **in product scope**, not just suggested technical decorations. The previously confirmed overall product domain now consists of secure AI access, identity/access policies, authoritative weekly quotas and team grants, fallback/priority, runtime SSE routing, compliance governance, and finance analytics. Out-of-scope Agent creation/orchestration/runtime remains unchanged.
+
+**Not a user decision:** adopting 5 independent microservices, a 6th capacity service, a specific MQ/vendor, rule engine product, Elasticsearch/ClickHouse or semantic safety classifier. Those remain architect hypotheses and require cost/benefit and reproducible evidence. Use a module-monolith first, clearly owned ledger, preserve user privacy.
+
+**Candidate technical depth and real acceptance:** (1) Safety policy versions + deterministic preflight detection, metadata-only audit, policy change/invalidation tests; (2) cost events emitted only after authoritative settle, durable outbox/retry/replay and idempotent async projection where required, Finance-vs-points reconciliation; (3) SSE streaming and QoS safe failure behavior while policy/ledger/analytics services are partially unavailable. Never transmit untrusted raw prompts through message broker/monitoring solely to display a technology.
+
+**Proposed updated Phase renumbering**: Keep P4–P9 core approved business sequence; insert P10 safety/compliance, P11 analytics/FinOps; move previously approved production/reliability P10 to P12. Basic Model authorization in P4 and minimal security best-practices earlier; full P10 is distinct content/risk governance. Exact remap proposal is in docs/roadmap.md and **not yet approved**. P4-T01 remains PAUSED / NO CODING.
