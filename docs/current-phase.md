@@ -307,3 +307,16 @@ App ID 只能来自已认证的 `ApplicationIdentity`；多把 ACTIVE Key 共享
 **仅供架构决策讨论**：AIGate 有自然的 3 个后端候选边界——运行时流量网关、员工/Agent/模型管理策略面、权威积分账务；异步指标/通知 Worker 可在实际需要时作为独立可扩展进程（不强行算成一个领域服务）。更细拆分会扩大通信、授权和财务一致性成本。“一万员工”不能替代 SSE 同时连接数、峰值 RPS、p95/p99、积分钱包热点和故障隔离压测。保持先模块化单体、多副本，再按证据判断的顺序。
 
 **本轮无用户对服务数量或微服务必选的最终确认，无编码授权；P4-T01 继续 PAUSED / NO CODING。**
+
+
+### Architecture Product Expansion Discussion #12 — Optional Business Domains (2026-10-20)
+
+用户希望在不违背真实业务的前提下，增加更有技术挑战的功能，从而为未来更多有业务边界的微服务提供合理性。总控查阅 LiteLLM Enterprise/Kong AI Gateway 官方资料并提出**候选新增业务**：
+- **AI 安全/合规治理（优先讨论）**：按员工/Agent/模型/数据级别的安全策略、敏感内容保护、规则版本/审计；
+- **成本分析/FinOps（优先讨论）**：区别员工内部积分与 Provider 实际采购成本，按团队/Agent/模型聚合趋势、异常告警和优化建议；通过可靠账务事件创建异步分析读模型；
+- **模型资源容量运营（条件式）**：Deployment 健康/成本/容量评估、运营调整与自部署资源控制；只有可控制的自部署资源才能真正自动扩缩容；
+- **统一审批与审计（较低独立拆分优先级）**：团队加额、紧急任务、模型安全例外等可共享业务生命周期，先随各业务模块实现。
+
+若以上业务获批准且运行压力/独立部署证据成立，终态**候选 5 领域服务**：Gateway Runtime；Identity & Control Plane；Quota & Billing；AI Governance & Risk；Cost Analytics & FinOps，另可在证据成立时拆 Resource Capacity Service。提案不等于必须微服务，仍以模块化单体落地最小 Happy Path、双实例测量后才拆。
+
+**新增业务、服务数量和技术组合尚未被用户确认；只记录在 docs/technology-strategy.md 第 10 节作为提案。** 现有 P4～P10 高层业务顺序维持，P4-T01 PAUSED / NO CODING；禁止交本地 AI 开发新模块或修改依赖。
