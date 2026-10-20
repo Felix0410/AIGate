@@ -280,3 +280,12 @@ App ID 只能来自已认证的 `ApplicationIdentity`；多把 ACTIVE Key 共享
 - 范围待确认：Employee / 登录 User 关系，用户凭证的发行与撤销，单个 Agent 对应 Application 的安全身份，Agent–Employee、Agent–Model 权限与请求模型选择方式。
 - 当前不碰：周积分、团队池、保底、三档调度、多部署智能路由、紧急任务审批与新基础设施；这些将在后续 Phase 落地。
 - 用户批准 Phase4 执行合同前，不创建 P4 新编码任务，不更新 V8/旧 ADR 为实施状态。
+
+
+### Product Discovery Decision #9 — Technology Stack Gate Before P4（2026-10-20）
+
+用户明确 **“先不启动，项目的技术栈也要先落实；最终要能支撑 Java 后端实习/校招简历”**，因此在已确认整体业务蓝图/P4~P10 顺序基础上，新增长期技术路线审查门禁。**P4-T01 仍 PAUSED / NO CODING，甚至不进入 P4 可执行开发合同**，直到用户审查通过目标技术栈、各 Phase 引入时间、学习与真实证据目标。
+
+总控已新建 docs/technology-strategy.md（**DISCUSSION DRAFT / NOT APPROVED**）。基于 pom.xml 实际为 Java21 + Spring Boot4.1.1 + MyBatis-Plus3.5.13/MySQL/Flyway/Security/RestClient/Testcontainers；推荐讨论的最终能力层有：MySQL准确积分/幂等/并发事务，Redis+Lua（经过多副本验证后共享限流），RocketMQ 或 Kafka 二选一（业务事件/通知/指标异步，必须消费幂等且账本不丢），Micrometer/Actuator + Prometheus/Grafana/可选OTel，Docker/Compose + GitHub Actions + 压测/JFR。明确不为简历强行引入 Spring Cloud/Nacos/Elasticsearch/Kubernetes 等。
+
+**未决**：Redis/MQ 的最终采用与演示场景、MQ 选型、SSE 是否加入目标、双实例性能/限流验证计划。此技术路线当前仅是总控建议，不能让本地 AI 根据该草案安装依赖或改变架构。总控维护文档、用户先批准。
