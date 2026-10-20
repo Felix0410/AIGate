@@ -1038,3 +1038,8 @@ Java/JVM：异常、线程池、阻塞与内存；Spring：Security FilterChain�
 - **P3-T06 阶段收尾**：审查同步写入额外延迟、记录可能丢失、MySQL created_at 缺索引的清理成本、定时任务多实例可能重复运行；测试需排除 60s 等于 60s 的超时竞态、补齐 Team 资源清理和可复现的本地全量测试证据。无实际分布式问题前不引入 MQ/分布式锁/新 Migration。
 
 本知识图对应代码事实，不代表 Phase 3 已关闭。详细验收门槛及状态见 `docs/current-phase.md`。
+
+
+## Phase 3 学习路线验收 — 2026-10-20
+
+**Phase 3 CLOSED / ACCEPTED**：P3-T01 从可查询调用历史业务问题出发选 ADR-003 最简 MySQL；P3-T02 V7/FK/CHECK/复合索引；P3-T03 Facade/单调时钟/成功记录；P3-T04 HTTP Basic 管理查询/SQL LIMIT；P3-T05 原异常透传/失败记录/UTC30天清理；P3-T06 真实超时测试1s/3s与 Testcontainers fixture 清理、阶段架构/技术债核查。每个知识点对应实际开发，不代表有准确计费、分布式追踪、Redis 或 MQ。缺 CI Gate 和最终独立 Maven 统计应如实表达。
