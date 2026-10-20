@@ -30,11 +30,11 @@ Application 与认证 Key 分离，使撤销一个 Key 不需要删除 Applicati
 
 ---
 
-## Phase 3 Planned Domain — InvocationRecord（未实现）
+## Phase 3 Domain — InvocationRecord（已实现）
 
 ```text
 Application
-  └── 1:N InvocationRecord (planned; ON DELETE CASCADE)
+  └── 1:N InvocationRecord (implemented; ON DELETE CASCADE)
          ├── SUCCESS / FAILED
          ├── safe errorCode (nullable)
          ├── durationMs
@@ -43,4 +43,7 @@ Application
 
 InvocationRecord 是**管理排障历史元数据**，不是 Prompt Conversation、计费 Ledger 或 Provider HTTP 原文。一个 Application 的多次有效 Invoke 可以形成多条记录；失败也要记录，但如果持久化本身失败，可以丢失本条，不覆盖真实业务结果。P3-T02 建表，P3-T03/05 写入，P3-T04 查询，P3-T06 清理。
 
-当前实际生产代码尚无该实体/表；状态 **PLANNED**。
+当前生产代码已实际使用 InvocationRecord：Flyway V7 + SUCCESS/FAILED 元数据记录、管理查询、30 天清理；**Phase 3 CLOSED / ACCEPTED（2026-10-20）**。
+
+
+InvocationRecord 仅是 Application 下属的排障元数据，写入为同步 best-effort，允许丢失历史、不会改变原模型响应。既不是 Prompt 对话记录，也不是可用于收费的审计账本。
