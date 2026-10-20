@@ -112,3 +112,8 @@ P3-T01 需回答：
 **能力边界：** 网关只能保证管理与观测经过 AIGate 的模型调用；若要关联一次外部 Agent 任务的多次调用，需要外部 Agent 提供受信任的任务/用户归属信息。第三方 Provider 的物理算力/GPU 实时负载并非网关天然可知。
 
 **待确认（不可先行设计实现）：** User、Employee、Team、Application、Agent 的对应关系及具体调用身份；预算归属与扣减（个人/团队/Agent）、额度单位、申请审批、紧急任务优先级语义与接入协议；原 Phase 4 限流是否应先于这些业务能力开发。**P4-T01 PAUSED，ADR-004 ON HOLD。**
+
+
+### Confirmed Enterprise Routing Constraint（2026-10-20）
+
+**BR-ENTRY-01（已确认的顶层业务原则）：企业纳入 AIGate 治理的所有 Agent 模型请求必须经由 AIGate 统一入口。** 额度、权限、成本和请求压力的统计以经过网关的请求为事实基础。Agent 开发、工具/业务流程运行不在 AIGate 本阶段职责内。User/Employee/Team/Agent/Application 业务归属、真实终端员工身份传递与计费结算方案仍待确认，禁止凭客户端不可信 employeeId 直接扣额度；实现门禁维持 P4-T01 PAUSED。
