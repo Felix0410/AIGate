@@ -780,3 +780,14 @@ InvocationRecordRetentionScheduler 使用 `@Scheduled(cron="0 0 3 * * *", zone="
 P3-T06 优先检查测试稳定性：RuntimeInvokeRecordingIntegrationTest 的慢 Provider 延迟与默认 read timeout 均为 60 秒，应采用明确小于 Mock 延迟的独立超时配置，避免竞态及测试耗时；清理测试的生命周期断言和注解唯一性断言需更加准确。另将 created_at 缺索引、单条大 DELETE 的未来数据库成本归入按真实数据规模触发的技术债，不提前 V8 或批量框架。
 
 架构事实：单个 Spring Boot 模块化单体、MySQL V1～V7；Runtime → InvocationTrackingFacade → ModelProxyService，SUCCESS/FAILED 安全元数据 best-effort 入库，GET 管理历史限量查询，定时删除 created_at < UTC 30天 cutoff。API 与错误 HTTP 语义没有变化。
+
+
+---
+
+## 31. P3-T06 Phase Closeout 最终评审（2026-10-20）
+
+阶段测试稳定性集中修复：`f3b0f94d6fbd79eb4305eeea7e2ec5fcd4c69c98` 把与生产 60 秒读超时竞争的旧 Mock Provider 60 秒延迟场景，改为独立 Spring 测试上下文下 1 秒读超时/3 秒服务端延迟；`a2a68fe6b137aba78fdb359b7cd781c0fd228681` 将其 Provider/Model/Deployment/Team/Application 五类测试夹具按依赖顺序完整清理。没有变更生产 RestClientConfig 或 Runtime 错误映射。
+
+Phase 3 业务架构仍为模块化单体 + MySQL：TrackingFacade 的 SUCCESS/FAILED best-effort metadata 写入、Basic 管理面按 Application 最近 N 条查询、UTC 每日定期清理。确认记录写库可能失败或增加少量响应延迟，不能作为计费/不可丢审计记录。记录表缺少 created_at 清理索引，未来大表应评估分批 DELETE/索引；多实例调度协调未来再决策。ADR-003 有效，不新增架构方案。
+
+阶段评审详情在 `docs/phase-3-closeout.md`。本轮尚无独立 CI 或全量 Maven 数字证据；P3-T06 可交总控判断是否 ACCEPTED，**不得在总控确认前标记 Phase 3 CLOSED**。
