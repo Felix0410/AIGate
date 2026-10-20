@@ -35,7 +35,7 @@ Phase 2 不包含 Redis、MQ、微服务、SSE、自动重试、多模型路由�
 
 ## Phase 3 — Invocation Records & Basic Visibility
 
-**Status: ACTIVE（P3-T01~T05 DONE；P3-T06 Phase Closeout ACTIVE）**
+**Status: CLOSED / ACCEPTED（2026-10-20）**
 
 **总控已于 2026-10-18 冻结业务目标**：允许管理员按 Application 查询最近模型调用的 SUCCESS/FAILED、固定错误分类、耗时及时间，解决 Phase 2 已能代理模型但缺少业务调用历史的问题。
 
@@ -48,7 +48,7 @@ Phase 2 不包含 Redis、MQ、微服务、SSE、自动重试、多模型路由�
 | P3-T03 | 成功 Invoke 记录与写入失败隔离 | **DONE / ACCEPTED** |
 | P3-T04 | GET /api/applications/{id}/invocations?limit=20 | **DONE / ACCEPTED** |
 | P3-T05 | 失败 Invoke 记录 + 30 天清理 + 全链路 E2E（合并原 T05/T06） | **DONE / ACCEPTED** |
-| P3-T06 | Phase 3 Closeout（原 T07，编号调整） | **ACTIVE** |
+| P3-T06 | Phase 3 Closeout（原 T07，编号调整） | **DONE / ACCEPTED** |
 
 **P3-T02 已验收：本地 Maven 测试 149/0/0/0 且 BUILD SUCCESS（非 CI）。P3-T03 成功自动记录与 P3-T04 管理端调用历史查询均已验收。下一步 P3-T05 一次完成失败调用记录、30 天清理和完整 E2E；P3-T06 统一收尾。**
 
@@ -83,3 +83,10 @@ Phase 2 不包含 Redis、MQ、微服务、SSE、自动重试、多模型路由�
 ### P3-T06 收尾审查完成，待总控关闭确认（2026-10-20）
 
 最终提交 `a2a68fe6b137aba78fdb359b7cd781c0fd228681` 解决独立超时测试在正常运行与断言失败后资源清理不全的问题：@AfterEach 按 Application→Deployment→Model→Provider→Team 删除并校验 HTTP 状态；原超时与记录断言保留。阶段报告见 `docs/phase-3-closeout.md`。功能/架构/测试代码静态评审无阻塞问题，CI 和精确本轮 Maven 汇总仍未独立取证。**P3-T06 待总控验收，Phase 3 暂未 CLOSED，Phase 4 NOT STARTED。**
+
+
+## Phase 3 正式关闭 — 2026-10-20
+P3-T01～T06 全部完成并经总控验收。最终业务交付与风险见 docs/phase-3-closeout.md。缺最终独立 Maven/CI 运行结果，不能使用较早的149项测试统计代替；TD-009仍开放。
+
+## Phase 4 — NOT STARTED（总控候选方向，待用户确认）
+候选核心业务：**Application 级请求速率保护**，阻止单个 Application 短时间过量请求占用网关/Provider 能力。优先现有模块化单体的最简单正确方案，只有出现实测跨实例一致性问题时才论证 Redis。计划按“一个完整限流业务交付包 + 统一集成回归与阶段收尾”组织，不再拆多个低复杂度微任务。具体算法、表/API、限流边界和验收在正式启动 Phase 4 前由总控冻结；本节尚非 Phase 4 启动指令。
