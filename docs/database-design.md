@@ -348,3 +348,29 @@ Entity/Mapper 和 MySQL Testcontainers 数据库集成测试源码已提交；�
 ## Phase 3 Final Database Acceptance — 2026-10-20
 
 **Phase 3 CLOSED / ACCEPTED**。实际 schema 依然是 Flyway V1～V7；V7 invocation_record 的 FK CASCADE、状态/耗时 CHECK 和 (application_id,id) 索引均已实现。SUCCESS/FAILED 通过 Facade 尝试入库，管理端按 App 最近 N 条查询；Scheduler 每天 UTC03:00 清理 created_at 严格早于截止时刻的旧数据。本阶段没有 V8。按 created_at 清理缺合适索引、单次大量 DELETE 可能持锁较久；当前先保留性能风险，待真实规模后决定索引/分批删除。详见 docs/phase-3-closeout.md。
+
+
+---
+
+## Phase 4 — Flyway V8 Application Rate Limit Policy（PLANNED，2026-10-20）
+
+**目前生产代码 Schema 依然为 V1～V7；V8 尚未创建/验收。**
+
+正式冻结的计划 SQL：
+
+```sql
+ALTER TABLE application
+    ADD COLUMN requests_per_minute INT NULL,
+    ADD CONSTRAINT chk_application_requests_per_minute
+        CHECK (requests_per_minute IS NULL
+            OR requests_per_minute BETWEEN 1 AND 10000);
+```
+
+- 计划文件 `V8__add_application_rate_limit.sql`；不修改已执行 V1–V7。
+- `NULL` 不限流，保证现有 Application 历史行升级后不受影响；1..10000 为每 Application 策略，DB CHECK 避免越界。
+- 只有**策略 RPM**持久化到 MySQL。令牌数量、上一次补充时刻、桶访问时刻都属于单 JVM volatile 状态，**不创建计数表或 Redis Key**。
+- 旧 Application POST/PUT DTO 保持原状；原 PUT 更新其他字段时不得把原有限流策略置 NULL。新专用管理 PUT 关闭限流必须使用明确 SET requests_per_minute=NULL 语义；MyBatis-Plus 更新策略需特别留意。
+- V7 `invocation_record` 不变；平台429零历史记录，已有 SUCCESS/FAILED 的含义保持。
+- 无新外键、索引、限流日志表或 V9；Phase 4 是受限的 Application 列扩展。
+
+P4-T01 验收需验证 Testcontainers MySQL 自动迁移、老数据 NULL、0/10001 CHECK 拒绝、已有 Application UPDATE 不覆盖策略、主动禁用落库 NULL。设计取舍见 ADR-004，**未实现前不可写成已存在的 Schema**。
