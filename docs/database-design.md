@@ -343,3 +343,8 @@ Entity/Mapper 和 MySQL Testcontainers 数据库集成测试源码已提交；�
 ## Phase 3 当前 Schema 验收口径（2026-10-18）
 
 数据库依然为 Flyway V1～V7；`invocation_record` 已实际用于 SUCCESS/FAILED，管理端按 `application_id, id` 复合索引查询最近记录。定时清理通过 `created_at < cutoff` 删除较旧行；当前索引不支持该条件高效过滤，大表才考虑增加时间索引与分批删除。**本阶段未新增 V8。**
+
+
+## Phase 3 Final Database Acceptance — 2026-10-20
+
+**Phase 3 CLOSED / ACCEPTED**。实际 schema 依然是 Flyway V1～V7；V7 invocation_record 的 FK CASCADE、状态/耗时 CHECK 和 (application_id,id) 索引均已实现。SUCCESS/FAILED 通过 Facade 尝试入库，管理端按 App 最近 N 条查询；Scheduler 每天 UTC03:00 清理 created_at 严格早于截止时刻的旧数据。本阶段没有 V8。按 created_at 清理缺合适索引、单次大量 DELETE 可能持锁较久；当前先保留性能风险，待真实规模后决定索引/分批删除。详见 docs/phase-3-closeout.md。
