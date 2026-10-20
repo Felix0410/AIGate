@@ -349,3 +349,17 @@ User asks whether RabbitMQ is appropriate and notes FinOps business is not yet w
 **Learning/implementation acceptance when selected:** one real event producer+consumer, durable outbox, duplicate consume idempotency, broker outage recovery, retry/DLQ, alert/analysis backfill, message format evolution, measured backlog and consumer lag. Do not claim production 10k employee scale without load evidence.
 
 **Phase relevance:** P6 can start with synchronous or outbox-worker notifications; P11 is the full FinOps reporting/alerts closure. Candidate MQ selection is **NOT FINALIZED**, P4-T01 stays **PAUSED / NO CODING**. References: FinOps Foundation https://www.finops.org/introduction/what-is-finops/ .
+
+
+## 15. 2026-10-20 — Employee Cost Attribution and Team Grant Budget Treatment (CONFIRMED BUSINESS; FORMULA PROPOSAL)
+
+User explicitly specified “谁用就属于谁，不同团队分配出去的额度可以直接加入成本中”. Accepted scope: **actual model usage belongs to authenticated Employee**, and **Team grant issuance is booked at time of successful issuance to the issuing Team's internal resource-budget expense**, even for cross-team recipients or unused/expired grants. Team pool debit is at grant time; later consumption affects employee usage and grant remaining balance but does not repeat issuer Team allocation charge.
+
+**Recommended simple reports** (calculation precision and grouping remain proposed, not yet frozen):
+1. Employee consumed model points and associated estimated Provider charge by invocation/Agent/Model; optional primary-Team-at-call-time employee-usage rollup.
+2. Team granted/allocated points as an internally charged resource-budget expense by issuer Team, using unique successful grant events; expiry does not reverse expense.
+3. Provider/Deployment external model purchasing cost in currency from confirmed Token usage and effective provider pricing version, distinct from internal points or Team grants.
+
+**Key no-double-count invariant**: issue 1000 points from Team A to Employee in Team B; later consumer spends 300. A's grant allocation expense is 1000 internal points; B's employee usage is 300 internal points. They are different cost perspectives and CANNOT be added as 1300 company provider spend. A single "Team total cost" metric must be explicitly defined with funding-source exclusions before implementation, not simply `employee_used + points_issued`.
+
+AIGate's true cash-provider cost is estimated independently; prices/time/currency and unknown usage need provenance/settlement state. Payment mechanism remains one authoritative MySQL ledger; eventual MQ/FinOps events only read derivatives. **P4-T01 PAUSED / NO CODING**.
