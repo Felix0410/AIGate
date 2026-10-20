@@ -594,3 +594,54 @@ P3-T04 已通过代码与测试覆盖验收，具体 API 如第20节。**现有 
 ## Phase 3 Final API Status — 2026-10-20
 
 **Phase 3 CLOSED / ACCEPTED**。现有 Runtime POST /v1/invoke、管理 GET /api/applications/{applicationId}/invocations?limit=20 均为已实现接口。成功/失败元数据 best-effort 写库不改变原 HTTP Response/Error；管理端 Basic 查询按 Application 过滤，默认20/最大100，仅返回六字段；每日 UTC 03:00 清理旧记录。尚无限流/计费/路由相关新 API，Phase 4 NOT STARTED。
+
+---
+
+## Phase 4 — Application Rate Limit Contracts（2026-10-20，PLANNED）
+
+**Phase 4 ACTIVE / P4-T01 ACTIVE；下列两项管理 API 和新的本地429尚未实现。** 现有 Phase 2/3 API 合同保持。
+
+### Management GET / PUT
+
+```http
+GET /api/applications/{applicationId}/rate-limit
+Authorization: Basic <admin>
+```
+
+成功返回 200：
+```json
+{"applicationId":1,"enabled":false,"requestsPerMinute":null}
+```
+
+```http
+PUT /api/applications/{applicationId}/rate-limit
+Authorization: Basic <admin>
+Content-Type: application/json
+
+{"enabled":true,"requestsPerMinute":60}
+```
+
+禁用请求：`{"enabled":false,"requestsPerMinute":null}`，也允许 false 时省略 requestsPerMinute；PUT 返回和 GET 一致。
+
+- enabled 必需且为 boolean。true 必须 requestsPerMinute 为整数1..10000；false 只能 null/省略。
+- 违反组合/上下界 → HTTP400、`INVALID_RATE_LIMIT_POLICY`、固定消息 `Invalid application rate limit policy`；无法解析 JSON 则使用已有400 INVALID_REQUEST。
+- Application 不存在404 APPLICATION_NOT_FOUND；管理未认证401；Runtime Application Key 不能访问。
+- 旧 POST/PUT /api/applications JSON 不变，原 PUT 不改变限流策略。同一配置重复 PUT 不会重置令牌。
+
+### Runtime local rate-limit rejection
+
+原 `POST /v1/invoke` 的认证、请求体和成功 Response 均不变。合法 App 且策略启用、桶不足时：
+
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 1
+Content-Type: application/json
+
+{"code":"APPLICATION_RATE_LIMITED","message":"Application request rate limit exceeded","timestamp":"...","errors":null}
+```
+
+Retry-After = 补到下一个 token 所需的向上取整整数秒，最小1、最大60。该请求被限流拒绝时**不发起上游 HTTP，也不插入 Phase 3 invocation_record**。
+
+**重要区分：** 上游 Provider 自己返回429，仍映射 AIGate 503 PROVIDER_RATE_LIMITED；这是 P2 已有行为，不能被新本地429吞掉。
+
+速率限制只保证单 JVM 的“有界突发/平均令牌补给”，不是严格分钟配额、账单或分布式全局限制。正式行为、方案和测试见 `docs/current-phase.md`、ADR-004。
