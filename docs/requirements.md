@@ -190,3 +190,22 @@ P3-T01 需回答：
 - 部署时区、具体限额、保底资源安全名单、受控队列与并发、紧急审批岗位仍为后续阶段细则。
 
 **执行状态**：顶层企业路线及最后业务兜底规则均已 APPROVED；旧 P4 Application RPM 方案不因新需求而自动启动，**P4-T01 PAUSED / NO CODING**。
+
+
+## Approved Enterprise AI Safety and FinOps Extensions（2026-10-20，TARGET / NOT IMPLEMENTED）
+
+用户确认新增两个**正式产品领域**，而非为了微服务数量刻意添加 CRUD：
+
+**AI Governance / Content Security**
+- REQ-SAFE-01：管理员针对数据类别与 Agent/Employee/Team/Model/Provider 制定、启停、发布合规策略；具备版本与审计。
+- REQ-SAFE-02：在请求出站模型前进行策略准入和初步敏感数据保护（可拒绝/脱敏/按权限允许）；拒绝不得发出模型请求。
+- REQ-SAFE-03：安全日志不默认保存 Prompt/响应原文和密钥；处理误报、临时例外需权限和记录。最终策略规则、数据类别与流式输出审查范围另行确认。
+- REQ-SAFE-04：授权模型权限是既有 P4 身份/准入职责；内容与数据安全治理是新增责任，不得以安全检测覆盖员工身份认证。
+
+**Enterprise Analytics / FinOps**
+- REQ-FIN-01：统计按 Employee、Team、Agent、Model、Deployment 的已核对 Token 使用、内部积分结算、真实 Provider 采购成本**估算值**与历史趋势。
+- REQ-FIN-02：从权威成本/额度结算事件建立可重放、可校验的统计读模型，支持阈值异常提醒和成本/性能优化参考；具体实时性在该阶段确定。
+- REQ-FIN-03：员工账本是结算的唯一权威来源，统计延迟/重复事件不能造成扣费重复。团队发放属于内部额度调配，与对 Provider 的实际采购支出需明确分离。
+- REQ-FIN-04：初期以可信 Token usage × 有效模型/部署价格估算外部成本，不把估算金额宣传为外部 Provider 账单；供应商账单对账、预测/报表维度的深入范围按后续阶段确定。
+
+**边界门禁：** 加入产品范围 ≠ 五服务已获批准；也不修改 P4-T01 暂停。全局产品事实见 docs/product-business-rules.md 第 7 节；技术候选见 docs/technology-strategy.md。
