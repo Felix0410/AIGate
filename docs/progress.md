@@ -203,3 +203,8 @@ P3-T05 一次完成：Facade 保留原异常并记录安全 FAILED 码；写入�
 ## 2026-10-20 — 暂停 P4 编码，重新核对产品主线
 
 用户要求在进一步开发前，先从最上层确认 AIGate 最终产品流程，再逐层核对业务主体、用户/Team/Application 权属、额度归属、使用流程、功能优先级。**P4-T01 STATUS = PAUSED / NO CODING**；原“ACTIVE”和 V8/令牌桶/管理 API 仅是此前已批准但目前暂停的设计，不再是开发导师执行授权。Phase 1～3 CLOSED 的已实现事实保持。由总控在用户逐层确认后修改规划、ADR 和 current-phase，再决定 P4 是否继续做速率限制或优先补用户/额度闭环。
+
+
+## Product Scope Decision — 2026-10-20
+
+用户明确 AIGate 是**公司内部已有 AI Agent 的统一接入、资源与模型流量治理平台**，不开发 Agent/编排器/执行引擎。目标包括员工与团队差异化额度、团队额度池和审批、紧急任务资源优先、Agent 可用模型安全策略、模型成本和可见压力监测；确切的用户/Team/Agent/Application 关系、额度归属及实现顺序尚待逐层确认。已由总控写入 project-overview、requirements、current-phase。**P4-T01 持续 PAUSED；旧 Application 限流设计仅为候选，不能继续编码。**
