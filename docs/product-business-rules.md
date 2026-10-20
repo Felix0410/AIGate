@@ -203,3 +203,23 @@
 用户已确认：新增安全合规治理阶段 **P10** 和成本分析优化 **P11**，原 P10 生产可靠性/架构演进顺延为 **P12**，P4～P9 已确认的业务顺序不变。这是业务发展路线的正式批准，不是任何新功能已实现或批准开始编码。docs/roadmap.md 为最新正式 Phase 表；本文件第 7 节关于阶段编号“待确认”的内容属讨论时点，已由本节覆盖。
 
 安全/FinOps 为已批准的业务领域，但未授权立即拆成五个服务或使用某种专门中间件；须验证真正的独立扩容、数据归属和故障隔离需求，再考虑 ADR。**P4-T01 PAUSED / NO CODING**。
+
+
+## 9. FinOps Cost Attribution — User Rule CONFIRMED; Calculation Method PROPOSED（2026-10-20）
+
+**用户确认的归属业务规则**：“谁用就属于谁，不同团队分配出去的额度可以直接加入成本中。” 解释为 **消费归使用员工**、**额度发放的内部预算支出归发放 Team**。跨团队任务所属 Team 不替代实际 Employee，不按每次调用重新选择承担成本的团队；谁发放额度，成功发放时 Team pool 扣减以及团队内部额度支出立即确认。到期未消耗不返还、不冲销历史已发放支出（既定业务决议）。
+
+**注意三种报表口径，不可作为同一个企业财务总成本相加：**
+1. **员工实际使用积分（Employee Usage）**：根据确认的实际 Token 使用和当次生效的内部积分价格结算，按可信 employeeId 唯一归属；可按员工/Agent/Model/主团队维度查看，团队维度以“员工使用”命名。员工主团队更换后的历史归属快照处理属下阶段设计。
+2. **团队已发放额度的内部预算支出（Team Grant Allocation Expense）**：成功发放的 grant.points 全额计入 issuerTeamId；无论收款员工是否属于该团队、是否后来用完，发放只产生一次团队额度池支出。消费 Grant 时减少员工 Grant 可用余额，**不再向发放 Team 重复记第二笔发放支出**。
+3. **公司供应商实际模型调用成本估算（Provider Cost Estimate）**：确认的 input/output/cache 等 Token × 对应 Provider/Deployment 生效供应商计价版本，按币种和金额精度估算。由真实调用产生，与企业积分分配/充值不同；自部署算力成本需独立依据，估算不等于第三方最终账单。
+
+**示例（示意数字，非真实项目数据）**：客服 Team 成功发放 1,000 积分给主团队为研发的 Employee；员工后续真实模型使用 300 积分。员工 Usage=300、研发团队员工使用视图=300；客服 Team 发放预算支出=1,000，池已扣 1,000；未用 700 到期不返还；全公司模型费用仅按实际确认 Token 与外部供应商价格另估算，**不能用 1,000+300=1,300 积分声称模型采购费用**。
+
+**总控提出的最简计算方案（未获用户对公式的独立批准）**：
+- `employee_usage_points = SUM(finalized_request_points WHERE employee_id=e)`
+- `team_grant_budget_spend_points = SUM(successful_grant_issued_points WHERE issuer_team_id=t)`
+- `company_provider_cost_estimate = SUM(confirmed_token_quantity × effective_provider_unit_price)`，每一计价维度分开相乘再求和，按币种分组，保留价格版本。
+- **报表独立呈现**团队员工使用、团队对外发放的内部积分支出、实际外部 Provider 模型费。若管理层以后要求唯一“团队综合成本”列，须另行确认计费承担人/资金来源，避免内部转移的 Grant 发放和 Grant 消耗重复计入。
+
+**已确认 vs 待确认**：员工/发放团队归属及发放即扣已确认；上面建议的报表公式、积分精度、Team 总成本聚合视图、历史主 Team 快照等为下阶段 P5/P6/P11 具体合同候选。当前 P4-T01 PAUSED / NO CODING。
