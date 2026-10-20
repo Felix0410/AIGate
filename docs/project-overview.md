@@ -63,3 +63,8 @@ Phase 1 解决 Team/Employee/Application 归属与基础管理；Phase 2 建立�
 ## Product Rule Confirmation — Enterprise Agent Governance（2026-10-20）
 
 用户确认：员工有主团队且可临时参与其他团队任务；Agent 由平台管理员统一纳管（不做 Agent 开发/注册流程）；网关 Application 与受管 Agent 1:1；调用必须识别实际员工，自动任务可设专用账号；**周额度**按授权 Agent 免费额度→员工个人额度→团队申请额外额度；紧急任务提供经申请的临时额外额度和优先处理；员工选 Agent 已获授权的模型，AIGate 在**相同模型的不同 Deployment** 间进行路由。细节与待决规则见 `docs/product-business-rules.md`。这些是目标业务定义，不代表现有生产功能已实现；P4 仍暂停编码。
+
+
+### Enterprise Weekly Points Model — Confirmed Direction（2026-10-20）
+
+每个有使用权限的员工，在每个 Agent 上拥有独立的免费周额度；员工还有个人基础周额度，每周固定周期刷新。用超后可向团队申请额外额度，团队也可主动发放有独立有效期的补充额度，发放后由员工使用，不在每次调用重新确定团队费用承担。不同模型按 Token 价格兑换企业内部积分。每次调用同时需要 Agent 自身 Key 与员工个人认证凭证，不能相信无认证的 employeeId。具体价格/时间/补充发放入账尚待确认。这是未来业务蓝图而非现有功能；**P4 继续暂停开发**。参见 `docs/product-business-rules.md`。
