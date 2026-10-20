@@ -32,7 +32,7 @@ From root pom.xml checked on 2026-10-20:
 | Delivery/test | Docker/Compose, Linux, GitHub Actions, Testcontainers (MySQL and later Redis/MQ), load tests (k6/JMeter), JFR | reproducible deploy, 2 replicas/load balancer load testing, concurrency fault injection, documented before-after numbers | RECOMMENDED; BASIC TESTING PRESENT |
 | Reliability | RestClient timeouts; optional Resilience4j bulkhead/circuit breaker; deliberately restrained retry | Provider slow/fails; protect request threads, give stable errors; avoid retries that duplicate paid model consumption | CONDITIONAL |
 | Modular design | package-by-domain + ArchUnit or Spring Modulith module verification | stable module boundaries, no cycles and unauthorized internal package coupling before microservices | CONDITIONAL LIGHTWEIGHT |
-| Streaming | Spring MVC SseEmitter / servlet async or WebFlux carefully evaluated | LLM chat streaming/long requests and client cancellation, partial-cost accounting and backpressure; only if product confirms streaming necessity | OPTIONAL PRODUCT EXTENSION |
+| Streaming | Spring MVC SseEmitter / Servlet async initially; evaluate WebFlux only if justified | Upstream Provider SSE passthrough for existing web-chat/Agent model calls; cancellation, timeout, final usage/partial-cost accounting, connection backpressure; user explicitly approved target SSE inclusion | **USER CONFIRMED TARGET (NOT IMPLEMENTED)** |
 
 **Do not add solely for resume:** Elasticsearch without real high-dimensional query/search needs; Nacos/Spring Cloud without independently deployed services; Kubernetes without operational justification; a second MQ; distributed transactions instead of a correct MySQL ledger; Spring AI when current ProviderAdapter already supplies required protocol; microservices just to claim high-tech.
 
@@ -112,3 +112,33 @@ Do NOT invent QPS, latency improvement, production deployment, user scale or 'di
 5. Is Spring Cloud/Nacos/Elasticsearch desired for actual operation or only keyword coverage? Recommend not making them mandatory.
 
 **Status remains: Technology Strategy DRAFT; Phase4 business roadmap APPROVED; P4-T01 PAUSED / NO CODING.**
+
+
+## 8. 2026-10-20 — SSE Approved and Microservices Conditional Evolution (USER DECISION + ARCHITECT PROPOSAL)
+
+### Confirmed change
+User explicitly approved **SSE streaming as an eventual target capability**. This does **not** authorize coding or require switching from Spring MVC to WebFlux: official Spring MVC supports `SseEmitter` through servlet async. First prove end-to-end upstream SSE passthrough, event flushing, client disconnect → cancel upstream where possible, timeout/idle connection handling, bounded thread pools, status/error semantics, final/partial Token usage accounting, quota reservation release/reconciliation on abort, metrics for open streams and in-flight cost. A simple finite-duration stream can be implemented without microservices, Spring Cloud Gateway, or a reactive rewrite.
+
+### Microservices are NOT approved as required
+User asked whether a platform for an enterprise with 10,000+ employees **needs** microservices and how to give a legitimate business rationale. **Count of registered employees alone is not evidence**; measure peak concurrent employees/Agent jobs, active SSE connections, total requests per second, stream duration, CPU/heap/threads, network bandwidth, MySQL lock contention, quota settlement latency, p95/p99, Provider ceilings, deployment/reliability requirements.
+
+**Business-grounded rationale candidate**:
+> 当企业已有多种 Agent 接入且高峰期长时间 SSE 连接、大量同步模型代理与员工权限/额度/团队审批在同进程运行时，流量面与管理/账务面的资源特征和上线节奏显著不同。为支持网关请求独立水平扩容、降低高峰流量对企业管理及权威积分结算的故障影响，才按稳定边界拆分模型流量 Gateway 与管理 Control Plane；只有账务独立瓶颈/部署需求证明后才评估单独 Quota/Billing Service。
+
+**Candidate evolution, in measurable steps:**
+
+1. **Existing**: modular monolith + MySQL, synchronous proxy. Keep module boundaries explicit.
+2. **Horizontal deployment (NOT microservices)**: same AIGate monolith artifact replicated 2+ times behind load balancer. Use Redis shared limits when cross-instance traffic correctness requires; MySQL authoritative ledger; simulate SSE burst. This by itself may meet 10,000-employee enterprise expectations.
+3. **Measured split**: only when Gateway connection/traffic scaling, failure isolation, or independent rollout is materially constrained by management/accounting modules, extract a **Gateway Runtime Service** (streaming Provider I/O/routing/priority) and **Management/Policy Service** (employees/teams/Agent permission/config; authoritative account/ledger owner needs explicit placement). Define API, data ownership, service-side availability behavior, authentication context propagation and tracing.
+4. **Quota/Billing extraction is optional**: retain transactions and account ledger in a single owning data boundary; distributed settlement adds reliability/latency and should not be invented. Do not have multiple services casually direct-update the same ledger.
+5. Do **not** claim employees count implies 10k concurrent calls. Run reproducible synthetic workload, report labeled simulation not real enterprise production; compare 1 vs multi-replica monolith and candidate split, capture p95/p99 latency, active SSE, JVM memory/thread CPU and correctness, and write an ADR including the option **not to split**.
+
+**What justifies extraction:** gateway SSE connection count/CPU or Provider I/O scales while management API remains idle; failure of runtime flow adversely affects critical approval/control plane; independent deployment/resilience requirements cannot be met simply by monolith replicas; boundaries and operational capacity mature. **Counterexamples:** database/Provider is real bottleneck; a replicated monolith meets measured SLO; small team/limited platform ops; split adds network calls, cross-service authorization/rate coherency and difficult distributed quota consistency.
+
+**Technology selection after proof:** Spring MVC SSE first; WebFlux/Netty only if measurable IO/thread bottleneck and team can handle nonblocking chain. Spring Cloud Gateway/Nacos not automatic prerequisites even for two services; they should solve real external routing/discovery/config needs if adopted. Redis for shared rate control and monitoring integration; MQ for durable non-authoritative events; never rely on MQ-only best effort to debit financial quotas.
+
+**Candidate stage:** SSE delivery in a focused stream-proxy milestone after P4 identities, possibly within P8 gateway/routing deliverables (phase placement still for user approval). Microservice split is a **P10 conditional architectural experiment**, not a Phase 10 acceptance requirement. This does not change the already-approved P4–P10 business order or automatically activate any task.
+
+**Status:** SSE target inclusion = USER CONFIRMED; microservice split = EVALUATION OPTION, **NOT APPROVED / NOT IMPLEMENTED**; P4-T01 remains PAUSED / NO CODING.
+
+**Verification references:** Spring Framework MVC async/SseEmitter official reference https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-ann-async.html ; Microsoft Azure Architecture Center Microservices readiness https://learn.microsoft.com/en-us/azure/architecture/guide/architecture-styles/microservices ; AWS/Microsoft common app architectures note monolith replicas can scale without decomposition https://learn.microsoft.com/en-us/dotnet/standard/modern-web-apps-azure-architecture/common-web-application-architectures
