@@ -1,14 +1,16 @@
-# AIGate Current Phase — P4-T01 ACTIVE
+# AIGate Current Phase — P4 ROADMAP ALIGNMENT / DEVELOPMENT PAUSED
 
-> **总控冻结执行合同（2026-10-20）。** 由总控制定业务、接口、算法、数据库、任务边界和验收标准，并**独立负责 docs/ 维护**；开发导师只负责“业务关联讲解 → 实现代码 → 测试 → Code Review → 向总控报告结果”。不要重新选题，不要自行引入 Redis/MQ/微服务。历史 Phase 3 详见 `docs/phase-3-closeout.md`。
+> **2026-10-20 总控临时暂停开发（最高优先级）**：用户要求在继续任何新功能前先从最上层重新确认 AIGate 的最终产品目标、用户/Team/Application 关系、额度归属与开发顺序。**P4-T01 暂停执行，禁止开发导师基于下方旧的已冻结 P4 限流合同继续编码；ADR-004 作为待复核候选方案，非当前执行授权。** Phase 1～3 已验收的代码事实不变。确认整体路线后由总控重新冻结执行合同。下方 P4 细节全部是历史设计草案，暂不代表最终需求。
+
+> **历史总控冻结执行合同（2026-10-20）。** 由总控制定业务、接口、算法、数据库、任务边界和验收标准，并**独立负责 docs/ 维护**；开发导师只负责“业务关联讲解 → 实现代码 → 测试 → Code Review → 向总控报告结果”。不要重新选题，不要自行引入 Redis/MQ/微服务。历史 Phase 3 详见 `docs/phase-3-closeout.md`。
 
 ## 1. Phase & Task Status
 
 | Phase / Task | Status |
 |---|---|
 | Phase 1 / Phase 2 / Phase 3 | **CLOSED / ACCEPTED** |
-| **Phase 4 — Application Rate Limiting** | **ACTIVE** |
-| **P4-T01 — End-to-End Application Rate Limiting** | **ACTIVE** |
+| **Phase 4 — Scope Review** | **ON HOLD / 业务全局路线重新确认中** |
+| **P4-T01 — End-to-End Application Rate Limiting** | **PAUSED / 不得继续编码** |
 | P4-T02 — Phase 4 E2E Hardening & Closeout | NOT STARTED |
 | Phase 5 | NOT STARTED |
 
@@ -193,4 +195,4 @@ App ID 只能来自已认证的 `ApplicationIdentity`；多把 ACTIVE Key 共享
 
 不要重新讲 P1/P2 Spring MVC、Flyway、Security 基础教材；尽量关联这次真实新增的业务及设计权衡。
 
-**Execution gate: Phase 4 ACTIVE / P4-T01 ACTIVE。总控已冻结全部方案，开发导师直接按此完整业务包实现并测试，完成后回总控验收。**
+**最新执行门禁：P4-T01 PAUSED。用户要求先逐层确认产品目标、业务主体/额度归属、完整产品路线，再决定 P4 的确切目标与执行方式。旧方案当前只作备选草案，开发导师不得按其继续编码。**
