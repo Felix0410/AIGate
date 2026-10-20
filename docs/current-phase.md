@@ -289,3 +289,12 @@ App ID 只能来自已认证的 `ApplicationIdentity`；多把 ACTIVE Key 共享
 总控已新建 docs/technology-strategy.md（**DISCUSSION DRAFT / NOT APPROVED**）。基于 pom.xml 实际为 Java21 + Spring Boot4.1.1 + MyBatis-Plus3.5.13/MySQL/Flyway/Security/RestClient/Testcontainers；推荐讨论的最终能力层有：MySQL准确积分/幂等/并发事务，Redis+Lua（经过多副本验证后共享限流），RocketMQ 或 Kafka 二选一（业务事件/通知/指标异步，必须消费幂等且账本不丢），Micrometer/Actuator + Prometheus/Grafana/可选OTel，Docker/Compose + GitHub Actions + 压测/JFR。明确不为简历强行引入 Spring Cloud/Nacos/Elasticsearch/Kubernetes 等。
 
 **未决**：Redis/MQ 的最终采用与演示场景、MQ 选型、SSE 是否加入目标、双实例性能/限流验证计划。此技术路线当前仅是总控建议，不能让本地 AI 根据该草案安装依赖或改变架构。总控维护文档、用户先批准。
+
+
+### Technology Scope Update — SSE YES; Microservices Only if Proven（2026-10-20）
+
+用户已确认 **SSE** 为未来网关流式响应能力，但未指定 Phase 或要求立即实现；优先评估 Spring MVC 的 SseEmitter/Servlet async，验证 Provider 增量数据透传、客户端断连、长连接资源、流式账务结算与监控，不因 SSE 本身要求 Spring Cloud 或 WebFlux。
+
+用户询问上万人企业的微服务合理性。技术决策**尚未确认必须拆微服务**：先多副本部署**同一个模块化单体**、Redis 共享限流、MySQL 权威账本与 SSE 实测；若高并发长连接网关与后台额度/管理间确有独立扩容、发布/故障隔离诉求，再评估拆 Gateway Runtime 与 Management/Policy 等稳定边界。P10 可作为条件式架构演进实验，并经独立 ADR 审核；不能以“10k员工”代替并发测量证据。
+
+总控方案和教学取舍见 docs/technology-strategy.md 第 8 节（全技术路线仍 DRAFT，SSE 产品技术目标已确认）。**P4-T01 继续 PAUSED / NO CODING**。
