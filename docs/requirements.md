@@ -209,3 +209,10 @@ P3-T01 需回答：
 - REQ-FIN-04：初期以可信 Token usage × 有效模型/部署价格估算外部成本，不把估算金额宣传为外部 Provider 账单；供应商账单对账、预测/报表维度的深入范围按后续阶段确定。
 
 **边界门禁：** 加入产品范围 ≠ 五服务已获批准；也不修改 P4-T01 暂停。全局产品事实见 docs/product-business-rules.md 第 7 节；技术候选见 docs/technology-strategy.md。
+
+
+## Business Scope / Phase Index — APPROVED P4–P12（2026-10-20）
+
+用户确认安全合规治理与 FinOps 正式加入需求，并接受新 Phase 编号：**P10 企业安全合规治理** 负责数据分类、请求内容风险策略、版本/安全决策审计；**P11 FinOps** 负责可信 Token 及计价来源的内部积分/Provider 成本估算差异、趋势/异常和优化参考。原 P10 生产可靠性/演进移至 **P12**。原 P4～P9 业务顺序保持不变，参见 docs/roadmap.md 最新正式表。
+
+这些属于 **APPROVED FUTURE REQUIREMENTS / NOT IMPLEMENTED**。基本身份/Agent/Model 授权仍在 P4，不可宣称只有到 P10 才开始基础安全检查。阶段细节、技术组件、微服务边界和开发授权均需另外确认；P4-T01 PAUSED / NO CODING。
