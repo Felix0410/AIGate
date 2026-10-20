@@ -245,3 +245,10 @@ P3-T05 一次完成：Facade 保留原异常并记录安全 FAILED 码；写入�
 ## Product Discovery Decision #9 — Resume-Oriented Technology Review（2026-10-20）
 
 用户在顶层产品和阶段路线确认后，明确要求**技术栈先落实，保证足够的 Java 后端实习/校招简历深度，P4 仍不启动**。已检查 GitHub pom.xml 实际现状：Java21、Spring Boot4.1.1、Spring Security、MyBatis-Plus/MySQL/Flyway、RestClient、Testcontainers；Redis、MQ、监控链路、完整 Docker/CI 尚无已实现证据。已新增 docs/technology-strategy.md 为**候选而非批准**，推荐以 MySQL 并发账本、Redis+Lua 共享限流、MQ 可重试幂等异步、Micrometer/Prometheus/Grafana/OTel、Docker CI/压测的可验证业务方案为目标，Spring Cloud/ES/Nacos 等按真正需求决定。尚待用户确认最终技术组合与引入阶段；**P4-T01 PAUSED / NO CODING，绝不擅自实施技术**。
+
+
+## Technology Scope Decision #10 — 2026-10-20
+
+用户明确同意加入 **SSE**，并要求评估企业万人员工场景下微服务是否合理。已确认 SSE 是最终目标（原同步主流程暂不改变），未来需涵盖 SSE 端到端透传、断连/超时、流式计费、长连接监控。微服务**没有得到必须采用的授权**，并非按员工人数决定；先验证模块化单体的水平多副本能力，再根据实际测量的网关高连接压力、管理/账务独立扩容与故障隔离需求决定是否拆分 Gateway Runtime 和 Control Plane。若单体多副本足够则保持原架构；P10 可做有证据的架构评估与 ADR。
+
+已更新 docs/technology-strategy.md、roadmap 与 current-phase。完整技术栈仍需后续统一批准，**P4-T01 PAUSED / NO CODING**。本轮无源代码依赖或数据库变更。
