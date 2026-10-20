@@ -264,3 +264,8 @@ P3-T05 一次完成：Facade 保留原异常并记录安全 FAILED 码；写入�
 用户认可正式新增两项业务：**AI 安全与合规治理（内容/敏感数据策略、版本、最小元数据审计）** 与 **企业成本分析 FinOps（实际 Token 和外部 Provider 成本估算、内部积分对账、Team/Agent/Model/Deployment 趋势、异常告警）**。这不是“必须拆五个微服务”的授权，核心账务仍是 MySQL 权威来源、异步统计只能提供派生数据，默认不记录敏感 Prompt 原文。
 
 已同步 docs/product-business-rules.md、requirements.md、domain-model.md、project-overview.md、technology-strategy.md、architecture.md，路线插入的**提案**见 roadmap.md：保留 P4～P9 相对顺序，P10 新增 AI Governance、P11 新增 FinOps、原 P10 Production & Evolution 后移 P12；**尚待用户确认重编号**。本次未修改生产代码、pom.xml、DB Migration 或部署，P4-T01 仍 **PAUSED / NO CODING**。
+
+
+## Product Roadmap Decision #14 — P4～P12 正式批准（2026-10-20）
+
+用户确认“接受”：正式将**企业 AI 安全合规治理**设为 P10、**企业 FinOps 成本分析与优化**设为 P11，原 P10 生产可靠性和架构演进顺延至 **P12**。P4 员工与 Agent 权限 → P5 Token/周积分与账本 → P6 团队额度 → P7 企业保底/三级流控 → P8 SSE/智能 Deployment 路由/监控 → P9 紧急任务调度 的原顺序不变。业务方向已批准；**技术栈最终组合、引入时机和是否拆五服务仍未批准**。Phase 1～3 仍 CLOSED，无源代码、数据库或依赖变更；**P4 未启动，旧 P4-T01 PAUSED / NO CODING**。
