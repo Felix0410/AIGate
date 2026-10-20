@@ -320,3 +320,16 @@ App ID 只能来自已认证的 `ApplicationIdentity`；多把 ACTIVE Key 共享
 若以上业务获批准且运行压力/独立部署证据成立，终态**候选 5 领域服务**：Gateway Runtime；Identity & Control Plane；Quota & Billing；AI Governance & Risk；Cost Analytics & FinOps，另可在证据成立时拆 Resource Capacity Service。提案不等于必须微服务，仍以模块化单体落地最小 Happy Path、双实例测量后才拆。
 
 **新增业务、服务数量和技术组合尚未被用户确认；只记录在 docs/technology-strategy.md 第 10 节作为提案。** 现有 P4～P10 高层业务顺序维持，P4-T01 PAUSED / NO CODING；禁止交本地 AI 开发新模块或修改依赖。
+
+
+### Product Scope Expansion Decision #13 — Safety Governance and FinOps Confirmed（2026-10-20）
+
+用户正式同意新增两项 AIGate 产品业务能力：
+- **企业 AI 安全合规治理**：涉及数据分级、员工/Agent/模型/Provider 规则、请求出站前的敏感信息检查、策略版本与最小元数据审计。不同于已有 P4 员工/模型授权；不默认保存原始 Prompt。
+- **企业成本分析与优化 FinOps**：基于可靠 Token/积分最终结算，将员工内部积分与公司 Provider 采购成本估算分开统计，支持 Team/Agent/Model/Deployment 趋势、异常告警和人工降本/容量建议。分析读模型无权改变权威额度账本。
+
+这两项为 **APPROVED PRODUCT SCOPE / NOT IMPLEMENTED**。总控已经更新 product-business-rules、requirements、project-overview、domain-model、technology-strategy、architecture。
+
+**暂拟 Phase 插入（未获用户批准）**：保持已批准 P4～P9 相对顺序，新增 P10 安全合规治理、P11 成本分析 FinOps，原 P10 生产与架构演进顺延到 P12；P4 继续完成基本 Model/Agent 授权，不能把 P10 才做的内容检测说成已实现。建议见 docs/roadmap.md。
+
+候选五业务责任域 ≠ 已确定五微服务。先模块化单体实现可验证业务，之后对多副本 SSE/账本压测与服务故障演练形成证据，再决定是否抽取 Gateway、Identity-Control、Quota-Billing、Governance、FinOps；暂无微服务上线/拆分许可。**P4-T01 PAUSED / NO CODING；技术栈路线整体亦尚待用户最终批准**。
