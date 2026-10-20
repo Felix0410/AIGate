@@ -144,4 +144,13 @@ Phase 4 默认保留旧 Application 的不限流行为，管理员主动配置 N
 
 **执行区分：** 顶层路线 APPROVED ≠ P4 ACTIVE；**P4-T01 继续 PAUSED / NO CODING**。旧 V8 requests_per_minute、TokenBucket/ADR-004 不能当作当前 Phase 4 工作单。须完成剩余业务规则、由总控重写 phase scope / main flow / architecture / tasks / acceptance / knowledge，并经用户明确批准后才能重启。
 
-**尚未确认的产品规则：** 企业保底总池和每员工周保底都耗尽后的处理。已提供对照候选：付费模型硬停止 + 低/零外部 API 费的自托管模型有条件继续 + 紧急人工审批追加额度；这是**推荐候选，非用户已选方案**。不得把“低速率”视为无限免费计费许可。
+**已确认的最终保底耗尽规则（后续决议覆盖此前候选）：** 未获授权的第三方付费模型新调用硬停止；如果存在经批准、安全合规、有独立使用边界的自部署基础模型则可继续受限服务；紧急任务经审批动用单独预留、有限额的应急预算。保底和应急不得突破企业总授权上限，详见 docs/product-business-rules.md 第 6 节。
+
+
+## 2026-10-20 — Final Product Scope & Budget Exhaustion Policy Accepted
+
+用户已正式接受“分级降级 → 付费硬上限 → 经授权自部署基础服务（若存在）/紧急预算审批”的企业治理终态；并已批准 P4～P10 业务顺序。**整体产品蓝图 BUSINESS SCOPE CONFIRMED**；尚待量化、配置、技术实现的细节以后按对应 Phase 确认。
+
+**规划执行状态**：P4 仅允许进行需求、领域关系、风险、流程、任务与验收草案的逐层设计。P4-T01 旧限流编码任务仍然 PAUSED，不自动切换 ACTIVE；原 V8 Application RPM/ADR-004 保持历史备选。完整的企业身份与 Agent 权限 P4 合同需要用户另行审核批准后才允许本地 AI 开发。
+
+**下一步设计顺序（非本轮开发授权）**：确认 Employee 凭证如何被 AIGate 独立认证、Application Key 与员工凭证如何在一次 Runtime 请求中共同验证、员工是否有该 Agent 与 Model 的使用权、现有 Team/Employee/Application 结构的最低影响演进方案；先跑通一个真实员工调用指定 Agent 允许的逻辑 Model 这一条 Happy Path，再扩展测试与安全细节。
