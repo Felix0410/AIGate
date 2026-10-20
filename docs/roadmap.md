@@ -172,7 +172,7 @@ Phase 4 默认保留旧 Application 的不限流行为，管理员主动配置 N
 技术事实与依据见 docs/technology-strategy.md 第 8 节。产品 Phase 顺序不改，详细技术采用依然 DRAFT / NOT APPROVED；**旧 P4-T01 继续 PAUSED / NO CODING**。
 
 
-## 2026-10-20 — Two Business Extensions Confirmed; Phase Renumbering Proposal (PENDING APPROVAL)
+## 2026-10-20 — Two Business Extensions & Phase Renumbering (APPROVED; below proposal history)
 
 User has **approved in-scope**:
 - Enterprise AI Governance: classification/PII/secret protective rules, employee/Agent/Model/Provider compliance policy and versioned decision audit; keep prompts/responses out of persistent audit by default.
@@ -198,4 +198,26 @@ This is **product scope approval, not unconditional microservice approval**. Pro
 
 **Service decomposition remains conditional:** 5 proposed domain owners (Gateway / Identity-Control / Quota-Billing / Governance / Analytics-FinOps). Start each as modules; measure multi-instance resource/failure differences, and then independently extract only justified boundaries in P12 with dedicated ADR. Additional Resource Operations service is NOT approved; capacity control stays inside P8/Control unless measured otherwise.
 
-**Pending decision:** User approved the two extra businesses, but **has not yet specifically approved the P10/P11 insertion and P12 renumbering**. Previous P4–P10 sequence remains last approved formal phase numbering until user says yes. P4-T01 PAUSED / NO CODING.
+**Resolved by later user confirmation on 2026-10-20:** P10 Safety Governance, P11 FinOps, and moving the prior production/evolution P10 to P12 are APPROVED at the high-level business roadmap level. The detailed Phase tasks and technical stack remain pending; P4-T01 PAUSED / NO CODING.
+
+
+## 2026-10-20 — Formal P4–P12 Roadmap Approval（最新有效决议）
+
+用户已明确回答“接受”，正式批准新增两个业务阶段、将旧 P10 顺延为 P12。此表替代文档历史上所有“待批准 Phase 编号”表述：
+
+| Phase | 业务目标 | 状态 |
+|---|---|---|
+| P1–P3 | Foundation、Model Proxy、Invocation Records | **CLOSED / ACCEPTED** |
+| **P4** | 可信员工个人身份 + Agent/Application 双身份鉴权与员工/Agent/Model 使用权限 | **PLANNED / NOT STARTED** |
+| **P5** | Token 实际计量、内部积分、个人×Agent 免费周额度、个人基础周额度、可靠预留/结算 | PLANNED |
+| **P6** | 团队额度池、员工申请和主动发放、审批、有效期及交易流水 | PLANNED |
+| **P7** | 限流/普通/紧急三档基础治理、企业保底预算/降级与付费硬上限 | PLANNED |
+| **P8** | 同模型不同 Deployment 智能路由、SSE 流式代理、模型压力与指标告警、容量分析 | PLANNED |
+| **P9** | 紧急任务审批、临时额度和资源调度优先保障 | PLANNED |
+| **P10 NEW** | 企业 AI 内容安全与合规治理：数据分级、敏感信息策略执行、策略版本和最小审计 | PLANNED |
+| **P11 NEW** | 企业成本分析与优化 FinOps：内部积分/外部 Provider 成本区分、历史趋势、异常告警、优化建议 | PLANNED |
+| **P12（原 P10）** | 生产化、可靠性、性能压测、架构演进与有证据的微服务拆分评估 | PLANNED |
+
+**开发门禁（不可混淆）**：上述仅批准“业务目标与 Phase 顺序”，**不代表已批准 P4 编码、详细技术栈、数据库迁移、接口或部署微服务**。旧 P4-T01 Application RPM + V8 + token bucket 合同持续 PAUSED / NO CODING；旧 ADR-004 PROVISIONAL。每阶段的 Business Goal、Scope、Main Flow、Architecture、Tasks、Acceptance Criteria、Knowledge Points 须总控另行冻结后才交开发导师。五领域微服务终态只是需压测/ADR 验证的候选。当前下一项工作为**确定技术路线/学习目标与技术引入阶段**，不是启动 P4。
+
+基础测试、Docker/CI、逐步监控可跨阶段提前建立；不因生产化收尾在 P12 就推迟这些工程基础。P4 基本身份/模型准入不等于 P10 才实现的安全内容治理。
