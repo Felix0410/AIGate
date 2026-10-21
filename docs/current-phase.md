@@ -359,3 +359,10 @@ P9 紧急任务容量调度；
 用户同意讨论最终技术架构，但**尚未批准具体中间件选型或任何代码**。总控核对了官方项目兼容性：现有 Boot4.1.1 对应 Spring Cloud 2025.1.x（选择已支持 Boot4.1 的补丁版本）、Spring Kafka4.1.x；Cloud Gateway 5.0.x 同时存在 Web MVC/WebFlux 方案。RocketMQ-Spring 2.3.6 有公开发行，但尚无明确 Boot4.1 兼容性承诺，不能假设不能用或直接引入。**建议 Kafka 作为 FinOps 可靠异步成本事件首选 MQ 候选，RocketMQ 可在单独验证兼容后重选。**
 
 总控在 docs/technology-strategy.md §13 记录逐项对比：Redis+Lua 仅多副本共享限流验证后加入、MySQL 是积分权威账本、SSE 先用 MVC、Kafka/outbox+幂等负责结算后的异步统计、Actuator/Micrometer+Prometheus/Grafana 及 OTel 分阶段接入、Docker/CI/Testcontainers 和有证据的五领域微服务拆分。**技术方案尚未获得用户确认，继续 P4-T01 PAUSED / NO CODING**。
+
+
+### Business Decision #17 — FinOps Calculation APPROVED（2026-10-21）
+
+用户接受三个**独立财务/资源管理口径**：员工真实模型积分消耗归 Employee；团队补充额度发放成功即记入发放 Team 内部预算支出，跨团队亦然；实际已确认 Token 根据 Provider/Deployment 有效采购价格另估算公司外部模型成本。**不得将额度发放 + 员工使用相加冒充公司采购支出**；用量不明则待核对。计价数值精度、舍入、币种/汇率和历史组织快照仍由后续 Phase 设计冻结。
+
+当前仍在全局技术栈/架构规划，RabbitMQ/Kafka 仍为待选，五业务领域不等于已批准拆五微服务。**P4 未启动，旧 P4-T01 PAUSED / NO CODING**。
