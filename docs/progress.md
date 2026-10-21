@@ -281,3 +281,10 @@ P3-T05 一次完成：Facade 保留原异常并记录安全 FAILED 码；写入�
 用户确认：“谁用就属于谁，不同团队分配出去的额度可以直接加入成本中。” 业务上将**实际模型消费归属真实 Employee**、**任意团队发放额在发放成功时归发放 Team 的内部预算支出**。本次总控进一步建议三本口径：员工实际积分用量、团队授额资源支出、公司 Provider Token 实际费用估算；前两项不可相加作为公司现金成本，也不可在 Grant 消费后第二次扣发放 Team。
 
 总控已同步 docs/product-business-rules.md、requirements.md、domain-model.md、technology-strategy.md；具体总成本报表公式、积分精度/价格版本、历史员工主 Team 归属快照需逐 Phase 确认，未把建议视为用户最终批准；本轮没有生产代码或 DB 改动。P4–P12 业务路线不变，**P4-T01 PAUSED / NO CODING**。
+
+
+## Business Decision #17 — FinOps Three-Ledger Calculation APPROVED（2026-10-21）
+
+用户回复“行”，正式接受最简 FinOps 成本计算与展示原则：**员工确认模型用量 × 版本化内部积分价格归 Employee**，**团队成功发放的补充积分立即作为发放 Team 的内部额度分配支出**，**确认 Token × 版本化 Provider/Deployment 采购价格单独估算公司现金成本**。三种口径独立展示，团队发放与之后员工消费不得累加为同一企业总成本，支持跨团队发放、发放即扣与到期不返还。未确认用量进入待核对。
+
+已更新产品规则、requirements、domain-model 与 technology-strategy；数值精度/舍入、汇率、历史团队快照仍待分阶段详细设计，RabbitMQ/Kafka 仍未最终选择。**未新增代码、数据表或依赖；P4-T01 PAUSED / NO CODING**。
