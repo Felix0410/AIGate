@@ -172,3 +172,14 @@ Subsequent invocation using Employee's grant:
 ```
 
 调用实际发生归 Employee；任何 Team 跨团队发放的积分在发放时就属于 issuer Team 的资源预算支出。员工消费、团队发放、Provider 外部费用为**不同维度**，不能加总成同一个公司现金成本。员工主 Team 汇总、历史快照、唯一团队总成本是否另设（且如何防双计）后续逐 Phase 定义。没有创建新的实体/数据库字段。P4 暂停。
+
+
+## Confirmed Three-Ledger FinOps Calculation Contract — 2026-10-21（仅业务概念）
+
+用户已接受三口径方案：
+```text
+Employee Actual Usage → finalized confirmed Token × active internal Model point price → EmployeeUsagePoints
+Team Grant Issued     → successful issuedPoints → IssuerTeamAllocationExpensePoints
+Provider Actual Usage → finalized confirmed Token × active Provider/Deployment purchase price → ProviderCostEstimate(currency)
+```
+三种量不得以 `EmployeeUsagePoints + IssuerTeamAllocationExpensePoints` 定义公司总模型采购成本；团队发放、消费和供应商付款彼此区分。以结算/发放唯一业务键去重；未确认的实际用量进入待核对，积分价格/供应商价格版本和员工来源必须可追溯。具体数据表、归属快照、舍入参数/有效期仍在 P5/P6/P11 定义。**NOT IMPLEMENTED，P4 暂停**。
